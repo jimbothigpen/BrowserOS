@@ -165,3 +165,64 @@ Tests are in `apps/server/tests/`:
 - `agent/` - Agent tests (compaction, rate limiter)
 - `sdk/` - Agent SDK tests
 - `__helpers__/` - Test utilities and fixtures
+
+## Self-Testing UI Changes
+
+After making UI changes to the agent extension (`apps/agent/`), you can visually verify them using the CDP inspector script. This connects directly to the browser via Chrome DevTools Protocol and can inspect extension pages (side panel, new tab, etc.) that the agent's own tools cannot see.
+
+### Prerequisites
+
+The dev server must be running:
+```bash
+bun scripts/dev/start.ts --manual   # or --watch for HMR
+```
+
+### Workflow
+
+1. **List all targets** to see what's available:
+   ```bash
+   bun scripts/dev/inspect-ui.ts targets
+   ```
+
+2. **Open the side panel** if it's not already open:
+   ```bash
+   bun scripts/dev/inspect-ui.ts open-sidepanel
+   ```
+
+3. **Take a screenshot** of the side panel:
+   ```bash
+   bun scripts/dev/inspect-ui.ts screenshot sidepanel /tmp/panel.png
+   ```
+   Then read `/tmp/panel.png` to view the result.
+
+4. **Get the accessibility tree** for structural verification:
+   ```bash
+   bun scripts/dev/inspect-ui.ts snapshot sidepanel
+   ```
+
+5. **Click an element** by its ID from the snapshot:
+   ```bash
+   bun scripts/dev/inspect-ui.ts click sidepanel 142
+   ```
+
+6. **Fill a text input** by its ID from the snapshot:
+   ```bash
+   bun scripts/dev/inspect-ui.ts fill sidepanel 85 "search query"
+   ```
+
+7. **Evaluate JavaScript** in the extension context:
+   ```bash
+   bun scripts/dev/inspect-ui.ts eval sidepanel "document.title"
+   ```
+
+### Interaction workflow
+
+The typical loop is: snapshot → identify element IDs → click/fill → screenshot to verify.
+Element IDs come from the `[number]` in snapshot output (these are `backendDOMNodeId` values).
+This uses the same element resolution as the server's MCP tools — no coordinate guessing.
+
+### Target selection
+
+The `<target>` argument can be:
+- An **index** from the `targets` output (e.g., `3`)
+- A **URL substring** (e.g., `sidepanel`, `newtab`, `chrome-extension://`)
