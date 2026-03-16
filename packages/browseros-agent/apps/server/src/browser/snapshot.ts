@@ -41,6 +41,7 @@ const INTERACTIVE_ROLES = new Set([
   'option',
   'treeitem',
   'listbox',
+  'DisclosureTriangle',
 ])
 
 const NAMED_CONTENT_ROLES = new Set([
@@ -196,6 +197,7 @@ const CURSOR_INTERACTIVE_JS = `(function() {
 			if (parent && getComputedStyle(parent).cursor === 'pointer') continue;
 		}
 		var text = (el.textContent || '').trim().slice(0, 100);
+		if (!text) text = (el.getAttribute('aria-label') || '').trim();
 		if (!text) continue;
 		var rect = el.getBoundingClientRect();
 		if (rect.width === 0 || rect.height === 0) continue;

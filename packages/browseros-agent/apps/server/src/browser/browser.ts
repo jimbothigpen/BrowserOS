@@ -389,7 +389,30 @@ export class Browser {
     const session = await this.resolveSession(page)
     const nodes = await this.fetchAXTree(session)
     if (nodes.length === 0) return ''
-    return snapshot.buildInteractiveTree(nodes).join('\n')
+
+    const lines = snapshot.buildInteractiveTree(nodes)
+
+    try {
+      const cursorElements =
+        await snapshot.findCursorInteractiveElements(session)
+
+      if (cursorElements.length > 0) {
+        const includedIds = new Set<number>()
+        for (const line of lines) {
+          const match = line.match(/^\[(\d+)\]/)
+          if (match) includedIds.add(Number(match[1]))
+        }
+
+        for (const el of cursorElements) {
+          if (includedIds.has(el.backendNodeId)) continue
+          lines.push(`[${el.backendNodeId}] clickable "${el.text}"`)
+        }
+      }
+    } catch {
+      // cursor detection is best-effort; AX tree results are still returned
+    }
+
+    return lines.join('\n')
   }
 
   async getPageLinks(
@@ -441,15 +464,15 @@ export class Browser {
         await snapshot.findCursorInteractiveElements(session)
 
       if (cursorElements.length > 0) {
-        const existingIds = new Set<number>()
-        for (const node of nodes) {
-          if (node.backendDOMNodeId !== undefined)
-            existingIds.add(node.backendDOMNodeId)
+        const includedIds = new Set<number>()
+        for (const line of treeLines) {
+          const match = line.match(/\[(\d+)\]/)
+          if (match) includedIds.add(Number(match[1]))
         }
 
         const extras: string[] = []
         for (const el of cursorElements) {
-          if (existingIds.has(el.backendNodeId)) continue
+          if (includedIds.has(el.backendNodeId)) continue
           extras.push(
             `[${el.backendNodeId}] clickable "${el.text}" (${el.reasons.join(', ')})`,
           )
