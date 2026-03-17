@@ -28,6 +28,7 @@ import { fetchDailyRateLimit } from './lib/rate-limiter/fetch-config'
 import { RateLimiter } from './lib/rate-limiter/rate-limiter'
 import { Sentry } from './lib/sentry'
 import { seedSoulTemplate } from './lib/soul'
+import { startSkillSync } from './skills/remote-sync'
 import { seedDefaultSkills } from './skills/seed'
 import { registry } from './tools/registry'
 import { VERSION } from './version'
@@ -111,6 +112,7 @@ export class Application {
     )
 
     this.logStartupSummary(controllerServerStarted)
+    startSkillSync()
 
     metrics.log('http_server.started', { version: VERSION })
   }

@@ -10,4 +10,5 @@ export const EXTERNAL_URLS = {
   KLAVIS_PROXY: 'https://llm.browseros.com/klavis',
   POSTHOG_DEFAULT: 'https://us.i.posthog.com',
   CODEGEN_SERVICE: 'https://graph.browseros.com',
+  SKILLS_CATALOG: 'https://skills.browseros.com/v1/catalog.json',
 } as const
