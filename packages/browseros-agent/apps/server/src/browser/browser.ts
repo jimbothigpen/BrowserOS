@@ -1020,8 +1020,9 @@ export class Browser {
     try {
       await session.DOM.setFileInputFiles({ files, backendNodeId: element })
       return
-    } catch {
-      // Element is not a file input — fall back to file chooser interception
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes('file input')) throw err
     }
 
     // Fallback: intercept the native file chooser dialog triggered by clicking the element
@@ -1042,7 +1043,15 @@ export class Browser {
           (event) => {
             clearTimeout(timeout)
             unsubscribe()
-            resolve(event.backendNodeId ?? element)
+            if (event.backendNodeId == null) {
+              reject(
+                new Error(
+                  'fileChooserOpened event did not include a backendNodeId; cannot set files.',
+                ),
+              )
+              return
+            }
+            resolve(event.backendNodeId)
           },
         )
       })

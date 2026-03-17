@@ -9,6 +9,7 @@ import {
   scroll,
   select_option,
   uncheck,
+  upload_file,
 } from '../../src/tools/input'
 import { close_page, new_page } from '../../src/tools/navigation'
 import { evaluate_script, take_snapshot } from '../../src/tools/snapshot'
@@ -366,6 +367,102 @@ describe('input tools', () => {
       })
       assert.ok(!hoverResult.isError, textOf(hoverResult))
       assert.ok(textOf(hoverResult).includes('Hovered'))
+
+      await execute(close_page, { page: pageId })
+    })
+  }, 60_000)
+})
+
+const UPLOAD_PAGE = `data:text/html,${encodeURIComponent(`<!DOCTYPE html>
+<html><body>
+  <h1>Upload Test</h1>
+  <label for="file-input">Direct Upload</label>
+  <input id="file-input" type="file" aria-label="Direct Upload" />
+  <button id="upload-btn" type="button">Proxy Upload</button>
+  <input id="hidden-file" type="file" style="display:none" />
+  <div id="result"></div>
+  <script>
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      document.getElementById('result').textContent = 'direct:' + e.target.files[0].name;
+    });
+    document.getElementById('upload-btn').addEventListener('click', function() {
+      document.getElementById('hidden-file').click();
+    });
+    document.getElementById('hidden-file').addEventListener('change', function(e) {
+      document.getElementById('result').textContent = 'button:' + e.target.files[0].name;
+    });
+  </script>
+</body></html>`)}`
+
+describe('upload_file tool', () => {
+  it('uploads a file via a direct <input type="file">', async () => {
+    await withBrowser(async ({ execute }) => {
+      const newResult = await execute(new_page, { url: UPLOAD_PAGE })
+      const pageId = pageIdOf(newResult)
+
+      // Get the file input's backendNodeId from the snapshot
+      const snap = await execute(take_snapshot, { page: pageId })
+      const snapText = textOf(snap)
+      const fileInputId = findElementId(snapText, 'Direct Upload')
+
+      const tmpPath = '/tmp/browseros-test-upload.txt'
+      await Bun.write(tmpPath, 'test file content')
+
+      const uploadResult = await execute(upload_file, {
+        page: pageId,
+        element: fileInputId,
+        files: [tmpPath],
+      })
+      assert.ok(!uploadResult.isError, textOf(uploadResult))
+      assert.ok(textOf(uploadResult).includes('file(s)'))
+
+      const data = structuredOf<{
+        action: string
+        fileCount: number
+      }>(uploadResult)
+      assert.strictEqual(data.action, 'upload_file')
+      assert.strictEqual(data.fileCount, 1)
+
+      const result = await execute(evaluate_script, {
+        page: pageId,
+        expression: 'document.getElementById("result").textContent',
+      })
+      assert.strictEqual(
+        textOf(result),
+        'direct:browseros-test-upload.txt',
+      )
+
+      await execute(close_page, { page: pageId })
+    })
+  }, 60_000)
+
+  it('uploads a file via a button that triggers a file chooser', async () => {
+    await withBrowser(async ({ execute }) => {
+      const newResult = await execute(new_page, { url: UPLOAD_PAGE })
+      const pageId = pageIdOf(newResult)
+
+      const snap = await execute(take_snapshot, { page: pageId })
+      const snapText = textOf(snap)
+      const btnId = findElementId(snapText, 'Proxy Upload')
+
+      const tmpPath = '/tmp/browseros-test-upload-btn.txt'
+      await Bun.write(tmpPath, 'button upload content')
+
+      const uploadResult = await execute(upload_file, {
+        page: pageId,
+        element: btnId,
+        files: [tmpPath],
+      })
+      assert.ok(!uploadResult.isError, textOf(uploadResult))
+
+      const result = await execute(evaluate_script, {
+        page: pageId,
+        expression: 'document.getElementById("result").textContent',
+      })
+      assert.strictEqual(
+        textOf(result),
+        'button:browseros-test-upload-btn.txt',
+      )
 
       await execute(close_page, { page: pageId })
     })
