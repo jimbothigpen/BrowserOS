@@ -764,8 +764,16 @@ export class Browser {
     const session = await this.resolveSession(page)
     await mouse.dispatchClick(session, x, y, 'left', 1, 0)
     if (clear) {
-      const cleared = await elements.clearFocusedEditableElement(session)
-      if (!cleared) await keyboard.clearField(session)
+      await keyboard.clearField(session)
+      let value = await elements.getFocusedEditableValue(session)
+      if (value) {
+        await mouse.dispatchClick(session, x, y, 'left', 3, 0)
+        await keyboard.pressCombo(session, 'Backspace')
+        value = await elements.getFocusedEditableValue(session)
+      }
+      if (value) {
+        await elements.clearFocusedEditableElement(session)
+      }
     }
     if (text) await keyboard.typeText(session, text)
   }
@@ -820,23 +828,15 @@ export class Browser {
     if (clear) {
       const existingValue = await elements.getInputValue(session, element)
       if (existingValue) {
-        const cleared = await elements.clearEditableElement(session, element)
-        if (!cleared || (await elements.getInputValue(session, element))) {
-          await keyboard.clearField(session)
-          if (coords) {
-            const value = await elements.getInputValue(session, element)
-            if (value) {
-              await mouse.dispatchClick(
-                session,
-                coords.x,
-                coords.y,
-                'left',
-                3,
-                0,
-              )
-              if (!text) await keyboard.pressCombo(session, 'Backspace')
-            }
-          }
+        await keyboard.clearField(session)
+        let value = await elements.getInputValue(session, element)
+        if (value && coords) {
+          await mouse.dispatchClick(session, coords.x, coords.y, 'left', 3, 0)
+          await keyboard.pressCombo(session, 'Backspace')
+          value = await elements.getInputValue(session, element)
+        }
+        if (value) {
+          await elements.clearEditableElement(session, element)
         }
       }
     }

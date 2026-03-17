@@ -203,6 +203,30 @@ export async function clearFocusedEditableElement(
   }
 }
 
+export async function getFocusedEditableValue(
+  session: ProtocolApi,
+): Promise<string> {
+  try {
+    const result = await session.Runtime.evaluate({
+      expression: `(() => {
+        let target = document.activeElement;
+        while (
+          target instanceof HTMLElement &&
+          target.shadowRoot?.activeElement instanceof Element
+        ) {
+          target = target.shadowRoot.activeElement;
+        }
+        if (!(target instanceof Element)) return '';
+        return target.value ?? target.textContent ?? '';
+      })()`,
+      returnByValue: true,
+    })
+    return (result.result?.value as string) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export async function callOnElement(
   session: ProtocolApi,
   backendNodeId: number,
