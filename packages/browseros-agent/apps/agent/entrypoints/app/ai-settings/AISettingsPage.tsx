@@ -22,7 +22,10 @@ import { GetProfileIdByUserIdDocument } from '@/lib/conversations/graphql/upload
 import { getQueryKeyFromDocument } from '@/lib/graphql/getQueryKeyFromDocument'
 import { useGraphqlMutation } from '@/lib/graphql/useGraphqlMutation'
 import { useGraphqlQuery } from '@/lib/graphql/useGraphqlQuery'
-import type { ProviderTemplate } from '@/lib/llm-providers/providerTemplates'
+import {
+  getProviderTemplate,
+  type ProviderTemplate,
+} from '@/lib/llm-providers/providerTemplates'
 import { testProvider } from '@/lib/llm-providers/testProvider'
 import type { LlmProviderConfig } from '@/lib/llm-providers/types'
 import { useLlmProviders } from '@/lib/llm-providers/useLlmProviders'
@@ -131,13 +134,14 @@ export const AISettingsPage: FC = () => {
 
     const now = Date.now()
     try {
+      const template = getProviderTemplate('chatgpt-pro')
       saveProvider({
         id: `chatgpt-pro-${now}`,
         type: 'chatgpt-pro',
         name: `ChatGPT Pro${chatgptProStatus.email ? ` (${chatgptProStatus.email})` : ''}`,
-        modelId: 'gpt-5.3-codex',
-        supportsImages: true,
-        contextWindow: 400000,
+        modelId: template?.defaultModelId ?? 'gpt-5.3-codex',
+        supportsImages: template?.supportsImages ?? true,
+        contextWindow: template?.contextWindow ?? 400000,
         temperature: 0.2,
         createdAt: now,
         updatedAt: now,

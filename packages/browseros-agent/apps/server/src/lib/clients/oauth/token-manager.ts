@@ -106,6 +106,11 @@ export class OAuthTokenManager {
     }
 
     const data = (await tokenResponse.json()) as OAuthTokenResponse
+    if (!data.refresh_token) {
+      logger.warn('OAuth token response missing refresh_token — token refresh will not be available', {
+        provider: flow.provider,
+      })
+    }
     const { accountId, email } = parseAccessTokenClaims(data.access_token)
 
     const tokens: StoredOAuthTokens = {
@@ -154,6 +159,11 @@ export class OAuthTokenManager {
     provider: string,
     tokens: StoredOAuthTokens,
   ): Promise<StoredOAuthTokens> {
+    if (!tokens.refreshToken) {
+      this.store.deleteTokens(this.browserosId, provider)
+      throw new Error(`${provider} session expired (no refresh token). Please re-login.`)
+    }
+
     const providerConfig = getOAuthProvider(provider)
     if (!providerConfig) {
       throw new Error(`Unknown OAuth provider: ${provider}`)
@@ -238,6 +248,9 @@ function base64UrlEncode(bytes: Uint8Array): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+// Extracts claims without signature verification — safe because the token
+// comes directly from OpenAI's HTTPS token endpoint. Do not reuse for
+// caller-supplied or externally-sourced tokens.
 function parseAccessTokenClaims(accessToken: string): {
   accountId?: string
   email?: string

@@ -2,11 +2,9 @@
  * @license
  * Copyright 2025 BrowserOS
  * SPDX-License-Identifier: AGPL-3.0-or-later
- *
- * Custom fetch wrapper for the Codex API.
- * Rewrites URLs from api.openai.com to chatgpt.com/backend-api/codex
- * and sets required headers/body fields.
  */
+
+import { logger } from '../../logger'
 
 const CODEX_API_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
 
@@ -42,7 +40,11 @@ export function createCodexFetch(accountId?: string) {
           json.instructions = 'You are a helpful assistant.'
         }
         body = JSON.stringify(json)
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to inject Codex-required fields into request body', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
     }
 
     return fetch(url, { ...init, headers, body })
