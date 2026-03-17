@@ -11,10 +11,15 @@ const CODEX_API_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
 export function createCodexFetch(accountId?: string) {
   return (input: RequestInfo | URL, init?: RequestInit) => {
     let inputUrl: string
-    if (typeof input === 'string') inputUrl = input
-    else if (input instanceof URL) inputUrl = input.toString()
-    else if (input instanceof Request) inputUrl = input.url
-    else inputUrl = String(input)
+    if (typeof input === 'string') {
+      inputUrl = input
+    } else if (input instanceof URL) {
+      inputUrl = input.toString()
+    } else if (input instanceof Request) {
+      inputUrl = input.url
+    } else {
+      inputUrl = String(input)
+    }
 
     const parsed = new URL(inputUrl)
     const shouldRewrite =

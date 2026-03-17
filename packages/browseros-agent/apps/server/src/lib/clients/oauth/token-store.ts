@@ -23,7 +23,7 @@ export interface OAuthStatus {
 }
 
 export class OAuthTokenStore {
-  constructor(private db: Database) {}
+  constructor(private readonly db: Database) {}
 
   upsertTokens(
     browserosId: string,

@@ -26,12 +26,12 @@ interface OAuthTokenResponse {
 }
 
 export class OAuthTokenManager {
-  private pendingFlows = new Map<string, PendingOAuthFlow>()
-  private refreshLocks = new Map<string, Promise<StoredOAuthTokens | null>>()
+  private readonly pendingFlows = new Map<string, PendingOAuthFlow>()
+  private readonly refreshLocks = new Map<string, Promise<StoredOAuthTokens | null>>()
 
   constructor(
-    private store: OAuthTokenStore,
-    private browserosId: string,
+    private readonly store: OAuthTokenStore,
+    private readonly browserosId: string,
   ) {}
 
   async generateAuthorizationUrl(
