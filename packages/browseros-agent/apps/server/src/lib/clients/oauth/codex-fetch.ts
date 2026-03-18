@@ -43,6 +43,7 @@ export function createCodexFetch(accountId?: string) {
         delete json.previous_response_id
         delete json.temperature
         delete json.max_tokens
+        delete json.max_output_tokens
         delete json.top_p
         if (!json.instructions) {
           json.instructions = 'You are a helpful assistant.'
