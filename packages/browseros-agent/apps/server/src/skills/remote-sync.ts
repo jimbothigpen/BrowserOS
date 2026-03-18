@@ -21,6 +21,13 @@ function extractEnabled(content: string): string | null {
   return match?.[1] ?? null
 }
 
+function setEnabled(content: string, enabled: string): string {
+  return content.replace(
+    /^(\s*enabled:\s*)["']?(?:true|false)["']?/m,
+    `$1"${enabled}"`,
+  )
+}
+
 function isValidSkillEntry(entry: unknown): entry is RemoteSkillEntry {
   if (typeof entry !== 'object' || entry === null) return false
   const e = entry as Record<string, unknown>
@@ -69,42 +76,18 @@ export async function syncBuiltinSkills(): Promise<void> {
   const catalog = await fetchRemoteCatalog()
 
   const contentMap = new Map<string, { version: string; content: string }>()
-
   for (const skill of DEFAULT_SKILLS) {
     contentMap.set(skill.id, { version: extractVersion(skill.content), content: skill.content })
   }
-
   if (catalog) {
     for (const skill of catalog.skills) {
       contentMap.set(skill.id, { version: skill.version, content: skill.content })
     }
   }
 
-  for (const [id, remote] of contentMap) {
+  for (const [id, source] of contentMap) {
     try {
-      const dir = safeBuiltinSkillDir(id)
-      const filePath = join(dir, 'SKILL.md')
-
-      let localContent: string | null = null
-      try {
-        localContent = await readFile(filePath, 'utf-8')
-      } catch {}
-
-      if (localContent && extractVersion(localContent) === remote.version) continue
-
-      const localEnabled = localContent ? extractEnabled(localContent) : null
-
-      await mkdir(dir, { recursive: true })
-      await writeFile(filePath, remote.content)
-
-      if (localEnabled === 'false') {
-        const written = await readFile(filePath, 'utf-8')
-        const patched = written.replace(
-          /^(\s*enabled:\s*)["']?(?:true|false)["']?/m,
-          '$1"false"',
-        )
-        if (patched !== written) await writeFile(filePath, patched)
-      }
+      await syncOneSkill(id, source)
     } catch (err) {
       logger.warn('Failed to sync builtin skill', {
         id,
@@ -113,23 +96,50 @@ export async function syncBuiltinSkills(): Promise<void> {
     }
   }
 
-  if (catalog) {
-    const builtinDir = getBuiltinSkillsDir()
-    let entries: string[]
-    try {
-      entries = await readdir(builtinDir)
-    } catch {
-      entries = []
-    }
+  if (catalog) await removeObsoleteSkills(contentMap)
+}
 
-    for (const entry of entries) {
-      if (entry.startsWith('.') || contentMap.has(entry)) continue
-      try {
-        const entryPath = join(builtinDir, entry)
-        const s = await stat(entryPath)
-        if (s.isDirectory()) await rm(entryPath, { recursive: true })
-      } catch {}
-    }
+async function syncOneSkill(
+  id: string,
+  source: { version: string; content: string },
+): Promise<void> {
+  const dir = safeBuiltinSkillDir(id)
+  const filePath = join(dir, 'SKILL.md')
+
+  let localContent: string | null = null
+  try {
+    localContent = await readFile(filePath, 'utf-8')
+  } catch {}
+
+  if (localContent && extractVersion(localContent) === source.version) return
+
+  let content = source.content
+  if (localContent && extractEnabled(localContent) === 'false') {
+    content = setEnabled(content, 'false')
+  }
+
+  await mkdir(dir, { recursive: true })
+  await writeFile(filePath, content)
+}
+
+async function removeObsoleteSkills(
+  keepIds: Map<string, unknown>,
+): Promise<void> {
+  const builtinDir = getBuiltinSkillsDir()
+  let entries: string[]
+  try {
+    entries = await readdir(builtinDir)
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    if (entry.startsWith('.') || keepIds.has(entry)) continue
+    try {
+      const entryPath = join(builtinDir, entry)
+      const s = await stat(entryPath)
+      if (s.isDirectory()) await rm(entryPath, { recursive: true })
+    } catch {}
   }
 }
 
