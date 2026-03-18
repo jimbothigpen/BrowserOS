@@ -16,16 +16,16 @@ import { ConversationIdParamSchema } from '../utils/validation'
 interface ChatRouteDeps {
   browser: Browser
   registry: ToolRegistry
+  klavisClient: KlavisClient
   browserosId?: string
   rateLimiter?: RateLimiter
   aiSdkDevtoolsEnabled?: boolean
 }
 
 export function createChatRoutes(deps: ChatRouteDeps) {
-  const { browserosId, rateLimiter } = deps
+  const { browserosId, rateLimiter, klavisClient } = deps
 
   const sessionStore = new SessionStore()
-  const klavisClient = new KlavisClient()
   const service = new ChatService({
     sessionStore,
     klavisClient,

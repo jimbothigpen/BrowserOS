@@ -17,6 +17,7 @@ const ServerNameSchema = z.object({
 
 interface KlavisRouteDeps {
   browserosId: string
+  klavisClient: KlavisClient
 }
 
 const normalizeServerKey = (value: string): string =>
@@ -43,8 +44,7 @@ const getAuthUrlForServer = (
 }
 
 export function createKlavisRoutes(deps: KlavisRouteDeps) {
-  const { browserosId } = deps
-  const klavisClient = new KlavisClient()
+  const { browserosId, klavisClient } = deps
 
   // Chain route definitions for proper Hono RPC type inference
   return new Hono()
@@ -124,6 +124,7 @@ export function createKlavisRoutes(deps: KlavisRouteDeps) {
 
       logger.info('Adding server to strata', { serverName })
 
+      klavisClient.invalidateStrataCache(browserosId)
       const result = await klavisClient.createStrata(browserosId, [serverName])
 
       return c.json({
@@ -154,6 +155,7 @@ export function createKlavisRoutes(deps: KlavisRouteDeps) {
 
         try {
           await klavisClient.submitApiKey(apiKeyUrl, apiKey)
+          klavisClient.invalidateStrataCache(browserosId)
 
           logger.info('Submitted API key for server', { serverName })
 
@@ -185,6 +187,7 @@ export function createKlavisRoutes(deps: KlavisRouteDeps) {
         logger.info('Removing server from strata', { serverName })
 
         await klavisClient.removeServer(browserosId, serverName)
+        klavisClient.invalidateStrataCache(browserosId)
 
         return c.json({
           success: true,

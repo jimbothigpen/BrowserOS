@@ -196,4 +196,13 @@ export class KlavisClient {
     )
     this.strataCache.delete(this.buildStrataCacheKey(userId, [serverName]))
   }
+
+  /** Clear all cached Strata entries for a user (call after auth changes). */
+  invalidateStrataCache(userId: string): void {
+    for (const key of this.strataCache.keys()) {
+      if (key.startsWith(`["${userId}"`)) {
+        this.strataCache.delete(key)
+      }
+    }
+  }
 }

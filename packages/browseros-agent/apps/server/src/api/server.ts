@@ -75,12 +75,15 @@ export async function createHttpServer(config: HttpServerConfig) {
 
   const { onShutdown } = config
 
+  // Single KlavisClient shared across all routes for cache effectiveness
+  const klavisClient = new KlavisClient()
+
   // Connect Klavis proxy (non-blocking: browser tools still work if this fails)
   let klavisProxy: KlavisProxyHandle | null = null
   if (browserosId) {
     try {
       klavisProxy = await connectKlavisProxy({
-        klavisClient: new KlavisClient(),
+        klavisClient,
         browserosId,
       })
     } catch (error) {
@@ -115,7 +118,7 @@ export async function createHttpServer(config: HttpServerConfig) {
     .route('/skills', createSkillsRoutes())
     .route('/test-provider', createProviderRoutes())
     .route('/refine-prompt', createRefinePromptRoutes())
-    .route('/klavis', createKlavisRoutes({ browserosId: browserosId || '' }))
+    .route('/klavis', createKlavisRoutes({ browserosId: browserosId || '', klavisClient }))
     .route(
       '/mcp',
       createMcpRoutes({
@@ -132,6 +135,7 @@ export async function createHttpServer(config: HttpServerConfig) {
       createChatRoutes({
         browser,
         registry,
+        klavisClient,
         browserosId,
         rateLimiter,
         aiSdkDevtoolsEnabled: config.aiSdkDevtoolsEnabled,
