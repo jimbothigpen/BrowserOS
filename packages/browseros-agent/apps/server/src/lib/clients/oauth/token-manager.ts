@@ -234,6 +234,31 @@ export class OAuthTokenManager {
     }
   }
 
+  // Start polling with an externally-provided device code (client-side flow)
+  async startDeviceCodePolling(
+    providerId: string,
+    params: {
+      deviceCode: string
+      interval: number
+      expiresIn: number
+      codeVerifier?: string
+    },
+  ): Promise<void> {
+    const provider = getOAuthProvider(providerId)
+    if (!provider) throw new Error(`Unknown OAuth provider: ${providerId}`)
+
+    this.activeDeviceFlows.delete(providerId)
+    this.activeDeviceFlows.add(providerId)
+    this.pollDeviceCode(
+      providerId,
+      provider,
+      params.deviceCode,
+      params.interval,
+      params.expiresIn,
+      params.codeVerifier,
+    ).finally(() => this.activeDeviceFlows.delete(providerId))
+  }
+
   private async pollDeviceCode(
     providerId: string,
     provider: OAuthProviderConfig,

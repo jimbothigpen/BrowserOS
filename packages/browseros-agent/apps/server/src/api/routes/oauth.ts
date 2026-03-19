@@ -54,6 +54,29 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
       }
     })
 
+    .post('/:provider/poll', async (c) => {
+      const providerId = c.req.param('provider')
+      const provider = getOAuthProvider(providerId)
+      if (!provider) return c.text(`Unknown OAuth provider: ${providerId}`, 400)
+
+      try {
+        const body = await c.req.json()
+        await tokenManager.startDeviceCodePolling(providerId, {
+          deviceCode: body.deviceCode,
+          interval: body.interval ?? 5,
+          expiresIn: body.expiresIn ?? 900,
+          codeVerifier: body.codeVerifier,
+        })
+        return c.json({ ok: true })
+      } catch (error) {
+        logger.error('Failed to start device code polling', {
+          provider: providerId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return c.text('Failed to start polling', 500)
+      }
+    })
+
     .get('/:provider/status', (c) => {
       const providerId = c.req.param('provider')
       const status = tokenManager.getStatus(providerId)

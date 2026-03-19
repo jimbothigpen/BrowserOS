@@ -76,6 +76,12 @@ const OAUTH_PROVIDERS_CONFIG: Record<
     startedEvent: QWEN_CODE_OAUTH_STARTED_EVENT,
     completedEvent: QWEN_CODE_OAUTH_COMPLETED_EVENT,
     disconnectedEvent: QWEN_CODE_OAUTH_DISCONNECTED_EVENT,
+    clientSideDeviceCode: {
+      deviceCodeEndpoint: 'https://chat.qwen.ai/api/v1/oauth2/device/code',
+      clientId: 'f0304373b74a44d2b584a3fb70ca9e56',
+      scopes: 'openid profile email model.completion',
+      requiresPKCE: true,
+    },
   },
 }
 
