@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label'
 import { MarkdownEditor } from '@/components/ui/MarkdownEditor'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import Markdown from 'react-markdown'
 import { type SkillDetail, type SkillMeta, useSkills } from './useSkills'
 
 const loadingSkillCards = [
@@ -470,15 +471,20 @@ const SkillDialog: FC<{
               </Badge>
             </div>
 
-            <MarkdownEditor
-              id="skill-content"
-              value={content}
-              onChange={setContent}
-              onKeyDown={readOnly ? undefined : handleContentKeyDown}
-              placeholder="Write instructions for the agent. Use markdown for structure."
-              className="mt-4 min-h-[320px] flex-1 overflow-y-auto text-sm"
-              readOnly={readOnly}
-            />
+            {readOnly ? (
+              <div className="prose prose-sm mt-4 min-h-[320px] max-w-none flex-1 overflow-y-auto rounded-md border p-4 text-sm dark:prose-invert">
+                <Markdown>{content}</Markdown>
+              </div>
+            ) : (
+              <MarkdownEditor
+                id="skill-content"
+                value={content}
+                onChange={setContent}
+                onKeyDown={handleContentKeyDown}
+                placeholder="Write instructions for the agent. Use markdown for structure."
+                className="mt-4 min-h-[320px] flex-1 overflow-y-auto text-sm"
+              />
+            )}
           </div>
         </div>
 
