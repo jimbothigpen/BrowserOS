@@ -85,9 +85,15 @@ async function resizeDataUrl(dataUrl: string): Promise<string | null> {
   const metadata = await image.metadata()
   if (!metadata.width || !metadata.height) return null
 
-  const { width: origW, height: origH } = metadata
-  let width = origW
-  let height = origH
+  let { width, height } = metadata
+
+  // Skip if already within both limits (no resize step will fire)
+  if (
+    Math.max(width, height) <= MAX_LONG_SIDE &&
+    Math.min(width, height) <= MAX_SHORT_SIDE
+  ) {
+    return null
+  }
 
   // Step 1: scale longest side to 2048
   if (width > MAX_LONG_SIDE || height > MAX_LONG_SIDE) {
@@ -104,14 +110,19 @@ async function resizeDataUrl(dataUrl: string): Promise<string | null> {
     height = Math.round(height * scale)
   }
 
-  // Skip if no resize was needed
-  if (width === origW && height === origH) return null
+  // Preserve PNG for images with alpha, use JPEG otherwise
+  const hasAlpha = metadata.channels === 4 || metadata.hasAlpha
+  const resizedBuffer = hasAlpha
+    ? await sharp(buffer)
+        .resize(width, height, { fit: 'inside' })
+        .png()
+        .toBuffer()
+    : await sharp(buffer)
+        .resize(width, height, { fit: 'inside' })
+        .jpeg({ quality: 75 })
+        .toBuffer()
 
-  const resizedBuffer = await sharp(buffer)
-    .resize(width, height, { fit: 'inside' })
-    .jpeg({ quality: 75 })
-    .toBuffer()
-
+  const mime = hasAlpha ? 'image/png' : 'image/jpeg'
   const originalKB = Math.round(base64Data.length / 1024)
   const resizedB64 = resizedBuffer.toString('base64')
   const resizedKB = Math.round(resizedB64.length / 1024)
@@ -120,5 +131,5 @@ async function resizeDataUrl(dataUrl: string): Promise<string | null> {
     resized: `${width}x${height} (${resizedKB}KB)`,
   })
 
-  return `data:image/jpeg;base64,${resizedB64}`
+  return `data:${mime};base64,${resizedB64}`
 }
