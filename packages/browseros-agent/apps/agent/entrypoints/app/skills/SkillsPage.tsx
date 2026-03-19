@@ -108,17 +108,12 @@ export const SkillsPage: FC = () => {
       ) : null}
 
       {!isLoading && !error && skills.length > 0 ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {skills.map((skill) => (
-            <SkillCard
-              key={skill.id}
-              skill={skill}
-              onEdit={() => handleEdit(skill)}
-              onDelete={() => setSkillToDelete(skill)}
-              onToggle={(enabled) => handleToggle(skill, enabled)}
-            />
-          ))}
-        </div>
+        <SkillSections
+          skills={skills}
+          onEdit={handleEdit}
+          onDelete={(skill) => setSkillToDelete(skill)}
+          onToggle={handleToggle}
+        />
       ) : null}
 
       <SkillDialog
@@ -250,6 +245,50 @@ const EmptyState: FC<{ onCreateClick: () => void }> = ({ onCreateClick }) => (
     </CardContent>
   </Card>
 )
+
+const SkillGrid: FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    {children}
+  </div>
+)
+
+const SkillSections: FC<{
+  skills: SkillMeta[]
+  onEdit: (skill: SkillMeta) => void
+  onDelete: (skill: SkillMeta) => void
+  onToggle: (skill: SkillMeta, enabled: boolean) => void
+}> = ({ skills, onEdit, onDelete, onToggle }) => {
+  const userSkills = skills.filter((s) => !s.builtIn)
+  const builtInSkills = skills.filter((s) => s.builtIn)
+
+  const renderCard = (skill: SkillMeta) => (
+    <SkillCard
+      key={skill.id}
+      skill={skill}
+      onEdit={() => onEdit(skill)}
+      onDelete={() => onDelete(skill)}
+      onToggle={(enabled) => onToggle(skill, enabled)}
+    />
+  )
+
+  return (
+    <div className="space-y-6">
+      {userSkills.length > 0 ? (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-sm">My Skills</h3>
+          <SkillGrid>{userSkills.map(renderCard)}</SkillGrid>
+        </div>
+      ) : null}
+
+      {builtInSkills.length > 0 ? (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-sm">BrowserOS Skills</h3>
+          <SkillGrid>{builtInSkills.map(renderCard)}</SkillGrid>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 const SkillCard: FC<{
   skill: SkillMeta
