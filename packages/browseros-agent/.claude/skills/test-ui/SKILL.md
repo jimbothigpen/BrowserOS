@@ -32,7 +32,6 @@ This single command handles everything:
 - Builds the Go dev CLI tool
 - Picks random available ports (avoids conflicts)
 - Creates a fresh browser profile
-- Builds controller-ext
 - Runs GraphQL codegen if `apps/agent/generated/graphql/` doesn't exist
 - Starts the agent extension with WXT HMR (hot module replacement)
 - Waits for CDP to be ready
@@ -41,7 +40,7 @@ This single command handles everything:
 Run it in the background and **read the output to find the CDP port**:
 
 ```
-[info] Ports: CDP=9552 Server=9065 Extension=9929
+[info] Ports: CDP=9552 Server=9065
 ```
 
 The CDP port is randomized. You MUST extract it from the output and set it for all subsequent commands:

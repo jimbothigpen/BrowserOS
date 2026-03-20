@@ -5,7 +5,7 @@
  * Tests:
  * 1. BrowserOS app detection
  * 2. Server start/stop
- * 3. Extension connection with verification
+ * 3. CDP connection verification
  * 4. Window create/close
  * 5. Screenshot capture
  * 6. Multiple tasks in sequence with server restart
@@ -21,7 +21,6 @@ import { type Subprocess, spawn, spawnSync } from 'bun'
 const EVAL_PORTS = {
   cdp: 9005,
   server: 9105, // http_mcp in config.dev.json
-  extension: 9305,
 } as const
 const MONOREPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const MCP_URL = `http://127.0.0.1:${EVAL_PORTS.server}/mcp`
@@ -70,7 +69,7 @@ async function _killBrowserOSApp(): Promise<void> {
 
 async function _launchBrowserOSApp(): Promise<boolean> {
   console.log(
-    `  Launching BrowserOS (server disabled, CDP=${EVAL_PORTS.cdp}, Extension=${EVAL_PORTS.extension})...`,
+    `  Launching BrowserOS (server disabled, CDP=${EVAL_PORTS.cdp})...`,
   )
   spawnSync({
     cmd: [
@@ -82,7 +81,6 @@ async function _launchBrowserOSApp(): Promise<boolean> {
       `--remote-debugging-port=${EVAL_PORTS.cdp}`,
       `--browseros-cdp-port=${EVAL_PORTS.cdp}`,
       `--browseros-mcp-port=${EVAL_PORTS.server}`,
-      `--browseros-extension-port=${EVAL_PORTS.extension}`,
     ],
   })
   for (let i = 0; i < 30; i++) {
@@ -129,22 +127,19 @@ async function waitForServerHealth(
   return false
 }
 
-async function waitForExtension(
+async function waitForCdpReady(
   serverPort: number,
   maxAttempts = 90,
 ): Promise<boolean> {
   let connectedCount = 0
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const response = await fetch(
-        `http://127.0.0.1:${serverPort}/extension-status`,
-        {
-          signal: AbortSignal.timeout(2000),
-        },
-      )
+      const response = await fetch(`http://127.0.0.1:${serverPort}/health`, {
+        signal: AbortSignal.timeout(2000),
+      })
       if (response.ok) {
-        const data = (await response.json()) as { extensionConnected?: boolean }
-        if (data.extensionConnected) {
+        const data = (await response.json()) as { cdpConnected?: boolean }
+        if (data.cdpConnected) {
           connectedCount++
           if (connectedCount >= 3) return true
         } else {
@@ -161,9 +156,7 @@ async function waitForExtension(
 
 async function startServer(): Promise<Subprocess> {
   killPort(EVAL_PORTS.server)
-  killPort(EVAL_PORTS.extension)
   await waitForPortFree(EVAL_PORTS.server, 30)
-  await waitForPortFree(EVAL_PORTS.extension, 30)
 
   const serverProc = spawn({
     cmd: [
@@ -171,8 +164,6 @@ async function startServer(): Promise<Subprocess> {
       'apps/server/src/index.ts',
       '--server-port',
       String(EVAL_PORTS.server),
-      '--extension-port',
-      String(EVAL_PORTS.extension),
       '--cdp-port',
       String(EVAL_PORTS.cdp),
     ],
@@ -271,14 +262,14 @@ async function testServerStartStop(): Promise<boolean> {
   }
   console.log('  ✅ Server healthy')
 
-  console.log('  Waiting for extension...')
-  const extConnected = await waitForExtension(EVAL_PORTS.server, 60)
-  if (!extConnected) {
-    console.log('  ❌ Extension did not connect')
+  console.log('  Waiting for CDP connection...')
+  const cdpReady = await waitForCdpReady(EVAL_PORTS.server, 60)
+  if (!cdpReady) {
+    console.log('  ❌ CDP did not connect')
     await stopServer(proc)
     return false
   }
-  console.log('  ✅ Extension connected')
+  console.log('  ✅ CDP connected')
 
   console.log('  Stopping server...')
   await stopServer(proc)
@@ -300,9 +291,9 @@ async function testWindowLifecycle(): Promise<boolean> {
     return false
   }
 
-  const extConnected = await waitForExtension(EVAL_PORTS.server, 60)
-  if (!extConnected) {
-    console.log('  ❌ Extension did not connect')
+  const cdpReady = await waitForCdpReady(EVAL_PORTS.server, 60)
+  if (!cdpReady) {
+    console.log('  ❌ CDP did not connect')
     await stopServer(proc)
     return false
   }
@@ -383,9 +374,9 @@ async function testMultipleTasksWithRestart(): Promise<boolean> {
       continue
     }
 
-    const extConnected = await waitForExtension(EVAL_PORTS.server, 60)
-    if (!extConnected) {
-      console.log(`  ❌ Task ${task.id}: Extension not connected`)
+    const cdpReady = await waitForCdpReady(EVAL_PORTS.server, 60)
+    if (!cdpReady) {
+      console.log(`  ❌ Task ${task.id}: CDP not connected`)
       await stopServer(proc)
       continue
     }
@@ -428,8 +419,8 @@ async function testMultipleTasksWithRestart(): Promise<boolean> {
   return successCount === tasks.length
 }
 
-async function testExtensionReconnect(): Promise<boolean> {
-  console.log('\n=== Test 5: Extension Stability (30 seconds) ===')
+async function testCdpStability(): Promise<boolean> {
+  console.log('\n=== Test 5: CDP Connection Stability (30 seconds) ===')
 
   console.log('  Starting server...')
   const proc = await startServer()
@@ -441,14 +432,14 @@ async function testExtensionReconnect(): Promise<boolean> {
     return false
   }
 
-  const extConnected = await waitForExtension(EVAL_PORTS.server, 60)
-  if (!extConnected) {
-    console.log('  ❌ Extension did not connect')
+  const cdpReady = await waitForCdpReady(EVAL_PORTS.server, 60)
+  if (!cdpReady) {
+    console.log('  ❌ CDP did not connect')
     await stopServer(proc)
     return false
   }
 
-  console.log('  Monitoring extension connection for 30 seconds...')
+  console.log('  Monitoring CDP connection for 30 seconds...')
   let disconnects = 0
   const checkInterval = 2000
   const totalChecks = 30000 / checkInterval
@@ -456,21 +447,17 @@ async function testExtensionReconnect(): Promise<boolean> {
   for (let i = 0; i < totalChecks; i++) {
     try {
       const response = await fetch(
-        `http://127.0.0.1:${EVAL_PORTS.server}/extension-status`,
-        {
-          signal: AbortSignal.timeout(2000),
-        },
+        `http://127.0.0.1:${EVAL_PORTS.server}/health`,
+        { signal: AbortSignal.timeout(2000) },
       )
-      const data = (await response.json()) as { extensionConnected?: boolean }
-      if (!data.extensionConnected) {
+      const data = (await response.json()) as { cdpConnected?: boolean }
+      if (!data.cdpConnected) {
         disconnects++
-        console.log(
-          `  ⚠️  Extension disconnected at check ${i + 1}/${totalChecks}`,
-        )
+        console.log(`  ⚠️  CDP disconnected at check ${i + 1}/${totalChecks}`)
       }
     } catch {
       disconnects++
-      console.log(`  ⚠️  Failed to check extension at ${i + 1}/${totalChecks}`)
+      console.log(`  ⚠️  Failed to check CDP at ${i + 1}/${totalChecks}`)
     }
     await new Promise((r) => setTimeout(r, checkInterval))
   }
@@ -478,11 +465,11 @@ async function testExtensionReconnect(): Promise<boolean> {
   await stopServer(proc)
 
   if (disconnects > 0) {
-    console.log(`  ❌ Extension had ${disconnects} disconnections`)
+    console.log(`  ❌ CDP had ${disconnects} disconnections`)
     return false
   }
 
-  console.log('  ✅ Extension stayed connected for 30 seconds')
+  console.log('  ✅ CDP stayed connected for 30 seconds')
   return true
 }
 
@@ -495,7 +482,6 @@ async function main() {
   console.log('Eval Lifecycle Test Suite')
   console.log('='.repeat(60))
   console.log(`Server Port: ${EVAL_PORTS.server}`)
-  console.log(`Extension Port: ${EVAL_PORTS.extension}`)
   console.log(`CDP Port: ${EVAL_PORTS.cdp}`)
 
   const results: { name: string; passed: boolean }[] = []
@@ -528,10 +514,10 @@ async function main() {
     passed: await testMultipleTasksWithRestart(),
   })
 
-  // Test 5: Extension Stability
+  // Test 5: CDP Stability
   results.push({
-    name: 'Extension Stability',
-    passed: await testExtensionReconnect(),
+    name: 'CDP Stability',
+    passed: await testCdpStability(),
   })
 
   // Summary
