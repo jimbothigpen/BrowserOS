@@ -201,6 +201,14 @@ export class OAuthTokenManager {
         : JSON.stringify(params),
     })
 
+    // Detect WAF/captcha responses (HTML instead of JSON)
+    const contentType = response.headers.get('content-type') ?? ''
+    if (!contentType.includes('application/json')) {
+      throw new Error(
+        'Authentication service temporarily unavailable. Please try again in a few minutes.',
+      )
+    }
+
     if (!response.ok) {
       throw new Error(`Failed to request device code: ${response.status}`)
     }
@@ -270,7 +278,15 @@ export class OAuthTokenManager {
             : JSON.stringify(params),
         })
 
-        // Parse response — some providers return errors as HTTP 400
+        // WAF returned HTML instead of JSON — retry later
+        const ct = response.headers.get('content-type') ?? ''
+        if (!ct.includes('application/json')) {
+          logger.warn('WAF blocked poll request, retrying', {
+            provider: providerId,
+          })
+          continue
+        }
+
         const data = (await response.json()) as DeviceCodeTokenPollResponse
 
         // Token received — store and return
@@ -400,6 +416,21 @@ export class OAuthTokenManager {
   }
 
   // --- Shared ---
+
+  // Store tokens provided by the extension (client-side auth flow)
+  storeTokens(
+    provider: string,
+    params: { accessToken: string; refreshToken: string; expiresIn: number },
+  ): void {
+    const tokens: StoredOAuthTokens = {
+      accessToken: params.accessToken,
+      refreshToken: params.refreshToken,
+      expiresAt: params.expiresIn ? Date.now() + params.expiresIn * 1000 : 0,
+      email: undefined,
+      accountId: undefined,
+    }
+    this.store.upsertTokens(this.browserosId, provider, tokens)
+  }
 
   getTokens(provider: string): StoredOAuthTokens | null {
     return this.store.getTokens(this.browserosId, provider)

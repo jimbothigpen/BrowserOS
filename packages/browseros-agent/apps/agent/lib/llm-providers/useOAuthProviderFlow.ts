@@ -28,6 +28,7 @@ export function useOAuthProviderFlow(
     config.providerType,
   )
   const flowStartedRef = useRef(false)
+  const flowStartedAtRef = useRef(0)
 
   // Auto-create provider when OAuth completes
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on auth status change
@@ -62,6 +63,7 @@ export function useOAuthProviderFlow(
       })
     } finally {
       flowStartedRef.current = false
+      flowStartedAtRef.current = 0
     }
   }, [status?.authenticated])
 
@@ -72,7 +74,18 @@ export function useOAuthProviderFlow(
       })
       return
     }
+
+    // Prevent rapid duplicate requests (30s cooldown)
+    const timeSinceLastStart = Date.now() - flowStartedAtRef.current
+    if (timeSinceLastStart < 30_000) {
+      toast.info('Authentication already in progress', {
+        description: `Please complete the ${config.displayName} login in the opened tab.`,
+      })
+      return
+    }
+
     flowStartedRef.current = true
+    flowStartedAtRef.current = Date.now()
 
     try {
       const res = await fetch(
@@ -84,7 +97,14 @@ export function useOAuthProviderFlow(
         const data = (await res.json()) as {
           userCode?: string
           verificationUri?: string
+          error?: string
         }
+
+        // Server returned an error (e.g. WAF block)
+        if (!res.ok || data.error) {
+          throw new Error(data.error || `Server returned ${res.status}`)
+        }
+
         if (!data.userCode || !data.verificationUri) {
           throw new Error('Invalid response from server')
         }
@@ -98,7 +118,7 @@ export function useOAuthProviderFlow(
         return
       }
 
-      // PKCE flow — server redirected, just poll
+      // PKCE redirect flow
       if (!res.ok) throw new Error(`Server returned ${res.status}`)
       window.open(res.url, '_blank')
       startPolling()
@@ -108,6 +128,7 @@ export function useOAuthProviderFlow(
       })
     } catch (err) {
       flowStartedRef.current = false
+      flowStartedAtRef.current = 0
       toast.error(`Failed to start ${config.displayName} authentication`, {
         description: err instanceof Error ? err.message : 'Unknown error',
       })

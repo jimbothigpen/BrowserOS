@@ -50,7 +50,38 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
           provider: providerId,
           error: error instanceof Error ? error.message : String(error),
         })
-        return c.text('Failed to start authentication. Please try again.', 500)
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Failed to start authentication. Please try again.'
+        return c.json({ error: message }, 500)
+      }
+    })
+
+    .post('/:provider/token', async (c) => {
+      const providerId = c.req.param('provider')
+      const provider = getOAuthProvider(providerId)
+      if (!provider) return c.text(`Unknown OAuth provider: ${providerId}`, 400)
+
+      try {
+        const body = await c.req.json()
+        if (!body.accessToken) return c.text('Missing accessToken', 400)
+
+        tokenManager.storeTokens(providerId, {
+          accessToken: body.accessToken,
+          refreshToken: body.refreshToken ?? '',
+          expiresIn: body.expiresIn ?? 0,
+        })
+        logger.info('OAuth tokens stored from client', {
+          provider: providerId,
+        })
+        return c.json({ ok: true })
+      } catch (error) {
+        logger.error('Failed to store OAuth token', {
+          provider: providerId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return c.text('Failed to store token', 500)
       }
     })
 
