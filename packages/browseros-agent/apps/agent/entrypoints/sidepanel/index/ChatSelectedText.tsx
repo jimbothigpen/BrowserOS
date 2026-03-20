@@ -1,5 +1,6 @@
 import { FileText, X } from 'lucide-react'
 import type { FC } from 'react'
+import { i18n } from '#i18n'
 import type { SelectedTextData } from '@/lib/selected-text/selectedTextStorage'
 
 const MAX_DISPLAY_LENGTH = 200
@@ -35,7 +36,7 @@ export const ChatSelectedText: FC<ChatSelectedTextProps> = ({
             type="button"
             onClick={onDismiss}
             className="flex-shrink-0 rounded p-0.5 transition-colors hover:bg-background"
-            title="Remove selected text"
+            title={i18n.t('selectedText.removeTitle')}
           >
             <X className="h-3 w-3 text-muted-foreground" />
           </button>

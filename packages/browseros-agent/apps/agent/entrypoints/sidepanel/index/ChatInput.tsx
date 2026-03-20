@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { i18n } from '#i18n'
 import { TabPickerPopover } from '@/components/elements/tab-picker-popover'
 import { cn } from '@/lib/utils'
 import type { VoiceInputState } from '@/lib/voice/useVoiceInput'
@@ -273,7 +274,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             className="cursor-pointer rounded-full bg-red-600 p-2 text-white shadow-sm transition-all duration-200 hover:bg-red-900"
           >
             <Square className="h-3.5 w-3.5" />
-            <span className="sr-only">Stop recording</span>
+            <span className="sr-only">
+              {i18n.t('chat.input.stopRecording')}
+            </span>
           </button>
         )
       }
@@ -286,7 +289,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             className="rounded-full p-2 text-muted-foreground"
           >
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span className="sr-only">Transcribing</span>
+            <span className="sr-only">{i18n.t('chat.input.transcribing')}</span>
           </button>
         )
       }
@@ -299,7 +302,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           className="cursor-pointer rounded-full p-2 text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Mic className="h-3.5 w-3.5" />
-          <span className="sr-only">Voice input</span>
+          <span className="sr-only">{i18n.t('chat.input.voiceInput')}</span>
         </button>
       )
     }
@@ -313,7 +316,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             className="cursor-pointer rounded-full bg-red-600 p-2 text-white shadow-sm transition-all duration-200 hover:bg-red-900"
           >
             <SquareStop className="h-3.5 w-3.5" />
-            <span className="sr-only">Stop</span>
+            <span className="sr-only">{i18n.t('chat.input.stop')}</span>
           </button>
         )
       }
@@ -327,7 +330,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           className="cursor-pointer rounded-full bg-[var(--accent-orange)] p-2 text-white shadow-sm transition-all duration-200 hover:bg-[var(--accent-orange-bright)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send className="h-3.5 w-3.5" />
-          <span className="sr-only">Send</span>
+          <span className="sr-only">{i18n.t('chat.input.send')}</span>
         </button>
       )
     }
@@ -370,10 +373,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             onKeyDown={handleKeyDown}
             placeholder={
               voice?.isTranscribing
-                ? 'Transcribing...'
+                ? i18n.t('chat.input.placeholderTranscribing')
                 : mode === 'chat'
-                  ? 'Ask about this page...'
-                  : 'What should I do?'
+                  ? i18n.t('chat.input.placeholderChat')
+                  : i18n.t('chat.input.placeholderAgent')
             }
             disabled={voice?.isTranscribing}
             rows={1}

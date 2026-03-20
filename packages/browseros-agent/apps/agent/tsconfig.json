@@ -5,7 +5,8 @@
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "#i18n": ["./.wxt/i18n/index.ts"]
     },
     "plugins": [
       {

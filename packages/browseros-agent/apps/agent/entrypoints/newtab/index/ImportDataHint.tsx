@@ -1,6 +1,7 @@
 import { Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
+import { i18n } from '#i18n'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -48,7 +49,9 @@ export const ImportDataHint = () => {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
                   <Upload className="size-5 text-muted-foreground" />
-                  <CardTitle className="text-base">Import your data</CardTitle>
+                  <CardTitle className="text-base">
+                    {i18n.t('newtab.importData.title')}
+                  </CardTitle>
                 </div>
                 <Button
                   variant="ghost"
@@ -60,7 +63,7 @@ export const ImportDataHint = () => {
                 </Button>
               </div>
               <CardDescription>
-                Bring bookmarks, history, and passwords from Chrome.
+                {i18n.t('newtab.importData.description')}
               </CardDescription>
               <label
                 htmlFor="import-dont-ask-again"
@@ -73,11 +76,11 @@ export const ImportDataHint = () => {
                     setDontAskAgain(checked === true)
                   }
                 />
-                Don't show this again
+                {i18n.t('newtab.importData.dontShowAgain')}
               </label>
               <Button className="w-full" onClick={handleImport}>
                 <Upload className="size-4" />
-                Open Import Settings
+                {i18n.t('newtab.importData.openSettings')}
               </Button>
             </CardHeader>
           </Card>

@@ -44,6 +44,7 @@
   },
   "homepage": "https://github.com/browseros-ai/BrowserOS#readme",
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@aws-sdk/client-s3": "^3.933.0",
     "@biomejs/biome": "2.4.8",
     "@sentry/cli": "^2.42.2",
@@ -57,7 +58,8 @@
     "picocolors": "^1.1.1",
     "rimraf": "^6.0.1",
     "typedoc": "^0.28.15",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "yaml": "^2.8.2"
   },
   "trustedDependencies": [
     "lefthook"
@@ -73,5 +75,8 @@
   "overrides": {
     "serialize-javascript": "7.0.3",
     "lodash-es": "4.17.23"
+  },
+  "dependencies": {
+    "@wxt-dev/i18n": "^0.2.5"
   }
 }

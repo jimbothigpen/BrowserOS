@@ -1,6 +1,7 @@
 import { ChevronDown, LogIn, LogOut, User } from 'lucide-react'
 import type { FC } from 'react'
 import { useNavigate } from 'react-router'
+import { i18n } from '#i18n'
 import ProductLogo from '@/assets/product_logo.svg'
 import { ThemeToggle } from '@/components/elements/theme-toggle'
 import {
@@ -68,7 +69,11 @@ export const SidebarBranding: FC<SidebarBrandingProps> = ({
       </div>
     )
   ) : (
-    <img src={ProductLogo} alt="BrowserOS" className="size-8" />
+    <img
+      src={ProductLogo}
+      alt={i18n.t('sidebar.branding.alt')}
+      className="size-8"
+    />
   )
 
   return (
@@ -105,7 +110,9 @@ export const SidebarBranding: FC<SidebarBrandingProps> = ({
                     : 'font-medium text-primary',
                 )}
               >
-                {isLoggedIn ? 'Personal' : 'Sign in'}
+                {isLoggedIn
+                  ? i18n.t('sidebar.branding.personal')
+                  : i18n.t('sidebar.branding.signIn')}
               </span>
             </div>
           </button>
@@ -123,14 +130,14 @@ export const SidebarBranding: FC<SidebarBrandingProps> = ({
                     {displayName}
                   </p>
                   <p className="text-muted-foreground text-xs leading-none">
-                    Personal
+                    {i18n.t('sidebar.branding.personal')}
                   </p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate('/profile')}>
                 <User className="mr-2 size-4" />
-                Update Profile
+                {i18n.t('sidebar.branding.updateProfile')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -138,13 +145,13 @@ export const SidebarBranding: FC<SidebarBrandingProps> = ({
                 variant="destructive"
               >
                 <LogOut className="mr-2 size-4" />
-                Sign out
+                {i18n.t('sidebar.branding.signOut')}
               </DropdownMenuItem>
             </>
           ) : (
             <DropdownMenuItem onClick={() => navigate('/login')}>
               <LogIn className="mr-2 size-4" />
-              Sign in
+              {i18n.t('sidebar.branding.signIn')}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

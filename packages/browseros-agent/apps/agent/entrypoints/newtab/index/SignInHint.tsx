@@ -2,6 +2,7 @@ import { Cloud, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { i18n } from '#i18n'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -47,7 +48,9 @@ export const SignInHint = () => {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
                   <Cloud className="size-5 text-muted-foreground" />
-                  <CardTitle className="text-base">Sync your data</CardTitle>
+                  <CardTitle className="text-base">
+                    {i18n.t('newtab.signIn.title')}
+                  </CardTitle>
                 </div>
                 <Button
                   variant="ghost"
@@ -59,7 +62,7 @@ export const SignInHint = () => {
                 </Button>
               </div>
               <CardDescription>
-                Sign in to sync conversation history to the cloud.
+                {i18n.t('newtab.signIn.description')}
               </CardDescription>
               <label
                 htmlFor="sync-dont-ask-again"
@@ -72,10 +75,10 @@ export const SignInHint = () => {
                     setDontAskAgain(checked === true)
                   }
                 />
-                Don't ask again
+                {i18n.t('newtab.signIn.dontAskAgain')}
               </label>
               <Button className="w-full" onClick={() => navigate('/login')}>
-                Sign in
+                {i18n.t('newtab.signIn.signInButton')}
               </Button>
             </CardHeader>
           </Card>

@@ -1,5 +1,6 @@
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
+import { i18n } from '#i18n'
 // import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,7 +39,7 @@ function parseErrorMessage(message: string): {
     message.includes('127.0.0.1')
   ) {
     return {
-      text: 'Unable to connect to BrowserOS agent. Follow below instructions.',
+      text: i18n.t('chat.error.connectionMessage'),
       url: 'https://docs.browseros.com/troubleshooting/connection-issues',
       isConnectionError: true,
     }
@@ -47,7 +48,7 @@ function parseErrorMessage(message: string): {
   // Detect BrowserOS rate limit (unique pattern, no provider uses this)
   if (message.includes('BrowserOS LLM daily limit reached')) {
     return {
-      text: 'Add your own API key for unlimited usage.',
+      text: i18n.t('chat.error.rateLimitMessage'),
       url: 'https://dub.sh/browseros-usage-limit',
       isRateLimit: true,
     }
@@ -83,9 +84,9 @@ export const ChatError: FC<ChatErrorProps> = ({ error, onRetry }) => {
   // --- End commented out survey code ---
 
   const getTitle = () => {
-    if (isRateLimit) return 'Daily limit reached'
-    if (isConnectionError) return 'Connection failed'
-    return 'Something went wrong'
+    if (isRateLimit) return i18n.t('chat.error.dailyLimitTitle')
+    if (isConnectionError) return i18n.t('chat.error.connectionFailedTitle')
+    return i18n.t('chat.error.genericTitle')
   }
 
   return (
@@ -102,7 +103,7 @@ export const ChatError: FC<ChatErrorProps> = ({ error, onRetry }) => {
           rel="noopener noreferrer"
           className="text-muted-foreground text-xs underline hover:text-foreground"
         >
-          View troubleshooting guide
+          {i18n.t('chat.error.troubleshootingLink')}
         </a>
       )}
       {/* --- Commented out for Kimi partnership launch (restore after) ---
@@ -139,7 +140,7 @@ export const ChatError: FC<ChatErrorProps> = ({ error, onRetry }) => {
               className="underline hover:text-foreground"
               onClick={() => track(KIMI_RATE_LIMIT_DOCS_CLICKED_EVENT)}
             >
-              Learn how to get a Kimi API key
+              {i18n.t('chat.error.kimiApiKeyLink')}
             </a>
             {' or '}
             <a
@@ -149,7 +150,7 @@ export const ChatError: FC<ChatErrorProps> = ({ error, onRetry }) => {
               className="underline hover:text-foreground"
               onClick={() => track(KIMI_RATE_LIMIT_PLATFORM_CLICKED_EVENT)}
             >
-              get your API key
+              {i18n.t('chat.error.getApiKey')}
             </a>
           </p>
         </div>
@@ -162,7 +163,7 @@ export const ChatError: FC<ChatErrorProps> = ({ error, onRetry }) => {
           className="mt-1 gap-2"
         >
           <RefreshCw className="h-3.5 w-3.5" />
-          Try again
+          {i18n.t('chat.error.tryAgain')}
         </Button>
       )}
     </div>

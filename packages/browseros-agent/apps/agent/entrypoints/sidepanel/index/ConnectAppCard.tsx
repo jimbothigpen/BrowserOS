@@ -1,6 +1,7 @@
 import { Check, Plug } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { i18n } from '#i18n'
 import { Button } from '@/components/ui/button'
 import {
   BREADCRUMB_CONNECT_CLICKED_EVENT,
@@ -38,7 +39,11 @@ export const ConnectAppCard: FC<ConnectAppCardProps> = ({
     apiKeyUrl: string
   } | null>(null)
   const [resolvedText, setResolvedText] = useState(
-    isLastMessage ? '' : `${(data.appName as string) ?? 'App'} suggested`,
+    isLastMessage
+      ? ''
+      : i18n.t('chat.connectApp.suggested', [
+          (data.appName as string) ?? 'App',
+        ]),
   )
 
   const { sendMessage } = useChatSessionContext()
@@ -110,9 +115,11 @@ export const ConnectAppCard: FC<ConnectAppCardProps> = ({
         managedServerDescription: '',
       })
       track(MANAGED_MCP_ADDED_EVENT, { server_name: appName })
-      toast.success(`${apiKeyServer.name} connected successfully`)
+      toast.success(
+        i18n.t('chat.connectApp.connectedSuccess', [apiKeyServer.name]),
+      )
       setApiKeyServer(null)
-      setResolvedText(`Connected ${appName}`)
+      setResolvedText(i18n.t('chat.connectApp.connected', [appName]))
       setPhase('resolved')
       sendMessage({
         text: `I've connected ${appName}, continue with the task`,
@@ -127,7 +134,7 @@ export const ConnectAppCard: FC<ConnectAppCardProps> = ({
 
   const handleOAuthComplete = () => {
     track(BREADCRUMB_CONNECT_COMPLETED_EVENT, { app_name: appName })
-    setResolvedText(`Connected ${appName}`)
+    setResolvedText(i18n.t('chat.connectApp.connected', [appName]))
     setPhase('resolved')
     sendMessage({
       text: `I've connected ${appName}, continue with the task`,
@@ -140,7 +147,7 @@ export const ConnectAppCard: FC<ConnectAppCardProps> = ({
     if (!current.includes(appName)) {
       await declinedAppsStorage.setValue([...current, appName])
     }
-    setResolvedText(`Continuing without ${appName}`)
+    setResolvedText(i18n.t('chat.connectApp.continuedWithout', [appName]))
     setPhase('resolved')
     sendMessage({
       text: `Continue without connecting ${appName}, do it manually with browser automation`,
@@ -165,20 +172,20 @@ export const ConnectAppCard: FC<ConnectAppCardProps> = ({
           <Plug className="h-5 w-5 shrink-0 text-[var(--accent-orange)]" />
           <div>
             <p className="font-medium text-sm">
-              Authorize {appName} in the opened tab
+              {i18n.t('chat.connectApp.authorizeTitle', [appName])}
             </p>
             <p className="mt-1 text-muted-foreground text-xs">
-              Complete the sign-in flow, then click the button below.
+              {i18n.t('chat.connectApp.authorizeDescription')}
             </p>
           </div>
         </div>
 
         <div className="mt-3 flex gap-2">
           <Button size="sm" onClick={handleOAuthComplete}>
-            I've authorized {appName}, continue
+            {i18n.t('chat.connectApp.authorizedButton', [appName])}
           </Button>
           <Button size="sm" variant="ghost" onClick={handleManual}>
-            Skip, do it manually
+            {i18n.t('chat.connectApp.skipButton')}
           </Button>
         </div>
       </div>
@@ -192,7 +199,7 @@ export const ConnectAppCard: FC<ConnectAppCardProps> = ({
           <Plug className="h-5 w-5 shrink-0 text-[var(--accent-orange)]" />
           <div>
             <p className="font-medium text-sm">
-              Connect {appName} for better results
+              {i18n.t('chat.connectApp.connectForBetter', [appName])}
             </p>
             {reason && (
               <p className="mt-1 text-muted-foreground text-xs">{reason}</p>
@@ -202,10 +209,12 @@ export const ConnectAppCard: FC<ConnectAppCardProps> = ({
 
         <div className="mt-3 flex gap-2">
           <Button size="sm" onClick={handleConnect} disabled={connecting}>
-            {connecting ? 'Connecting...' : `Connect ${appName}`}
+            {connecting
+              ? i18n.t('chat.connectApp.connecting')
+              : i18n.t('chat.connectApp.connectButton', [appName])}
           </Button>
           <Button size="sm" variant="ghost" onClick={handleManual}>
-            Do it manually
+            {i18n.t('chat.connectApp.doItManually')}
           </Button>
         </div>
       </div>

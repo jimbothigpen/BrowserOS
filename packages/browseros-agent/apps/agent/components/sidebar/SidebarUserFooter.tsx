@@ -1,5 +1,6 @@
 import { Info, Keyboard } from 'lucide-react'
 import type { FC } from 'react'
+import { i18n } from '#i18n'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -50,7 +51,7 @@ export const SidebarUserFooter: FC<SidebarUserFooterProps> = ({
           expanded ? 'opacity-100' : 'opacity-0',
         )}
       >
-        About BrowserOS
+        {i18n.t('sidebar.footer.about')}
       </span>
     </a>
   )
@@ -68,7 +69,7 @@ export const SidebarUserFooter: FC<SidebarUserFooterProps> = ({
           expanded ? 'opacity-100' : 'opacity-0',
         )}
       >
-        Shortcuts
+        {i18n.t('sidebar.footer.shortcuts')}
       </span>
     </Button>
   )
@@ -81,7 +82,9 @@ export const SidebarUserFooter: FC<SidebarUserFooterProps> = ({
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>{shortcutsButton}</TooltipTrigger>
-            <TooltipContent side="right">Shortcuts</TooltipContent>
+            <TooltipContent side="right">
+              {i18n.t('sidebar.footer.shortcuts')}
+            </TooltipContent>
           </Tooltip>
         )}
 
@@ -90,7 +93,9 @@ export const SidebarUserFooter: FC<SidebarUserFooterProps> = ({
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>{aboutLink}</TooltipTrigger>
-            <TooltipContent side="right">About BrowserOS</TooltipContent>
+            <TooltipContent side="right">
+              {i18n.t('sidebar.footer.about')}
+            </TooltipContent>
           </Tooltip>
         )}
       </div>

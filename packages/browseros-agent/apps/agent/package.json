@@ -15,7 +15,8 @@
     "lint:fix": "bunx biome check --write --unsafe",
     "clean:cache": "rm -rf node_modules/.cache && rm -rf .output/ && rm -rf .wxt/",
     "codegen": "bun --env-file=.env.development graphql-codegen --config codegen.ts",
-    "codegen:watch": "graphql-codegen --config codegen.ts --watch"
+    "codegen:watch": "graphql-codegen --config codegen.ts --watch",
+    "translate": "bun run scripts/translate.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.96",

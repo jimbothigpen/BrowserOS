@@ -1,0 +1,169 @@
+# Extension manifest
+extName: BrowserOS Assistant
+extActionTitle: Ask BrowserOS
+
+# Chat input
+chat:
+  input:
+    placeholderAgent: What should I do?
+    placeholderChat: Ask about this page...
+    placeholderTranscribing: Transcribing...
+    send: Send
+    stop: Stop
+    stopRecording: Stop recording
+    transcribing: Transcribing
+    voiceInput: Voice input
+
+  # Chat mode toggle
+  mode:
+    agent: Agent Mode ON
+    chat: Chat Mode ON
+    agentTooltip: AI can browse, click, and navigate
+    chatTooltip: AI can only read, cannot click or navigate
+
+  # Chat empty state
+  empty:
+    agentTitle: Agent at your service
+    agentSubtitle: Let AI automate tasks and browse for you
+    chatTitle: Chat with this page
+    chatSubtitle: Ask questions about the current page or any topic
+
+  # Chat header
+  header:
+    changeProvider: Change AI Provider
+    newConversation: New conversation
+    chatHistory: Chat history
+    starOnGithub: Star on Github
+    settings: Settings
+
+  # Chat errors
+  error:
+    dailyLimitTitle: Daily limit reached
+    connectionFailedTitle: Connection failed
+    genericTitle: Something went wrong
+    connectionMessage: "Unable to connect to BrowserOS agent. Follow below instructions."
+    rateLimitMessage: Add your own API key for unlimited usage.
+    troubleshootingLink: View troubleshooting guide
+    kimiApiKeyLink: Learn how to get a Kimi API key
+    getApiKey: get your API key
+    tryAgain: Try again
+
+  # Chat message actions
+  actions:
+    copy: Copy
+    copyToClipboard: Copy to clipboard
+    feedbackSubmitted: Feedback submitted
+    like: Like
+    likeTooltip: Like this response
+    dislike: Dislike
+    dislikeTooltip: Dislike this response
+    feedbackTitle: What went wrong?
+    feedbackDescription: Help us improve by sharing what was wrong with this response.
+    feedbackPlaceholder: Add a comment (optional)
+
+  # Schedule suggestion card
+  schedule:
+    title: Run this automatically?
+    dailyAt: "daily at $1"
+    everyHour: every hour
+    scheduleButton: Schedule this task
+    maybeLater: Maybe later
+
+  # Connect app card
+  connectApp:
+    connecting: Connecting...
+    connectButton: "Connect $1"
+    authorizeTitle: "Authorize $1 in the opened tab"
+    authorizeDescription: Complete the sign-in flow, then click the button below.
+    authorizedButton: "I've authorized $1, continue"
+    skipButton: "Skip, do it manually"
+    suggested: "$1 suggested"
+    connected: "Connected $1"
+    continuedWithout: "Continuing without $1"
+    connectForBetter: "Connect $1 for better results"
+    doItManually: Do it manually
+    connectedSuccess: "$1 connected successfully"
+    connectFailed: "Failed to connect $1"
+
+# Chat footer
+footer:
+  attachTabs: Attach tabs (@)
+  selectWorkspace: Select workspace folder
+  connectApps: Connect apps
+
+# Selected text card
+selectedText:
+  removeTitle: Remove selected text
+
+# Attached tabs
+attachedTabs:
+  removeTab: Remove tab
+
+# Newtab page
+newtab:
+  search:
+    placeholder: "Ask BrowserOS or search $1..."
+  branding:
+    alt: BrowserOS
+  selectedTab: Tab
+  appsNew: "New!"
+  appsTooltip: Apps directly connected will have more accurate and faster responses for your queries!
+  addWorkspace: Add workspace
+  tip:
+    label: "Tip:"
+    nextTip: Next tip
+    dismiss: Dismiss
+
+  # Sign in hint
+  signIn:
+    title: Sync your data
+    description: Sign in to sync conversation history to the cloud.
+    dontAskAgain: Don't ask again
+    signInButton: Sign in
+
+  # Import data hint
+  importData:
+    title: Import your data
+    description: "Bring bookmarks, history, and passwords from Chrome."
+    dontShowAgain: Don't show this again
+    openSettings: Open Import Settings
+
+  # Shortcuts dialog
+  shortcuts:
+    title: Keyboard Shortcuts
+    description: Use these shortcuts to navigate BrowserOS faster
+    moreComingSoon: More shortcuts coming soon
+
+# Sidebar navigation
+sidebar:
+  nav:
+    home: Home
+    connectApps: Connect Apps
+    scheduledTasks: Scheduled Tasks
+    workflows: Workflows
+    skills: Skills
+    memory: Memory
+    soul: Soul
+    settings: Settings
+  footer:
+    about: About BrowserOS
+    shortcuts: Shortcuts
+  branding:
+    alt: BrowserOS
+    personal: Personal
+    updateProfile: Update Profile
+    signOut: Sign out
+    signIn: Sign in
+
+# Common / shared
+common:
+  cancel: Cancel
+  submit: Submit
+  save: Save
+  delete: Delete
+  edit: Edit
+  close: Close
+  loading: Loading...
+  error: Something went wrong
+  apps: Apps
+  tabs: Tabs

@@ -1,5 +1,6 @@
 import { Clock, X } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
+import { i18n } from '#i18n'
 import { Button } from '@/components/ui/button'
 import {
   BREADCRUMB_SCHEDULE_CLICKED_EVENT,
@@ -40,7 +41,9 @@ export const ScheduleSuggestionCard: FC<ScheduleSuggestionCardProps> = ({
   if (dismissed) return null
 
   const scheduleLabel =
-    scheduleType === 'daily' ? `daily at ${scheduleTime}` : 'every hour'
+    scheduleType === 'daily'
+      ? i18n.t('chat.schedule.dailyAt', [scheduleTime])
+      : i18n.t('chat.schedule.everyHour')
 
   const handleSchedule = () => {
     track(BREADCRUMB_SCHEDULE_CLICKED_EVENT, {
@@ -75,7 +78,7 @@ export const ScheduleSuggestionCard: FC<ScheduleSuggestionCardProps> = ({
       <div className="flex items-start gap-3 pr-6">
         <Clock className="h-5 w-5 shrink-0 text-[var(--accent-orange)]" />
         <div>
-          <p className="font-medium text-sm">Run this automatically?</p>
+          <p className="font-medium text-sm">{i18n.t('chat.schedule.title')}</p>
           <p className="mt-1 text-muted-foreground text-xs">
             &ldquo;{suggestedName}&rdquo; &mdash; I can run this {scheduleLabel}
           </p>
@@ -84,10 +87,10 @@ export const ScheduleSuggestionCard: FC<ScheduleSuggestionCardProps> = ({
 
       <div className="mt-3 flex gap-2">
         <Button size="sm" onClick={handleSchedule}>
-          Schedule this task
+          {i18n.t('chat.schedule.scheduleButton')}
         </Button>
         <Button size="sm" variant="ghost" onClick={handleDismiss}>
-          Maybe later
+          {i18n.t('chat.schedule.maybeLater')}
         </Button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { Globe, X } from 'lucide-react'
 import type { FC } from 'react'
+import { i18n } from '#i18n'
 
 interface ChatAttachedTabsProps {
   tabs: chrome.tabs.Tab[]
@@ -34,7 +35,7 @@ export const ChatAttachedTabs: FC<ChatAttachedTabsProps> = ({
               type="button"
               onClick={() => onRemoveTab(tab.id)}
               className="flex-shrink-0 rounded p-0.5 transition-colors hover:bg-background"
-              title="Remove tab"
+              title={i18n.t('attachedTabs.removeTab')}
             >
               <X className="h-3 w-3 text-muted-foreground" />
             </button>

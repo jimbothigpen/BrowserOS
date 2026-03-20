@@ -1,6 +1,7 @@
 import { ChevronDown, Folder, Layers, PlugZap } from 'lucide-react'
 import type { FC, FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { i18n } from '#i18n'
 import { AppSelector } from '@/components/elements/AppSelector'
 import { WorkspaceSelector } from '@/components/elements/workspace-selector'
 import { McpServerIcon } from '@/entrypoints/app/connect-mcp/McpServerIcon'
@@ -142,7 +143,7 @@ export const ChatFooter: FC<ChatFooterProps> = ({
               aria-expanded={isTabMentionOpen}
               aria-haspopup="dialog"
               className="flex cursor-pointer items-center gap-1 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-accent"
-              title="Attach tabs (@)"
+              title={i18n.t('footer.attachTabs')}
             >
               <Layers className="h-4 w-4" />
               {attachedTabs.length > 0 && (
@@ -166,7 +167,7 @@ export const ChatFooter: FC<ChatFooterProps> = ({
                   title={
                     selectedFolder
                       ? selectedFolder.name
-                      : 'Select workspace folder'
+                      : i18n.t('footer.selectWorkspace')
                   }
                 >
                   <div className="relative">
@@ -185,7 +186,7 @@ export const ChatFooter: FC<ChatFooterProps> = ({
                 <button
                   type="button"
                   className="flex cursor-pointer items-center gap-1 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-accent"
-                  title="Connect apps"
+                  title={i18n.t('footer.connectApps')}
                 >
                   {connectedManagedServers.length > 0 ? (
                     <>

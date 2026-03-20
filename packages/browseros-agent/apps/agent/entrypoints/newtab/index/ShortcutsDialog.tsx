@@ -1,3 +1,4 @@
+import { i18n } from '#i18n'
 import {
   Dialog,
   DialogContent,
@@ -25,10 +26,10 @@ export const ShortcutsDialog = ({
       <DialogContent className="styled-scrollbar max-h-[80vh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-semibold text-2xl">
-            Keyboard Shortcuts
+            {i18n.t('newtab.shortcuts.title')}
           </DialogTitle>
           <DialogDescription>
-            Use these shortcuts to navigate BrowserOS faster
+            {i18n.t('newtab.shortcuts.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -59,7 +60,7 @@ export const ShortcutsDialog = ({
         </div>
 
         <div className="mt-8 border-border/50 border-t pt-4 text-center text-muted-foreground text-xs">
-          More shortcuts coming soon
+          {i18n.t('newtab.shortcuts.moreComingSoon')}
         </div>
       </DialogContent>
     </Dialog>

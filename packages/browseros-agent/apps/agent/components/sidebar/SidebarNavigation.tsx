@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { FC } from 'react'
 import { NavLink, useLocation } from 'react-router'
+import { i18n } from '#i18n'
 import {
   Tooltip,
   TooltipContent,
@@ -24,40 +25,44 @@ interface SidebarNavigationProps {
 }
 
 type NavItem = {
-  name: string
+  nameKey: string
   to: string
   icon: typeof Home
   feature?: Feature
 }
 
 const primaryNavItems: NavItem[] = [
-  { name: 'Home', to: '/home', icon: Home },
+  { nameKey: 'sidebar.nav.home', to: '/home', icon: Home },
   {
-    name: 'Connect Apps',
+    nameKey: 'sidebar.nav.connectApps',
     to: '/connect-apps',
     icon: PlugZap,
     feature: Feature.MANAGED_MCP_SUPPORT,
   },
-  { name: 'Scheduled Tasks', to: '/scheduled', icon: CalendarClock },
   {
-    name: 'Skills',
+    nameKey: 'sidebar.nav.scheduledTasks',
+    to: '/scheduled',
+    icon: CalendarClock,
+  },
+  {
+    nameKey: 'sidebar.nav.skills',
     to: '/home/skills',
     icon: Wand2,
     feature: Feature.SKILLS_SUPPORT,
   },
   {
-    name: 'Memory',
+    nameKey: 'sidebar.nav.memory',
     to: '/home/memory',
     icon: Brain,
     feature: Feature.MEMORY_SUPPORT,
   },
   {
-    name: 'Soul',
+    nameKey: 'sidebar.nav.soul',
     to: '/home/soul',
     icon: Sparkles,
     feature: Feature.SOUL_SUPPORT,
   },
-  { name: 'Settings', to: '/settings/ai', icon: Settings },
+  { nameKey: 'sidebar.nav.settings', to: '/settings/ai', icon: Settings },
 ]
 
 export const SidebarNavigation: FC<SidebarNavigationProps> = ({
@@ -97,7 +102,7 @@ export const SidebarNavigation: FC<SidebarNavigationProps> = ({
                     expanded ? 'opacity-100' : 'opacity-0',
                   )}
                 >
-                  {item.name}
+                  {i18n.t(item.nameKey as never)}
                 </span>
               </NavLink>
             )
@@ -106,7 +111,9 @@ export const SidebarNavigation: FC<SidebarNavigationProps> = ({
               return (
                 <Tooltip key={item.to}>
                   <TooltipTrigger asChild>{navItem}</TooltipTrigger>
-                  <TooltipContent side="right">{item.name}</TooltipContent>
+                  <TooltipContent side="right">
+                    {i18n.t(item.nameKey as never)}
+                  </TooltipContent>
                 </Tooltip>
               )
             }

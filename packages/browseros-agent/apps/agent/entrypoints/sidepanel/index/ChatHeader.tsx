@@ -1,6 +1,7 @@
 import { Github, History, Plus, SettingsIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
+import { i18n } from '#i18n'
 import { ChatProviderSelector } from '@/components/chat/ChatProviderSelector'
 import type { Provider } from '@/components/chat/chatComponentTypes'
 import { ThemeToggle } from '@/components/elements/theme-toggle'
@@ -46,7 +47,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
           <button
             type="button"
             className="group relative inline-flex cursor-pointer items-center gap-2 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-accent"
-            title="Change AI Provider"
+            title={i18n.t('chat.header.changeProvider')}
           >
             {selectedProvider.type === 'browseros' ? (
               <BrowserOSIcon size={18} />
@@ -69,7 +70,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
             type="button"
             onClick={onNewConversation}
             className="cursor-pointer rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-            title="New conversation"
+            title={i18n.t('chat.header.newConversation')}
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -81,7 +82,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
               type="button"
               onClick={handleNewConversationFromHistory}
               className="cursor-pointer rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-              title="New conversation"
+              title={i18n.t('chat.header.newConversation')}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -89,7 +90,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
             <Link
               to="/history"
               className="cursor-pointer rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-              title="Chat history"
+              title={i18n.t('chat.header.chatHistory')}
             >
               <History className="h-4 w-4" />
             </Link>
@@ -100,7 +101,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
           target="_blank"
           rel="noopener noreferrer"
           className="cursor-pointer rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-          title="Star on Github"
+          title={i18n.t('chat.header.starOnGithub')}
         >
           <Github className="h-4 w-4" />
         </a>
@@ -110,7 +111,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
           target="_blank"
           rel="noopener noreferrer"
           className="cursor-pointer rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-          title="Settings"
+          title={i18n.t('chat.header.settings')}
         >
           <SettingsIcon className="h-4 w-4" />
         </a>

@@ -1,5 +1,6 @@
 import { MessageSquare, MousePointer2 } from 'lucide-react'
 import type { FC } from 'react'
+import { i18n } from '#i18n'
 import {
   Tooltip,
   TooltipContent,
@@ -37,20 +38,20 @@ export const ChatModeToggle: FC<ChatModeToggleProps> = ({
             {isAgentMode ? (
               <>
                 <MousePointer2 className="h-3 w-3" />
-                <span>Agent Mode ON</span>
+                <span>{i18n.t('chat.mode.agent')}</span>
               </>
             ) : (
               <>
                 <MessageSquare className="h-3 w-3" />
-                <span>Chat Mode ON</span>
+                <span>{i18n.t('chat.mode.chat')}</span>
               </>
             )}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[220px]">
           {isAgentMode
-            ? 'AI can browse, click, and navigate'
-            : 'AI can only read, cannot click or navigate'}
+            ? i18n.t('chat.mode.agentTooltip')
+            : i18n.t('chat.mode.chatTooltip')}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

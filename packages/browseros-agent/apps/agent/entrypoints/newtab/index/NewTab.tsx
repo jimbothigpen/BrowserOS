@@ -12,6 +12,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { i18n } from '#i18n'
 import { ChatProviderSelector } from '@/components/chat/ChatProviderSelector'
 import { AppSelector } from '@/components/elements/AppSelector'
 import {
@@ -129,7 +130,9 @@ export const NewTab = () => {
     query: inputValue,
     selectedTabs,
   })
-  const searchPlaceholder = `Ask BrowserOS or search ${providerConfig.name}...`
+  const searchPlaceholder = i18n.t('newtab.search.placeholder', [
+    providerConfig.name,
+  ])
 
   const {
     isOpen,
@@ -495,7 +498,7 @@ export const NewTab = () => {
                                   {selectedTab.title}
                                 </div>
                                 <div className="text-muted-foreground text-xs">
-                                  Tab
+                                  {i18n.t('newtab.selectedTab')}
                                 </div>
                               </div>
                               <button
@@ -569,7 +572,10 @@ export const NewTab = () => {
                         )}
                       >
                         <Folder className="h-4 w-4" />
-                        <span>{selectedFolder?.name || 'Add workspace'}</span>
+                        <span>
+                          {selectedFolder?.name ||
+                            i18n.t('newtab.addWorkspace')}
+                        </span>
                         <ChevronDown className="h-3 w-3" />
                       </Button>
                     </WorkspaceSelector>
@@ -592,7 +598,7 @@ export const NewTab = () => {
                         )}
                       >
                         <Layers className="h-4 w-4" />
-                        <span>Tabs</span>
+                        <span>{i18n.t('common.tabs')}</span>
                       </Button>
                     </TabPickerPopover>
                   </div>
@@ -602,7 +608,7 @@ export const NewTab = () => {
                   <div className="ml-auto flex items-center gap-1.5">
                     {connectedManagedServers.length === 0 && (
                       <span className="flex items-center gap-1 font-semibold text-[var(--accent-orange)] text-sm">
-                        New!
+                        {i18n.t('newtab.appsNew')}
                       </span>
                     )}
                     {connectedManagedServers.length === 0 ? (
@@ -623,14 +629,13 @@ export const NewTab = () => {
                               )}
                             >
                               <PlugZap className="h-4 w-4" />
-                              <span>Apps</span>
+                              <span>{i18n.t('common.apps')}</span>
                               <ChevronDown className="h-3 w-3" />
                             </Button>
                           </TooltipTrigger>
                         </AppSelector>
                         <TooltipContent side="left" className="max-w-56">
-                          Apps directly connected will have more accurate and
-                          faster responses for your queries!
+                          {i18n.t('newtab.appsTooltip')}
                         </TooltipContent>
                       </Tooltip>
                     ) : (
@@ -667,7 +672,7 @@ export const NewTab = () => {
                               +{connectedManagedServers.length - 4}
                             </span>
                           )}
-                          <span>Apps</span>
+                          <span>{i18n.t('common.apps')}</span>
                           <ChevronDown className="h-3 w-3" />
                         </Button>
                       </AppSelector>

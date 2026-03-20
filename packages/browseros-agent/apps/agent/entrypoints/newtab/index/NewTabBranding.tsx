@@ -1,5 +1,6 @@
 import { motion } from 'motion/react'
 import type { FC } from 'react'
+import { i18n } from '#i18n'
 import ProductLogoSvg from '@/assets/product_logo.svg'
 
 export const NewTabBranding: FC = () => {
@@ -15,7 +16,11 @@ export const NewTabBranding: FC = () => {
           }}
           className="flex h-20 w-20 items-center justify-center rounded-xl bg-transparent"
         >
-          <img src={ProductLogoSvg} alt="BrowserOS" className="h-20 w-20" />
+          <img
+            src={ProductLogoSvg}
+            alt={i18n.t('newtab.branding.alt')}
+            className="h-20 w-20"
+          />
         </motion.div>
       </div>
     </div>

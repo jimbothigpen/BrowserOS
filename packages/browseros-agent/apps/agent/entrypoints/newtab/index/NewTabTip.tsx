@@ -1,6 +1,7 @@
 import { ChevronRight, Lightbulb, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { type FC, useState } from 'react'
+import { i18n } from '#i18n'
 import { NEWTAB_TIP_DISMISSED_EVENT } from '@/lib/constants/analyticsEvents'
 import { track } from '@/lib/metrics/track'
 import { dismissTip, shouldShowTip, TIPS } from './tips'
@@ -39,7 +40,7 @@ export const NewTabTip: FC = () => {
             <Lightbulb className="h-3.5 w-3.5 flex-shrink-0 text-[var(--accent-orange)]" />
             <p className="text-muted-foreground text-xs leading-relaxed">
               <span className="font-semibold text-[var(--accent-orange)]">
-                Tip:
+                {i18n.t('newtab.tip.label')}
               </span>{' '}
               {tip.text}
             </p>
@@ -47,7 +48,7 @@ export const NewTabTip: FC = () => {
               type="button"
               onClick={handleNext}
               className="flex-shrink-0 rounded-sm p-0.5 text-muted-foreground/50 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100"
-              title="Next tip"
+              title={i18n.t('newtab.tip.nextTip')}
             >
               <ChevronRight className="h-3 w-3" />
             </button>
@@ -55,7 +56,7 @@ export const NewTabTip: FC = () => {
               type="button"
               onClick={handleDismiss}
               className="flex-shrink-0 rounded-sm p-0.5 text-muted-foreground/50 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100"
-              title="Dismiss"
+              title={i18n.t('newtab.tip.dismiss')}
             >
               <X className="h-3 w-3" />
             </button>
