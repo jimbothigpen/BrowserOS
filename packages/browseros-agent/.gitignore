@@ -187,6 +187,10 @@ log.txt
 # Testing iteration temp files
 tmp/
 
+# CI artifacts
+.ci/
+test-results/
+
 # Coding agent artifacts
 .agent/
 .llm/
