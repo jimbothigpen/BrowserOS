@@ -54,13 +54,11 @@ export default defineConfig({
     },
     permissions: [
       'topSites',
-      'activeTab',
       'storage',
       'unlimitedStorage',
       'scripting',
       'tabs',
       'tabGroups',
-      'debugger',
       'sidePanel',
       'bookmarks',
       'history',
