@@ -111,7 +111,7 @@ export function registerKlavisTools(
 
           metrics.log('tool_executed', {
             tool_name: tool.name,
-            source: 'klavis',
+            source: 'mcp',
             duration_ms: Math.round(performance.now() - startTime),
             success: !result.isError,
           })
@@ -123,7 +123,7 @@ export function registerKlavisTools(
 
           metrics.log('tool_executed', {
             tool_name: tool.name,
-            source: 'klavis',
+            source: 'mcp',
             duration_ms: Math.round(performance.now() - startTime),
             success: false,
             error_message: errorText,

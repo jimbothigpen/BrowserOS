@@ -11,12 +11,14 @@ import {
   type ModelMessage,
   stepCountIs,
   ToolLoopAgent,
+  type ToolSet,
   type UIMessage,
   wrapLanguageModel,
 } from 'ai'
 import type { Browser } from '../browser/browser'
 import type { KlavisClient } from '../lib/clients/klavis/klavis-client'
 import { logger } from '../lib/logger'
+import { metrics } from '../lib/metrics'
 import { isSoulBootstrap, readSoul } from '../lib/soul'
 import { buildSkillsCatalog } from '../skills/catalog'
 import { loadSkills } from '../skills/loader'
@@ -114,7 +116,44 @@ export class AiSdkAgent {
       klavisClient: config.klavisClient,
       browserosId: config.browserosId,
     })
-    const { clients, tools: externalMcpTools } = await createMcpClients(specs)
+    const { clients, tools: rawExternalMcpTools } =
+      await createMcpClients(specs)
+
+    // Wrap external MCP tools (Klavis, custom) with metrics
+    const externalMcpTools: ToolSet = {}
+    for (const [name, t] of Object.entries(rawExternalMcpTools)) {
+      const originalExecute = t.execute
+      externalMcpTools[name] = {
+        ...t,
+        execute: originalExecute
+          ? async (
+              ...args: Parameters<NonNullable<typeof originalExecute>>
+            ) => {
+              const startTime = performance.now()
+              try {
+                const result = await originalExecute(...args)
+                metrics.log('tool_executed', {
+                  tool_name: name,
+                  duration_ms: Math.round(performance.now() - startTime),
+                  success: true,
+                  source: 'chat',
+                })
+                return result
+              } catch (error) {
+                metrics.log('tool_executed', {
+                  tool_name: name,
+                  duration_ms: Math.round(performance.now() - startTime),
+                  success: false,
+                  error_message:
+                    error instanceof Error ? error.message : String(error),
+                  source: 'chat',
+                })
+                throw error
+              }
+            }
+          : undefined,
+      }
+    }
 
     // Add filesystem tools (Pi coding agent) — skip in chat mode (read-only)
     const filesystemTools = config.resolvedConfig.chatMode

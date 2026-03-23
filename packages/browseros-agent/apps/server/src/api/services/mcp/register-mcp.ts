@@ -25,6 +25,7 @@ export function registerTools(
           tool_name: tool.name,
           duration_ms: Math.round(performance.now() - startTime),
           success: !result.isError,
+          source: 'mcp',
         })
 
         return {
@@ -40,6 +41,7 @@ export function registerTools(
           duration_ms: Math.round(performance.now() - startTime),
           success: false,
           error_message: errorText,
+          source: 'mcp',
         })
 
         return {

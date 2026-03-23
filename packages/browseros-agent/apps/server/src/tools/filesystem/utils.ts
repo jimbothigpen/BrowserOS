@@ -264,6 +264,7 @@ export function executeWithMetrics(
         tool_name: toolName,
         duration_ms: Math.round(performance.now() - startTime),
         success: !result.isError,
+        source: 'chat',
       })
       return result
     },
@@ -278,6 +279,7 @@ export function executeWithMetrics(
         duration_ms: Math.round(performance.now() - startTime),
         success: false,
         error_message: errorText,
+        source: 'chat',
       })
       return { text: errorText, isError: true }
     },

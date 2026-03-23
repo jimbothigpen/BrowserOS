@@ -64,6 +64,7 @@ export function buildBrowserToolSet(
             tool_name: def.name,
             duration_ms: Math.round(performance.now() - startTime),
             success: !result.isError,
+            source: 'chat',
           })
 
           return {
@@ -85,6 +86,7 @@ export function buildBrowserToolSet(
             success: false,
             error_message:
               error instanceof Error ? error.message : 'Unknown error',
+            source: 'chat',
           })
 
           return {
