@@ -198,6 +198,7 @@ export const NewProviderDialog: FC<NewProviderDialogProps> = ({
 }) => {
   const [isTesting, setIsTesting] = useState(false)
   const [testResult, setTestResult] = useState<TestResult | null>(null)
+  const [modelListOpen, setModelListOpen] = useState(false)
   const { supports } = useCapabilities()
   const { baseUrl: agentServerUrl } = useAgentServerUrl()
   const kimiLaunch = useKimiLaunch()
@@ -802,65 +803,81 @@ export const NewProviderDialog: FC<NewProviderDialogProps> = ({
             <FormField
               control={form.control}
               name="modelId"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Model *</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={
-                        watchedType === 'azure'
-                          ? 'Enter your deployment name'
-                          : watchedType === 'bedrock'
-                            ? 'e.g., anthropic.claude-3-5-sonnet-20241022-v2:0'
-                            : 'Enter or select a model ID'
-                      }
-                      {...field}
-                    />
-                  </FormControl>
-                  {modelInfoList.length > 0 &&
-                    (() => {
-                      const query = field.value?.toLowerCase() ?? ''
-                      const exactMatch = modelInfoList.some(
-                        (m) => m.modelId === field.value,
+              render={({ field }) => {
+                const query = field.value?.toLowerCase() ?? ''
+                const exactMatch = modelInfoList.some(
+                  (m) => m.modelId === field.value,
+                )
+                const filtered =
+                  !modelListOpen || exactMatch
+                    ? modelInfoList
+                    : modelInfoList.filter((m) =>
+                        m.modelId.toLowerCase().includes(query),
                       )
-                      const filtered = exactMatch
-                        ? modelInfoList
-                        : modelInfoList.filter((m) =>
-                            m.modelId.toLowerCase().includes(query),
-                          )
-                      return filtered.length > 0 ? (
-                        <div className="rounded-md border">
-                          <div className="max-h-[200px] overflow-y-auto">
-                            {filtered.map((model) => {
-                              const isSelected = field.value === model.modelId
-                              return (
-                                <button
-                                  key={model.modelId}
-                                  type="button"
-                                  onClick={() => {
-                                    form.setValue('modelId', model.modelId)
-                                  }}
-                                  className={cn(
-                                    'flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-accent',
-                                    isSelected && 'bg-accent font-medium',
-                                  )}
-                                >
-                                  <span className="truncate">
-                                    {model.modelId}
-                                  </span>
-                                  <span className="ml-2 shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                                    {formatContextWindow(model.contextLength)}
-                                  </span>
-                                </button>
-                              )
-                            })}
-                          </div>
+                const showList =
+                  modelListOpen &&
+                  modelInfoList.length > 0 &&
+                  filtered.length > 0
+
+                return (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Model *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={
+                          watchedType === 'azure'
+                            ? 'Enter your deployment name'
+                            : watchedType === 'bedrock'
+                              ? 'e.g., anthropic.claude-3-5-sonnet-20241022-v2:0'
+                              : 'Enter or select a model ID'
+                        }
+                        {...field}
+                        onFocus={() => setModelListOpen(true)}
+                        onBlur={() => {
+                          // Delay to allow click on list item to register
+                          setTimeout(() => setModelListOpen(false), 150)
+                        }}
+                        onChange={(e) => {
+                          field.onChange(e)
+                          setModelListOpen(true)
+                        }}
+                      />
+                    </FormControl>
+                    {showList && (
+                      <div className="rounded-md border">
+                        <div className="max-h-[200px] overflow-y-auto">
+                          {filtered.map((model) => {
+                            const isSelected = field.value === model.modelId
+                            return (
+                              <button
+                                key={model.modelId}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  form.setValue('modelId', model.modelId)
+                                  setModelListOpen(false)
+                                }}
+                                className={cn(
+                                  'flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-accent',
+                                  isSelected && 'bg-accent font-medium',
+                                )}
+                              >
+                                <span className="truncate">
+                                  {model.modelId}
+                                </span>
+                                <span className="ml-2 shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                                  {formatContextWindow(model.contextLength)}
+                                </span>
+                              </button>
+                            )
+                          })}
                         </div>
-                      ) : null
-                    })()}
-                  <FormMessage />
-                </FormItem>
-              )}
+                      </div>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
             />
 
             {/* Model Configuration */}
