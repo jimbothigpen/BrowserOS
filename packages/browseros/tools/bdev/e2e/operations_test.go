@@ -39,6 +39,16 @@ func TestApplyExportAndFeatureTag(t *testing.T) {
 	assertFileContains(t, filepath.Join(env.repo, "build", "features.yaml"), env.path)
 }
 
+func TestHelpListsGroupedCommands(t *testing.T) {
+	env := setupScenario(t)
+	out := runBdev(t, env, env.chromium, "--help")
+	for _, want := range []string{"Setup:", "Inspect:", "Workflows:", "Repair:", "init", "checkouts", "apply", "reset"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected help output to contain %q\n%s", want, out)
+		}
+	}
+}
+
 func TestRebaseReplaysLocalOverlay(t *testing.T) {
 	env := setupScenario(t)
 	runBdev(t, env, env.chromium, "init", "--patches-repo", env.repo, "--name", "ch1")

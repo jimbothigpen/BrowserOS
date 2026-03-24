@@ -52,7 +52,7 @@ const helpTemplate = `{{helpHeader "Usage:"}}
   {{.UseLine}}{{if .HasAvailableSubCommands}}
 
 {{helpHeader "Commands:"}}{{range .Groups}}
-{{.Title}}{{range $.Commands}}{{if and .IsAvailableCommand (eq .GroupID $.ID)}}
+{{$gid := .ID}}{{.Title}}{{range $.Commands}}{{if and .IsAvailableCommand (eq .GroupID $gid)}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 {{helpHeader "Flags:"}}

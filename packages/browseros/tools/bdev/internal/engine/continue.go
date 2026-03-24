@@ -20,6 +20,7 @@ func Continue(ctx *Context, activity *ui.Activity) (*ContinueResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	done := activity.Start("retry pending patches")
 	next := []session.ConflictEntry{}
 	for _, entry := range sess.Pending {
 		detail, err := git.Apply(ctx.Checkout.ChromiumRoot, []byte(entry.PatchContent))
@@ -34,14 +35,16 @@ func Continue(ctx *Context, activity *ui.Activity) (*ContinueResult, error) {
 	sess.Pending = next
 	if len(next) == 0 {
 		if err := session.Delete(ctx.Checkout.ID); err != nil {
+			done(false, "")
 			return nil, err
 		}
+		done(true, "")
 		return &ContinueResult{}, nil
 	}
 	if err := session.Save(sess); err != nil {
+		done(false, "")
 		return nil, err
 	}
-	done := activity.Start("retry pending patches")
 	done(true, "")
 	return &ContinueResult{Remaining: len(next)}, nil
 }

@@ -86,6 +86,7 @@ func Rebase(ctx *Context, activity *ui.Activity) (*RebaseResult, error) {
 		FromRepoRev: ctx.Checkout.LastSyncedRev,
 		ToRepoRev:   head,
 	}
+	upstreamFailed := map[string]bool{}
 	for _, path := range upstreamPaths {
 		fp, ok, err := patch.ReadCurrentPatch(ctx.PatchRepo.BrowserOSRepo, path)
 		if err != nil {
@@ -100,6 +101,7 @@ func Rebase(ctx *Context, activity *ui.Activity) (*RebaseResult, error) {
 		}
 		detail, err := git.Apply(ctx.Checkout.ChromiumRoot, fp.Content)
 		if err != nil || detail != "" {
+			upstreamFailed[path] = true
 			sess.Pending = append(sess.Pending, session.ConflictEntry{
 				Path: path, Stage: "sync", PatchContent: string(fp.Content), Error: detail,
 			})
@@ -108,6 +110,9 @@ func Rebase(ctx *Context, activity *ui.Activity) (*RebaseResult, error) {
 		result.Updated = append(result.Updated, path)
 	}
 	for path, overlay := range overlayPatches {
+		if upstreamFailed[path] {
+			continue
+		}
 		detail, err := git.Apply(ctx.Checkout.ChromiumRoot, overlay)
 		if err != nil || detail != "" {
 			sess.Pending = append(sess.Pending, session.ConflictEntry{

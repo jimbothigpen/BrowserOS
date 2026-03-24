@@ -36,7 +36,7 @@ var resetCmd = &cobra.Command{
 		case "synced":
 			_, err = engine.ApplyAll(ctx, engine.ApplyAllOpts{Clean: true}, ui.NewActivity(!jsonOutput))
 			if err == nil {
-				record.LastSyncedRev, _ = git.HeadRev(record.BrowserOSRepo)
+				record.LastSyncedRev, err = git.HeadRev(record.BrowserOSRepo)
 			}
 		default:
 			return fail("reset target must be base or synced")

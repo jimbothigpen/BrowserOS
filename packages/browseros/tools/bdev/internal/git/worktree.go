@@ -25,8 +25,9 @@ func Apply(dir string, patchContent []byte) (string, error) {
 	if err := runApply(dir, patchContent, "--ignore-whitespace", "--whitespace=nowarn", "-p1", "--3way"); err == nil {
 		return "", nil
 	}
-	if err := runApply(dir, patchContent, "--reject", "--ignore-whitespace", "--whitespace=nowarn", "-p1"); err != nil {
-		return stderrOf(dir, patchContent, "--reject", "--ignore-whitespace", "--whitespace=nowarn", "-p1")
+	detail, err := applyWithStderr(dir, patchContent, "--reject", "--ignore-whitespace", "--whitespace=nowarn", "-p1")
+	if err != nil {
+		return detail, err
 	}
 	return "patch applied with rejects", nil
 }
@@ -41,7 +42,7 @@ func runApply(dir string, patchContent []byte, flags ...string) error {
 	return cmd.Run()
 }
 
-func stderrOf(dir string, patchContent []byte, flags ...string) (string, error) {
+func applyWithStderr(dir string, patchContent []byte, flags ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	args := append([]string{"apply"}, flags...)

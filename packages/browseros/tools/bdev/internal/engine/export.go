@@ -36,10 +36,12 @@ func Export(ctx *Context, opts ExportOpts, activity *ui.Activity) (*ExportResult
 		}
 	}
 	slices.Sort(paths)
+	done := activity.Start("write exported patch files")
 	for _, path := range paths {
 		state, ok := status[path]
 		if !ok {
 			if err := patch.Remove(ctx.PatchRepo.BrowserOSRepo, path); err != nil {
+				done(false, "")
 				return nil, err
 			}
 			result.Removed = append(result.Removed, path)
@@ -48,22 +50,26 @@ func Export(ctx *Context, opts ExportOpts, activity *ui.Activity) (*ExportResult
 		switch state {
 		case "D":
 			if err := patch.Write(ctx.PatchRepo.BrowserOSRepo, &patch.FilePatch{Path: path, Op: patch.OpDeleted}); err != nil {
+				done(false, "")
 				return nil, err
 			}
 			result.Updated = append(result.Updated, path)
 		default:
 			diff, err := git.DiffFile(ctx.Checkout.ChromiumRoot, ctx.PatchRepo.BaseCommit, path)
 			if err != nil {
+				done(false, "")
 				return nil, err
 			}
 			if len(diff) == 0 {
 				diff, err = git.DiffNoIndex("/dev/null", filepath.Join(ctx.Checkout.ChromiumRoot, path))
 				if err != nil {
+					done(false, "")
 					return nil, err
 				}
 				diff = normalizeExportPatch(path, diff)
 			}
 			if err := patch.Write(ctx.PatchRepo.BrowserOSRepo, &patch.FilePatch{Path: path, Op: patch.OpPatch, Content: diff}); err != nil {
+				done(false, "")
 				return nil, err
 			}
 			result.Updated = append(result.Updated, path)
@@ -78,7 +84,6 @@ func Export(ctx *Context, opts ExportOpts, activity *ui.Activity) (*ExportResult
 			result.Warnings = append(result.Warnings, err.Error())
 		}
 	}
-	done := activity.Start("write exported patch files")
 	done(true, "")
 	return result, nil
 }
