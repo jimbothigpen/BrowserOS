@@ -30,9 +30,7 @@ export const PendingApprovals: FC = () => {
       approved,
       timestamp: Date.now(),
     }
-    approvalResponsesStorage.getValue().then((current) => {
-      approvalResponsesStorage.setValue([...current, response])
-    })
+    approvalResponsesStorage.setValue([response])
   }
 
   if (pending.length === 0) {

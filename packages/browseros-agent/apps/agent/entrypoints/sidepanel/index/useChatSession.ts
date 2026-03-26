@@ -509,7 +509,6 @@ export const useChatSession = (options?: ChatSessionOptions) => {
   }, [chatError, invalidateCredits])
 
   // Sync pending tool approvals to shared storage for the admin dashboard
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sync on message changes only
   useEffect(() => {
     const pending: PendingApproval[] = []
     for (const msg of messages) {
@@ -545,15 +544,19 @@ export const useChatSession = (options?: ChatSessionOptions) => {
   useEffect(() => {
     const unwatch = approvalResponsesStorage.watch((responses) => {
       if (!responses?.length) return
-      for (const resp of responses) {
-        addToolApprovalResponse({
-          id: resp.approvalId,
-          approved: resp.approved,
-          reason: resp.reason,
-        })
+      try {
+        for (const resp of responses) {
+          addToolApprovalResponse({
+            id: resp.approvalId,
+            approved: resp.approved,
+            reason: resp.reason,
+          })
+        }
+        approvalResponsesStorage.setValue([])
+        pendingToolApprovalsStorage.setValue([])
+      } catch {
+        // Leave storage intact so the dashboard can retry
       }
-      approvalResponsesStorage.setValue([])
-      pendingToolApprovalsStorage.setValue([])
     })
     return () => unwatch()
   }, [])

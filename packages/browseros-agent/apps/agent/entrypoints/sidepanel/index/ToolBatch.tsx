@@ -84,27 +84,14 @@ export const ToolBatch: FC<ToolBatchProps> = ({
               <ToolStatusIcon state={tool.state} />
               <span className="flex-1">{formatToolName(tool.toolName)}</span>
             </TaskItem>
-            {tool.state === 'approval-requested' && tool.approval?.id && (
-              <div className="mt-1 mb-2 ml-6 flex items-center gap-2">
-                <Button
-                  size="sm"
-                  className="h-7 gap-1 px-2.5 text-xs"
-                  onClick={() => onApprove?.(tool.approval!.id)}
-                >
-                  <ShieldCheck className="size-3" />
-                  Approve
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 gap-1 px-2.5 text-xs"
-                  onClick={() => onDeny?.(tool.approval!.id)}
-                >
-                  <ShieldX className="size-3" />
-                  Deny
-                </Button>
-              </div>
-            )}
+            {tool.state === 'approval-requested' &&
+              tool.approval?.id != null && (
+                <ApprovalButtons
+                  approvalId={tool.approval.id}
+                  onApprove={onApprove}
+                  onDeny={onDeny}
+                />
+              )}
           </div>
         ))}
       </TaskContent>
@@ -131,6 +118,32 @@ const isToolDenied = (state: ToolInvocationState) => state === 'output-denied'
 
 const isToolApprovalPending = (state: ToolInvocationState) =>
   state === 'approval-requested'
+
+const ApprovalButtons: FC<{
+  approvalId: string
+  onApprove?: (id: string) => void
+  onDeny?: (id: string) => void
+}> = ({ approvalId, onApprove, onDeny }) => (
+  <div className="mt-1 mb-2 ml-6 flex items-center gap-2">
+    <Button
+      size="sm"
+      className="h-7 gap-1 px-2.5 text-xs"
+      onClick={() => onApprove?.(approvalId)}
+    >
+      <ShieldCheck className="size-3" />
+      Approve
+    </Button>
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 gap-1 px-2.5 text-xs"
+      onClick={() => onDeny?.(approvalId)}
+    >
+      <ShieldX className="size-3" />
+      Deny
+    </Button>
+  </div>
+)
 
 const ToolStatusIcon: FC<{ state: ToolInvocationState }> = ({ state }) => {
   if (isToolCompleted(state)) {
