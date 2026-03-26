@@ -53,22 +53,22 @@ func Apply(ctx context.Context, opts ApplyOptions) (*ApplyResult, error) {
 		Orphaned:   orphaned,
 	}
 	if len(ops) == 0 {
+		if err := markApplyComplete(opts.Workspace.Path, opts.Repo.BaseCommit, repoRev); err != nil {
+			return nil, err
+		}
 		if err := clearResolveState(opts.Workspace.Path); err != nil {
 			return nil, err
 		}
 		return result, nil
 	}
-	if err := applyOperationRange(ctx, opts.Workspace, opts.Repo, ops, 0, result); err != nil {
-		return nil, err
-	}
-	state, err := workspace.LoadState(opts.Workspace.Path)
+	next, err := applyOperationRange(ctx, opts.Workspace, opts.Repo, ops, 0, nil, nil, result)
 	if err != nil {
 		return nil, err
 	}
-	state.BaseCommit = opts.Repo.BaseCommit
-	state.LastApplyRev = repoRev
-	state.LastApplyAt = time.Now().UTC()
-	if err := workspace.SaveState(opts.Workspace.Path, state); err != nil {
+	if next < len(ops) {
+		return result, nil
+	}
+	if err := markApplyComplete(opts.Workspace.Path, opts.Repo.BaseCommit, repoRev); err != nil {
 		return nil, err
 	}
 	if err := clearResolveState(opts.Workspace.Path); err != nil {
@@ -94,10 +94,6 @@ func Continue(ctx context.Context, ws workspace.Entry) (*ApplyResult, error) {
 		return nil, err
 	}
 	state.Resolved = append(state.Resolved, current.ChromiumPath)
-	state.Current++
-	if err := resolve.Save(ws.Path, state); err != nil {
-		return nil, err
-	}
 	result := &ApplyResult{
 		Workspace:  ws.Name,
 		Mode:       state.Mode,
@@ -106,10 +102,14 @@ func Continue(ctx context.Context, ws workspace.Entry) (*ApplyResult, error) {
 		Applied:    append([]string{}, state.Resolved...),
 		Conflicts:  nil,
 	}
-	if err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current, result); err != nil {
+	next, err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current+1, state.Resolved, state.Skipped, result)
+	if err != nil {
 		return nil, err
 	}
-	if state.Current >= len(state.Operations) && len(result.Conflicts) == 0 {
+	if next >= len(state.Operations) && len(result.Conflicts) == 0 {
+		if err := markApplyComplete(ws.Path, state.BaseCommit, state.RepoRev); err != nil {
+			return nil, err
+		}
 		if err := resolve.Delete(ws.Path); err != nil {
 			return nil, err
 		}
@@ -131,10 +131,6 @@ func Skip(ctx context.Context, ws workspace.Entry) (*ApplyResult, error) {
 		return nil, err
 	}
 	state.Skipped = append(state.Skipped, current.ChromiumPath)
-	state.Current++
-	if err := resolve.Save(ws.Path, state); err != nil {
-		return nil, err
-	}
 	result := &ApplyResult{
 		Workspace:  ws.Name,
 		Mode:       state.Mode,
@@ -142,10 +138,14 @@ func Skip(ctx context.Context, ws workspace.Entry) (*ApplyResult, error) {
 		RepoRev:    state.RepoRev,
 		Applied:    append([]string{}, state.Resolved...),
 	}
-	if err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current, result); err != nil {
+	next, err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current+1, state.Resolved, state.Skipped, result)
+	if err != nil {
 		return nil, err
 	}
-	if state.Current >= len(state.Operations) && len(result.Conflicts) == 0 {
+	if next >= len(state.Operations) && len(result.Conflicts) == 0 {
+		if err := markApplyComplete(ws.Path, state.BaseCommit, state.RepoRev); err != nil {
+			return nil, err
+		}
 		if err := resolve.Delete(ws.Path); err != nil {
 			return nil, err
 		}
@@ -221,51 +221,62 @@ func applyMode(opts ApplyOptions) string {
 	}
 }
 
-func applyOperationRange(ctx context.Context, ws workspace.Entry, repoInfo *repo.Info, ops []resolve.Operation, start int, result *ApplyResult) error {
+func applyOperationRange(
+	ctx context.Context,
+	ws workspace.Entry,
+	repoInfo *repo.Info,
+	ops []resolve.Operation,
+	start int,
+	resolved []string,
+	skipped []string,
+	result *ApplyResult,
+) (int, error) {
 	repoSet, err := patch.LoadRepoPatchSet(repoInfo.PatchesDir, nil)
 	if err != nil {
-		return err
+		return start, err
 	}
 	for idx := start; idx < len(ops); idx++ {
 		op := ops[idx]
 		result.ResetPaths = append(result.ResetPaths, op.ChromiumPath)
 		if op.OldPath != "" {
 			if err := _jsii.ResetPathToCommit(ctx, ws.Path, repoInfo.BaseCommit, op.OldPath); err != nil {
-				return err
+				return idx, err
 			}
 		}
 		if err := _jsii.ResetPathToCommit(ctx, ws.Path, repoInfo.BaseCommit, op.ChromiumPath); err != nil {
-			return err
+			return idx, err
 		}
 		patchFile, ok := repoSet[op.ChromiumPath]
 		if ok {
 			if err := applySingleOperation(ctx, ws.Path, patchFile); err != nil {
 				op.RejectPath = rejectPath(ws.Path, op)
 				op.Message = err.Error()
+				ops[idx] = op
 				state := &resolve.State{
-					Workspace:  ws.Path,
-					RepoRoot:   repoInfo.Root,
+					Workspace: ws.Path,
+					RepoRoot:  repoInfo.Root,
 					BaseCommit: repoInfo.BaseCommit,
-					RepoRev:    result.RepoRev,
-					Mode:       result.Mode,
-					Current:    idx,
+					RepoRev:   result.RepoRev,
+					Mode:      result.Mode,
+					Current:   idx,
 					Operations: ops,
-					Resolved:   append([]string{}, result.Applied...),
+					Resolved:  append([]string{}, resolved...),
+					Skipped:   append([]string{}, skipped...),
 				}
 				if err := resolve.Save(ws.Path, state); err != nil {
-					return err
+					return idx, err
 				}
 				result.Conflicts = []resolve.Operation{op}
-				return nil
+				return idx, nil
 			}
 		} else if op.Op == patch.OpDelete {
 			if err := os.RemoveAll(filepath.Join(ws.Path, filepath.FromSlash(op.ChromiumPath))); err != nil {
-				return err
+				return idx, err
 			}
 		}
 		result.Applied = append(result.Applied, op.ChromiumPath)
 	}
-	return nil
+	return len(ops), nil
 }
 
 func applySingleOperation(ctx context.Context, workspacePath string, patchFile patch.FilePatch) error {
@@ -367,4 +378,15 @@ func clearResolveState(workspacePath string) error {
 		return resolve.Delete(workspacePath)
 	}
 	return nil
+}
+
+func markApplyComplete(workspacePath string, baseCommit string, repoRev string) error {
+	state, err := workspace.LoadState(workspacePath)
+	if err != nil {
+		return err
+	}
+	state.BaseCommit = baseCommit
+	state.LastApplyRev = repoRev
+	state.LastApplyAt = time.Now().UTC()
+	return workspace.SaveState(workspacePath, state)
 }

@@ -40,15 +40,25 @@ func Run(ctx context.Context, dir string, stdin []byte, args ...string) (Result,
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	err := command.Run()
+	code := -1
+	if command.ProcessState != nil {
+		code = command.ProcessState.ExitCode()
+	}
 	result := Result{
 		Stdout: stdout.String(),
 		Stderr: stderr.String(),
-		Code:   command.ProcessState.ExitCode(),
+		Code:   code,
 	}
 	if err == nil {
 		return result, nil
 	}
-	if command.ProcessState == nil && !errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return result, err
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		return result, err
+	}
+	if command.ProcessState == nil {
 		return result, err
 	}
 	return result, nil

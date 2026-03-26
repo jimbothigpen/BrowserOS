@@ -72,3 +72,9 @@ rename to chrome/new.cc
 		t.Fatalf("expected rename marker to round-trip")
 	}
 }
+
+func TestPathMatchesSkipsInternalState(t *testing.T) {
+	if PathMatches(".bdev/state.yaml", nil) {
+		t.Fatalf("expected internal state path to be ignored")
+	}
+}
