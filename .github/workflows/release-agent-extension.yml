@@ -67,31 +67,17 @@ jobs:
               echo "## What's Changed" > /tmp/release-notes.md
               echo "" >> /tmp/release-notes.md
 
-              CONTRIBUTORS=""
               while IFS= read -r SHA; do
                 SUBJECT=$(git log -1 --pretty=format:"%s" "$SHA")
-                AUTHOR=$(git log -1 --pretty=format:"%an" "$SHA")
-                GITHUB_USER=$(gh api "/repos/${{ github.repository }}/commits/${SHA}" --jq '.author.login // empty' 2>/dev/null)
                 PR_NUM=$(gh api "/repos/${{ github.repository }}/commits/${SHA}/pulls" --jq '.[0].number // empty' 2>/dev/null)
 
-                if [ -n "$PR_NUM" ]; then
-                  echo "- ${SUBJECT} (#${PR_NUM}) @${GITHUB_USER:-$AUTHOR}" >> /tmp/release-notes.md
+                # Skip PR number if already in the commit subject (squash merges include it)
+                if [ -n "$PR_NUM" ] && ! echo "$SUBJECT" | grep -qF "(#${PR_NUM})"; then
+                  echo "- ${SUBJECT} (#${PR_NUM})" >> /tmp/release-notes.md
                 else
-                  echo "- ${SUBJECT} (${SHA:0:7}) @${GITHUB_USER:-$AUTHOR}" >> /tmp/release-notes.md
-                fi
-
-                HANDLE="${GITHUB_USER:-$AUTHOR}"
-                if ! echo "$CONTRIBUTORS" | grep -qw "$HANDLE"; then
-                  CONTRIBUTORS="${CONTRIBUTORS} ${HANDLE}"
+                  echo "- ${SUBJECT}" >> /tmp/release-notes.md
                 fi
               done <<< "$COMMITS"
-
-              echo "" >> /tmp/release-notes.md
-              echo "## Contributors" >> /tmp/release-notes.md
-              echo "" >> /tmp/release-notes.md
-              for CONTRIB in $CONTRIBUTORS; do
-                echo "- @${CONTRIB}" >> /tmp/release-notes.md
-              done
             fi
           fi
         working-directory: ${{ github.workspace }}
