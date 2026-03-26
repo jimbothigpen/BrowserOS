@@ -58,16 +58,17 @@ export const NewAclRuleDialog: FC<NewAclRuleDialogProps> = ({
         <div className="flex flex-col gap-4 py-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="site-pattern">
-              Site Pattern <span className="text-destructive">*</span>
+              Domain <span className="text-destructive">*</span>
             </Label>
             <Input
               id="site-pattern"
-              placeholder="*.amazon.com/*"
+              placeholder="amazon.com"
               value={sitePattern}
               onChange={(e) => setSitePattern(e.target.value)}
             />
             <p className="text-muted-foreground text-xs">
-              Glob pattern for matching URLs. Use * for wildcard.
+              Matches the domain and all subdomains (e.g. amazon.com matches
+              www.amazon.com).
             </p>
           </div>
           <div className="flex flex-col gap-2">

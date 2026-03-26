@@ -1,21 +1,38 @@
 import type { AclRule, ElementProperties } from '../types/acl'
 
-function globToRegex(pattern: string): RegExp {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '{{GLOBSTAR}}')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '.')
-    .replace(/\{\{GLOBSTAR\}\}/g, '.*')
-  return new RegExp(`^${escaped}$`, 'i')
+function sitePatternToRegex(pattern: string): RegExp {
+  const slashIdx = pattern.indexOf('/')
+  const hostPart = slashIdx === -1 ? pattern : pattern.slice(0, slashIdx)
+  const pathPart = slashIdx === -1 ? '' : pattern.slice(slashIdx)
+
+  const escapeAndGlob = (s: string, slashWild: boolean) =>
+    s
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*\*/g, '{{GLOBSTAR}}')
+      .replace(/\*/g, slashWild ? '.*' : '[^./]*')
+      .replace(/\?/g, '.')
+      .replace(/\{\{GLOBSTAR\}\}/g, '.*')
+
+  const hostRegex = escapeAndGlob(hostPart, false)
+  const pathRegex = pathPart ? escapeAndGlob(pathPart, true) : '(?:/.*)?'
+
+  return new RegExp(`^${hostRegex}${pathRegex}$`, 'i')
 }
 
 export function matchesSitePattern(url: string, pattern: string): boolean {
   if (!pattern) return false
+  if (pattern === '*') return true
   try {
-    const { hostname, pathname } = new URL(url)
-    const fullPath = hostname + pathname
-    return globToRegex(pattern).test(fullPath)
+    const { hostname } = new URL(url)
+
+    // Simple domain matching: "amazon.com" matches "www.amazon.com", "smile.amazon.com", etc.
+    const isSimpleDomain = !pattern.includes('*') && !pattern.includes('/')
+    if (isSimpleDomain) {
+      return hostname === pattern || hostname.endsWith(`.${pattern}`)
+    }
+
+    const fullPath = hostname + new URL(url).pathname
+    return sitePatternToRegex(pattern).test(fullPath)
   } catch {
     return false
   }
