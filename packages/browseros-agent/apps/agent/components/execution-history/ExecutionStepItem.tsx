@@ -75,7 +75,7 @@ export const ExecutionStepItem: FC<{
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-xl border border-border/60 bg-card/70">
+      <div className="rounded-xl border border-border/60 bg-card/60">
         <CollapsibleTrigger asChild>
           <button
             type="button"

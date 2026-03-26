@@ -75,14 +75,14 @@ export const ExecutionTaskCard: FC<{
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="flex w-full items-start gap-3 px-4 py-4 text-left"
+            className="flex w-full items-start gap-3 px-5 py-5 text-left"
           >
             <div className="mt-0.5 shrink-0">
               {getTaskStatusIcon(task.status)}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="line-clamp-2 font-medium text-foreground text-sm">
+                <p className="line-clamp-2 font-medium text-base text-foreground">
                   {task.promptText}
                 </p>
                 <Badge variant="secondary">
@@ -102,8 +102,8 @@ export const ExecutionTaskCard: FC<{
                 {task.errorCount > 0 && <span>{task.errorCount} errors</span>}
               </div>
               {task.responsePreview ? (
-                <div className="mt-3 flex items-start gap-2 rounded-xl bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
-                  <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <div className="mt-4 flex items-start gap-2 rounded-xl bg-muted/50 px-3 py-2 text-muted-foreground text-sm">
+                  <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" />
                   <p className="line-clamp-3">{task.responsePreview}</p>
                 </div>
               ) : null}
@@ -116,7 +116,7 @@ export const ExecutionTaskCard: FC<{
             />
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="border-border/60 border-t px-4 py-4">
+        <CollapsibleContent className="border-border/60 border-t px-5 py-5">
           {task.steps.length === 0 ? (
             <div className="rounded-xl border border-border/70 border-dashed bg-muted/30 px-4 py-6 text-center text-muted-foreground text-sm">
               No tool actions were recorded for this task.

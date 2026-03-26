@@ -5,6 +5,7 @@ import {
   PlugZap,
   Settings,
   Shield,
+  ShieldCheck,
   Sparkles,
   Wand2,
 } from 'lucide-react'
@@ -59,6 +60,7 @@ const primaryNavItems: NavItem[] = [
     icon: Sparkles,
     feature: Feature.SOUL_SUPPORT,
   },
+  { name: 'Audit', to: '/audit', icon: ShieldCheck },
   { name: 'Settings', to: '/settings/ai', icon: Settings },
 ]
 

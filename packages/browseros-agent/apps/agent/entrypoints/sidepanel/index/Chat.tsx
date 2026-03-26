@@ -1,4 +1,4 @@
-import { Loader2, ShieldCheck } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createBrowserOSAction } from '@/lib/chat-actions/types'
 import {
@@ -13,7 +13,6 @@ import {
   SIDEPANEL_VOICE_RECORDING_STOPPED_EVENT,
   SIDEPANEL_VOICE_TRANSCRIPTION_COMPLETED_EVENT,
 } from '@/lib/constants/analyticsEvents'
-import { useConversationExecutionHistory } from '@/lib/execution-history/storage'
 import { useJtbdPopup } from '@/lib/jtbd-popup/useJtbdPopup'
 import { track } from '@/lib/metrics/track'
 import { useVoiceInput } from '@/lib/voice/useVoiceInput'
@@ -23,7 +22,6 @@ import { ChatError } from './ChatError'
 import { ChatFooter } from './ChatFooter'
 import { ChatMessages } from './ChatMessages'
 import type { ChatMode } from './chatTypes'
-import { ExecutionHistorySheet } from './ExecutionHistorySheet'
 
 /**
  * @public
@@ -46,7 +44,6 @@ export const Chat = () => {
     onClickDislike,
     isRestoringConversation,
     addToolApprovalResponse,
-    conversationId,
   } = useChatSessionContext()
 
   const {
@@ -59,11 +56,9 @@ export const Chat = () => {
   } = useJtbdPopup()
 
   const voice = useVoiceInput()
-  const executionHistory = useConversationExecutionHistory(conversationId)
 
   const [input, setInput] = useState('')
   const [attachedTabs, setAttachedTabs] = useState<chrome.tabs.Tab[]>([])
-  const [isExecutionHistoryOpen, setIsExecutionHistoryOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -205,38 +200,6 @@ export const Chat = () => {
   return (
     <>
       <main className="mt-4 flex h-full flex-1 flex-col space-y-4 overflow-y-auto">
-        {(executionHistory?.tasks.length ?? 0) > 0 && (
-          <div className="px-3">
-            <button
-              type="button"
-              onClick={() => setIsExecutionHistoryOpen(true)}
-              className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-card/80 px-4 py-3 text-left shadow-sm transition-colors hover:bg-card"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-orange)]/10">
-                  <ShieldCheck className="h-4 w-4 text-[var(--accent-orange)]" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground text-sm">
-                    Execution history
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {executionHistory?.tasks.length ?? 0} task
-                    {(executionHistory?.tasks.length ?? 0) === 1 ? '' : 's'} •{' '}
-                    {executionHistory?.tasks.reduce(
-                      (total, task) => total + task.actionCount,
-                      0,
-                    ) ?? 0}{' '}
-                    actions
-                  </p>
-                </div>
-              </div>
-              <span className="inline-flex h-8 items-center rounded-full border border-border/70 bg-background px-3 font-medium text-foreground text-xs">
-                View trace
-              </span>
-            </button>
-          </div>
-        )}
         {isRestoringConversation ? (
           <div className="flex flex-1 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -291,11 +254,6 @@ export const Chat = () => {
         onToggleTab={toggleTabSelection}
         onRemoveTab={removeTab}
         voice={voiceState}
-      />
-      <ExecutionHistorySheet
-        conversationId={conversationId}
-        open={isExecutionHistoryOpen}
-        onOpenChange={setIsExecutionHistoryOpen}
       />
     </>
   )

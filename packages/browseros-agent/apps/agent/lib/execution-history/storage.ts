@@ -68,6 +68,10 @@ export async function getConversationExecutionHistory(
   return current[conversationId] ?? null
 }
 
+export async function getExecutionHistoryByConversation(): Promise<ExecutionHistoryByConversation> {
+  return (await executionHistoryStorage.getValue()) ?? {}
+}
+
 export async function removeConversationExecutionHistory(
   conversationId: string,
 ): Promise<void> {
@@ -97,4 +101,19 @@ export function useConversationExecutionHistory(conversationId?: string) {
   }, [conversationId])
 
   return history
+}
+
+export function useExecutionHistoryByConversation() {
+  const [historyByConversation, setHistoryByConversation] =
+    useState<ExecutionHistoryByConversation>({})
+
+  useEffect(() => {
+    getExecutionHistoryByConversation().then(setHistoryByConversation)
+    const unwatch = executionHistoryStorage.watch((nextValue) => {
+      setHistoryByConversation(nextValue ?? {})
+    })
+    return () => unwatch()
+  }, [])
+
+  return historyByConversation
 }
