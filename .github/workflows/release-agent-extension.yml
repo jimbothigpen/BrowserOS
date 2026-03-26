@@ -29,12 +29,7 @@ jobs:
         run: bun ci
         working-directory: packages/browseros-agent
 
-      - name: Build extension
-        run: bun run build
-        env:
-          VITE_PUBLIC_BROWSEROS_API: https://api.browseros.com
-
-      - name: Create extension zip
+      - name: Build and zip extension
         run: bun run zip
         env:
           VITE_PUBLIC_BROWSEROS_API: https://api.browseros.com
@@ -44,7 +39,7 @@ jobs:
         run: |
           echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
           echo "release_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          ZIP_FILE=$(ls "$(pwd)/.output/"*.zip | head -n 1)
+          ZIP_FILE=$(ls "$(pwd)/dist/"*-chrome.zip | head -n 1)
           echo "zip_path=$ZIP_FILE" >> "$GITHUB_OUTPUT"
           echo "zip_name=$(basename "$ZIP_FILE")" >> "$GITHUB_OUTPUT"
 
