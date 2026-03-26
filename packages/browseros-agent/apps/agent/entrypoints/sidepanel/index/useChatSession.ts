@@ -37,9 +37,13 @@ import { searchActionsStorage } from '@/lib/search-actions/searchActionsStorage'
 import { selectedTextStorage } from '@/lib/selected-text/selectedTextStorage'
 import { stopAgentStorage } from '@/lib/stop-agent/stop-agent-storage'
 import {
+  type ApprovalResponse,
   approvalResponsesStorage,
-  type PendingApproval,
+  extractPendingApprovals,
   pendingToolApprovalsStorage,
+  removeApprovalResponsesById,
+  removePendingApprovalsById,
+  replacePendingApprovalsForConversation,
 } from '@/lib/tool-approvals/approval-sync-storage'
 import {
   normalizeToolApprovalConfig,
@@ -566,39 +570,36 @@ export const useChatSession = (options?: ChatSessionOptions) => {
 
   // Sync pending tool approvals to shared storage for the admin dashboard
   useEffect(() => {
-    const pending: PendingApproval[] = []
-    for (const msg of messages) {
-      for (const part of msg.parts) {
-        const toolPart = part as {
-          type?: string
-          state?: string
-          toolCallId?: string
-          input?: Record<string, unknown>
-          approval?: { id: string }
-        }
-        if (
-          toolPart.state === 'approval-requested' &&
-          toolPart.approval?.id &&
-          toolPart.toolCallId
-        ) {
-          pending.push({
-            approvalId: toolPart.approval.id,
-            toolCallId: toolPart.toolCallId,
-            toolName: (toolPart.type ?? '').replace('tool-', ''),
-            input: toolPart.input ?? {},
-            conversationId: conversationIdRef.current,
-            timestamp: Date.now(),
-          })
-        }
-      }
+    let isCancelled = false
+
+    const syncPendingApprovals = async () => {
+      const pending = extractPendingApprovals(
+        messages,
+        conversationIdRef.current,
+      )
+      const current = (await pendingToolApprovalsStorage.getValue()) ?? []
+      if (isCancelled) return
+
+      await pendingToolApprovalsStorage.setValue(
+        replacePendingApprovalsForConversation(
+          current,
+          conversationIdRef.current,
+          pending,
+        ),
+      )
     }
-    pendingToolApprovalsStorage.setValue(pending)
+
+    syncPendingApprovals()
+
+    return () => {
+      isCancelled = true
+    }
   }, [messages])
 
   // Watch for approval responses from the admin dashboard
   // biome-ignore lint/correctness/useExhaustiveDependencies: only set up once
   useEffect(() => {
-    const unwatch = approvalResponsesStorage.watch((responses) => {
+    const handleResponses = async (responses: ApprovalResponse[]) => {
       if (!responses?.length) return
       try {
         for (const resp of responses) {
@@ -608,12 +609,25 @@ export const useChatSession = (options?: ChatSessionOptions) => {
             reason: resp.reason,
           })
         }
-        approvalResponsesStorage.setValue([])
-        pendingToolApprovalsStorage.setValue([])
+        const approvalIds = responses.map((resp) => resp.approvalId)
+        const currentResponses =
+          (await approvalResponsesStorage.getValue()) ?? []
+        const currentPending =
+          (await pendingToolApprovalsStorage.getValue()) ?? []
+
+        await approvalResponsesStorage.setValue(
+          removeApprovalResponsesById(currentResponses, approvalIds),
+        )
+        await pendingToolApprovalsStorage.setValue(
+          removePendingApprovalsById(currentPending, approvalIds),
+        )
       } catch {
         // Leave storage intact so the dashboard can retry
       }
-    })
+    }
+
+    approvalResponsesStorage.getValue().then(handleResponses)
+    const unwatch = approvalResponsesStorage.watch(handleResponses)
     return () => unwatch()
   }, [])
 

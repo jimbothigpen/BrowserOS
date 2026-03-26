@@ -1,5 +1,13 @@
 import { storage } from '@wxt-dev/storage'
 
+export {
+  extractPendingApprovals,
+  queueApprovalResponse,
+  removeApprovalResponsesById,
+  removePendingApprovalsById,
+  replacePendingApprovalsForConversation,
+} from './approval-sync-helpers'
+
 export interface PendingApproval {
   approvalId: string
   toolCallId: string

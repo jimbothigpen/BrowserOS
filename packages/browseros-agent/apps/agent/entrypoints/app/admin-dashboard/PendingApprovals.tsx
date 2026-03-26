@@ -7,6 +7,7 @@ import {
   approvalResponsesStorage,
   type PendingApproval,
   pendingToolApprovalsStorage,
+  queueApprovalResponse,
 } from '@/lib/tool-approvals/approval-sync-storage'
 
 const formatToolName = (name: string) =>
@@ -24,13 +25,16 @@ export const PendingApprovals: FC = () => {
     return () => unwatch()
   }, [])
 
-  const respond = (approvalId: string, approved: boolean) => {
+  const respond = async (approvalId: string, approved: boolean) => {
     const response: ApprovalResponse = {
       approvalId,
       approved,
       timestamp: Date.now(),
     }
-    approvalResponsesStorage.setValue([response])
+    const existing = (await approvalResponsesStorage.getValue()) ?? []
+    await approvalResponsesStorage.setValue(
+      queueApprovalResponse(existing, response),
+    )
   }
 
   if (pending.length === 0) {
