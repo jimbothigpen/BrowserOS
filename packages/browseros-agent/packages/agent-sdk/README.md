@@ -27,7 +27,7 @@ import { Agent } from '@browseros-ai/agent-sdk'
 import { z } from 'zod'
 
 const agent = new Agent({
-  url: 'http://localhost:3000',
+  url: 'http://localhost:9100',
   llm: {
     provider: 'openai',
     apiKey: process.env.OPENAI_API_KEY,
@@ -61,7 +61,7 @@ import { Agent } from '@browseros-ai/agent-sdk'
 import { z } from 'zod'
 
 const agent = new Agent({
-  url: 'http://localhost:3000',
+  url: 'http://localhost:9100',
   llm: { provider: 'anthropic', apiKey: process.env.ANTHROPIC_API_KEY },
 })
 
@@ -167,7 +167,7 @@ Track agent operations in real time:
 
 ```typescript
 const agent = new Agent({
-  url: 'http://localhost:3000',
+  url: 'http://localhost:9100',
   onProgress: (event) => {
     console.log(`[${event.type}] ${event.message}`)
   },

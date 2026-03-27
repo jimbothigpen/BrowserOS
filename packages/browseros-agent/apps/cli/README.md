@@ -4,7 +4,7 @@
 
 Command-line interface for controlling BrowserOS — launch and automate the browser from the terminal or from AI coding agents like Claude Code and Gemini CLI.
 
-Communicates with the BrowserOS MCP server over JSON-RPC 2.0 / StreamableHTTP. All 54 MCP tools are mapped to CLI commands.
+Communicates with the BrowserOS MCP server over JSON-RPC 2.0 / StreamableHTTP. All 53+ MCP tools are mapped to CLI commands.
 
 ## Install
 
