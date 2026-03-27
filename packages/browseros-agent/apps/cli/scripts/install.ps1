@@ -2,12 +2,12 @@
 # Install browseros-cli for Windows — downloads the latest release binary.
 #
 # Usage (PowerShell — save and run):
-#   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/browseros-ai/BrowserOS/main/packages/browseros-agent/apps/cli/scripts/install.ps1" -OutFile install.ps1
+#   Invoke-WebRequest -Uri "https://cdn.browseros.com/cli/install.ps1" -OutFile install.ps1
 #   .\install.ps1
 #   .\install.ps1 -Version "0.1.0" -Dir "C:\tools\browseros"
 #
 # Usage (one-liner, uses env vars for options):
-#   & { $env:BROWSEROS_VERSION="0.1.0"; irm https://raw.githubusercontent.com/browseros-ai/BrowserOS/main/packages/browseros-agent/apps/cli/scripts/install.ps1 | iex }
+#   & { $env:BROWSEROS_VERSION="0.1.0"; irm https://cdn.browseros.com/cli/install.ps1 | iex }
 #
 
 param(

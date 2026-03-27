@@ -4,6 +4,22 @@ Monorepo for the BrowserOS-agent -- contains 3 packages: agent-UI, server (which
 
 > **⚠️ NOTE:** This is only a submodule, the main project is at -- https://github.com/browseros-ai/BrowserOS
 
+## Install `browseros-cli`
+
+### macOS / Linux
+
+```bash
+curl -fsSL https://cdn.browseros.com/cli/install.sh | bash
+```
+
+### Windows
+
+```powershell
+irm https://cdn.browseros.com/cli/install.ps1 | iex
+```
+
+These scripts install the standalone `browseros-cli` binary. On first use, run `browseros-cli init` to point the CLI at your BrowserOS MCP server.
+
 ## Monorepo Structure
 
 ```

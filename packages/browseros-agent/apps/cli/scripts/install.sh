@@ -3,10 +3,10 @@
 # Install browseros-cli — downloads the latest release binary for your platform.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/browseros-ai/BrowserOS/main/packages/browseros-agent/apps/cli/scripts/install.sh | bash
+#   curl -fsSL https://cdn.browseros.com/cli/install.sh | bash
 #
 #   # Or with options:
-#   curl -fsSL ... | bash -s -- --version 0.1.0 --dir /usr/local/bin
+#   curl -fsSL https://cdn.browseros.com/cli/install.sh | bash -s -- --version 0.1.0 --dir /usr/local/bin
 
 set -euo pipefail
 
