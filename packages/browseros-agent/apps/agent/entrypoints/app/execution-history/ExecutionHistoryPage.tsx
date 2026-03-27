@@ -97,9 +97,7 @@ export const ExecutionHistoryPage: FC = () => {
           </div>
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-semibold text-3xl tracking-tight">
-                Agent Observability
-              </h1>
+              <h1 className="font-semibold text-3xl tracking-tight">Audit</h1>
               {runningCount > 0 && (
                 <Badge className="gap-2 rounded-full px-3 py-1">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -130,7 +128,7 @@ export const ExecutionHistoryPage: FC = () => {
           </div>
           <h2 className="mt-4 font-medium text-lg">No agent runs yet</h2>
           <p className="mt-2 text-muted-foreground text-sm">
-            Run a task in BrowserOS and the observability feed will appear here.
+            Run a task in BrowserOS and the audit feed will appear here.
           </p>
         </div>
       ) : (
@@ -184,8 +182,8 @@ export const ExecutionHistoryPage: FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Run</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove "{taskToDelete?.promptText}" from local observability
-              history? This only clears the recorded run on this device.
+              Remove "{taskToDelete?.promptText}" from local audit history? This
+              only clears the recorded run on this device.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -99,7 +99,6 @@ export const App: FC = () => {
           <Route path="admin" element={<AdminDashboardPage />} />
           <Route path="audit" element={<ExecutionHistoryPage />} />
           <Route path="admin" element={<AdminDashboardPage />} />
-          <Route path="audit" element={<ExecutionHistoryPage />} />
         </Route>
 
         {/* Settings with dedicated sidebar */}
@@ -151,10 +150,7 @@ export const App: FC = () => {
           path="/observability"
           element={<Navigate to="/audit" replace />}
         />
-        <Route
-          path="/executions"
-          element={<Navigate to="/audit" replace />}
-        />
+        <Route path="/executions" element={<Navigate to="/audit" replace />} />
         <Route path="/options/*" element={<OptionsRedirect />} />
 
         {/* Fallback to home */}
