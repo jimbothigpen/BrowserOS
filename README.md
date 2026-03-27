@@ -117,18 +117,18 @@ BrowserOS works with any LLM. Bring your own keys, use OAuth, or run models loca
 
 ## How We Compare
 
-| | BrowserOS | Chrome | Brave | Arc/Dia | Comet | Atlas |
+| | BrowserOS | Chrome | Brave | Dia | Comet | Atlas |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| AI Agent (53+ tools) | :white_check_mark: | :x: | :x: | :x: | Limited | Limited |
-| MCP Server | :white_check_mark: | :x: | :x: | :x: | :x: | :x: |
+| AI Agent | :white_check_mark: 53+ tools | :x: | Nightly only | Skills | :white_check_mark: Cloud | :white_check_mark: Agent Mode |
+| MCP Server | :white_check_mark: | :x: | :x: | :x: | Partial | Via ChatGPT |
 | Open Source | AGPL-3.0 | :x: | :white_check_mark: | :x: | :x: | :x: |
-| Bring Your Own Keys | :white_check_mark: | N/A | N/A | N/A | :x: | :x: |
-| Local Models | Ollama + LM Studio | :x: | Leo (limited) | :x: | :x: | :x: |
-| Workflows | Visual builder | :x: | :x: | :x: | :x: | :x: |
-| Memory | :white_check_mark: | :x: | :x: | :x: | :x: | Limited |
-| Ad Blocking | MV2 + uBlock | Declining (MV3) | Built-in | :x: | :x: | :x: |
-| Privacy | Local-first | Google sync | Better | Cloud | Cloud | Cloud |
-| Extensions | All Chrome extensions | :white_check_mark: | :white_check_mark: | Limited | :x: | :x: |
+| Bring Your Own Keys | :white_check_mark: | :x: | :white_check_mark: BYOM | :x: | :x: | :x: |
+| Local Models | Ollama + LM Studio | Gemini Nano only | :white_check_mark: Via BYOM | :x: | :x: | :x: |
+| Workflows | Visual builder | :x: | :x: | Skills | :white_check_mark: | :white_check_mark: Agent Mode |
+| Memory | :white_check_mark: Local | :x: | :white_check_mark: Local | Limited | :white_check_mark: | :white_check_mark: 30-day cloud |
+| Ad Blocking | MV2 + uBlock | Declining (MV3) | Built-in (Shields) | :x: | Built-in | On roadmap |
+| Privacy | Local-first | Google sync | Good | Cloud AI | Cloud | Cloud (local opt-in) |
+| Extensions | All Chrome (MV2+MV3) | MV3 only | MV2 + MV3 | Undocumented | :white_check_mark: Desktop | Partial |
 
 **Detailed comparisons:**
 - [BrowserOS vs Chrome DevTools MCP](https://docs.browseros.com/comparisons/chrome-devtools-mcp) — developer-focused comparison for browser automation
