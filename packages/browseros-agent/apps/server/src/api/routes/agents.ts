@@ -215,17 +215,15 @@ function generateComposeFile(config: {
   token: string
   configDir: string
   workspaceDir: string
-  llmProvider?: { envVar: string; apiKey: string }
+  extraEnv?: Array<{ envVar: string; value: string }>
 }): string {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
   const envLines = [
     `      - OPENCLAW_GATEWAY_TOKEN=${config.token}`,
     `      - TZ=${tz}`,
   ]
-  if (config.llmProvider) {
-    envLines.push(
-      `      - ${config.llmProvider.envVar}=${config.llmProvider.apiKey}`,
-    )
+  for (const env of config.extraEnv ?? []) {
+    envLines.push(`      - ${env.envVar}=${env.value}`)
   }
   return `services:
   openclaw-gateway:
@@ -354,6 +352,7 @@ export function createAgentsRoutes() {
         name: string
         providerType?: string
         apiKey?: string
+        baseUrl?: string
       }>()
       const name = body.name?.trim()
 
@@ -394,14 +393,19 @@ export function createAgentsRoutes() {
       const agentDir = path.join(getAgentsBaseDir(), name)
       const token = crypto.randomUUID()
 
-      // Map BrowserOS provider type to OpenClaw env var
-      const llmEnvVar = body.providerType
-        ? OPENCLAW_PROVIDER_ENV_MAP[body.providerType]
-        : undefined
-      const llmProvider =
-        llmEnvVar && body.apiKey
-          ? { envVar: llmEnvVar, apiKey: body.apiKey }
-          : undefined
+      // Map BrowserOS provider to OpenClaw env vars
+      const llmEnvVars: Array<{ envVar: string; value: string }> = []
+      if (body.apiKey && body.providerType) {
+        const directEnvVar = OPENCLAW_PROVIDER_ENV_MAP[body.providerType]
+        if (directEnvVar) {
+          // Direct mapping (Anthropic, OpenAI, etc.)
+          llmEnvVars.push({ envVar: directEnvVar, value: body.apiKey })
+        } else if (body.baseUrl) {
+          // OpenAI-compatible provider — pass as OPENAI_API_KEY + OPENAI_BASE_URL
+          llmEnvVars.push({ envVar: 'OPENAI_API_KEY', value: body.apiKey })
+          llmEnvVars.push({ envVar: 'OPENAI_BASE_URL', value: body.baseUrl })
+        }
+      }
 
       const instance: AgentInstance = {
         id,
@@ -440,7 +444,7 @@ export function createAgentsRoutes() {
             token,
             configDir,
             workspaceDir,
-            llmProvider,
+            extraEnv: llmEnvVars,
           })
           fs.writeFileSync(
             path.join(agentDir, 'docker-compose.yml'),

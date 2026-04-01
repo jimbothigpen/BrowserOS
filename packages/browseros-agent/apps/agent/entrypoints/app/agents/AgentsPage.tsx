@@ -34,15 +34,8 @@ import { useRpcClient } from '@/lib/rpc/RpcClientProvider'
 import { AgentChat } from './AgentChat'
 import { AgentLogsDialog } from './AgentLogsDialog'
 
-const OPENCLAW_COMPATIBLE_TYPES = new Set([
-  'anthropic',
-  'openai',
-  'google',
-  'openrouter',
-  'moonshot',
-  'groq',
-  'mistral',
-])
+// Types that use OAuth and have no raw API key to forward
+const OAUTH_ONLY_TYPES = new Set(['chatgpt-pro', 'github-copilot', 'qwen-code'])
 
 interface AgentInstance {
   id: string
@@ -77,12 +70,9 @@ export const AgentsPage: FC = () => {
     ? agents.find((a) => a.id === chatAgentId)
     : null
 
-  // Filter providers compatible with OpenClaw (have an API key + supported type)
+  // Filter providers that have an API key and can be forwarded to OpenClaw
   const compatibleProviders = useMemo(
-    () =>
-      providers.filter(
-        (p) => p.apiKey && OPENCLAW_COMPATIBLE_TYPES.has(p.type),
-      ),
+    () => providers.filter((p) => p.apiKey && !OAUTH_ONLY_TYPES.has(p.type)),
     [providers],
   )
 
@@ -147,6 +137,7 @@ export const AgentsPage: FC = () => {
           name: newAgentName.trim(),
           providerType: selectedProvider?.type,
           apiKey: selectedProvider?.apiKey,
+          baseUrl: selectedProvider?.baseUrl,
         }),
       })
 
