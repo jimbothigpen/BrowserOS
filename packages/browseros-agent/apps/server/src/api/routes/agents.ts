@@ -341,6 +341,18 @@ export function createAgentsRoutes() {
           }
 
           if (!healthy) {
+            // Dump container logs to help debug
+            pushLog(instance, '--- Container logs ---')
+            await runCommandWithLogs(
+              instance,
+              'docker',
+              ['compose', 'logs', '--no-color', '--tail', '50'],
+              {
+                cwd: agentDir,
+                env: { COMPOSE_PROJECT_NAME: `browseros-claw-${name}` },
+              },
+            )
+            pushLog(instance, '--- End container logs ---')
             throw new Error('Gateway did not become healthy within 30 seconds')
           }
 
@@ -354,6 +366,24 @@ export function createAgentsRoutes() {
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           pushLog(instance, `ERROR: ${message}`)
+          // Also fetch container logs on any error if the compose file exists
+          try {
+            if (fs.existsSync(path.join(agentDir, 'docker-compose.yml'))) {
+              pushLog(instance, '--- Container logs ---')
+              await runCommandWithLogs(
+                instance,
+                'docker',
+                ['compose', 'logs', '--no-color', '--tail', '50'],
+                {
+                  cwd: agentDir,
+                  env: { COMPOSE_PROJECT_NAME: `browseros-claw-${name}` },
+                },
+              )
+              pushLog(instance, '--- End container logs ---')
+            }
+          } catch {
+            // Best effort — don't mask the original error
+          }
           instance.status = 'error'
           instance.error = message
           logger.error('Failed to create OpenClaw agent instance', {
