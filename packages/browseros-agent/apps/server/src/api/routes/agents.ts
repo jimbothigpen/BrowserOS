@@ -546,6 +546,8 @@ export function createAgentsRoutes() {
       }
 
       try {
+        await getPodmanRuntime().ensureReady()
+
         pushLog(instance, 'Stopping agent...')
         await runCommandWithLogs(instance, ['compose', 'stop'], {
           cwd: instance.dir,
@@ -577,6 +579,9 @@ export function createAgentsRoutes() {
       }
 
       try {
+        pushLog(instance, 'Ensuring container runtime is ready...')
+        await getPodmanRuntime().ensureReady((msg) => pushLog(instance, msg))
+
         pushLog(instance, 'Starting agent...')
         await runCommandWithLogs(instance, ['compose', 'up', '-d'], {
           cwd: instance.dir,
@@ -667,6 +672,8 @@ export function createAgentsRoutes() {
       }
 
       try {
+        await getPodmanRuntime().ensureReady()
+
         for (const listener of instance.logListeners) {
           instance.logListeners.delete(listener)
         }
