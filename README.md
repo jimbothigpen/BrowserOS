@@ -192,7 +192,7 @@ We'd love your help making BrowserOS better! See our [Contributing Guide](CONTRI
 
 BrowserOS is open source under the [AGPL-3.0 license](LICENSE).
 
-Copyright &copy; 2025 Felafax, Inc.
+Copyright &copy; 2026 Felafax, Inc.
 
 ## Stargazers
 
