@@ -610,9 +610,8 @@ export function createAgentsRoutes(config: { serverPort: number }) {
           }
           pushLog(instance, 'Image pulled successfully')
 
-          // Start container — it will crash because config is missing, but
-          // this initializes the named volume with the correct directory
-          // structure and ownership (uid 1000 node user)
+          // Start the container (gateway will crash — no config yet, but
+          // we need the container running so docker exec works)
           pushLog(instance, 'Initializing container...')
           await runCommandWithLogs(
             instance,
@@ -620,77 +619,28 @@ export function createAgentsRoutes(config: { serverPort: number }) {
             ['compose', 'up', '-d'],
             { cwd: agentDir, env: composeEnv(name) },
           )
-
-          // Wait for the container to start and init the volume
-          pushLog(instance, '[debug] Waiting 3s for volume initialization...')
-          await Bun.sleep(3000)
+          await Bun.sleep(1000)
 
           const containerName = `browseros-claw-${name}-openclaw-gateway-1`
 
-          // Debug: check container status
-          pushLog(instance, '[debug] Checking container status...')
-          await runCommandWithLogs(instance, 'docker', [
-            'inspect',
-            '--format',
-            '{{.State.Status}} {{.State.Running}}',
-            containerName,
-          ])
-
-          // Debug: list what's in /home/node inside the container
-          pushLog(instance, '[debug] Listing /home/node in container...')
+          // Create the directory structure inside the named volume
+          // (OpenClaw doesn't create ~/.openclaw on its own when it crashes)
+          pushLog(instance, 'Creating config directories...')
           await runCommandWithLogs(instance, 'docker', [
             'exec',
             containerName,
-            'ls',
-            '-la',
-            '/home/node/',
+            'mkdir',
+            '-p',
+            '/home/node/.openclaw/workspace',
           ])
 
-          // Debug: check if .openclaw exists
-          pushLog(instance, '[debug] Listing /home/node/.openclaw...')
-          await runCommandWithLogs(instance, 'docker', [
-            'exec',
-            containerName,
-            'ls',
-            '-la',
-            '/home/node/.openclaw/',
-          ])
-
-          // Debug: check the volume mounts
-          pushLog(instance, '[debug] Checking volume mounts...')
-          await runCommandWithLogs(instance, 'docker', [
-            'inspect',
-            '--format',
-            '{{range .Mounts}}{{.Type}} {{.Source}} -> {{.Destination}}\n{{end}}',
-            containerName,
-          ])
-
-          // Debug: show container logs so far
-          pushLog(instance, '[debug] Container logs so far...')
-          await runCommandWithLogs(instance, 'docker', [
-            'logs',
-            '--tail',
-            '10',
-            containerName,
-          ])
-
-          // Debug: check tmp files on host
-          pushLog(instance, `[debug] Temp files on host: ${tmpDir}`)
-          const tmpFiles = fs.readdirSync(tmpDir)
-          pushLog(instance, `[debug] Files in tmpDir: ${tmpFiles.join(', ')}`)
-
-          // Inject config via docker cp
+          // Copy config files into the container
           pushLog(instance, 'Injecting configuration...')
-
           for (const [src, dest] of [
             ['openclaw.json', '/home/node/.openclaw/openclaw.json'],
             ['SOUL.md', '/home/node/.openclaw/workspace/SOUL.md'],
             ['AGENTS.md', '/home/node/.openclaw/workspace/AGENTS.md'],
           ]) {
-            pushLog(
-              instance,
-              `[debug] docker cp ${src} -> ${containerName}:${dest}`,
-            )
             const cpExit = await runCommandWithLogs(instance, 'docker', [
               'cp',
               path.join(tmpDir, src),
@@ -701,7 +651,7 @@ export function createAgentsRoutes(config: { serverPort: number }) {
             }
           }
 
-          // Fix ownership
+          // Fix ownership — docker cp creates files as root
           await runCommandWithLogs(instance, 'docker', [
             'exec',
             containerName,
