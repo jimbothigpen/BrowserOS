@@ -621,11 +621,65 @@ export function createAgentsRoutes(config: { serverPort: number }) {
             { cwd: agentDir, env: composeEnv(name) },
           )
 
-          // Wait a moment for the container to start and init the volume
-          await Bun.sleep(2000)
+          // Wait for the container to start and init the volume
+          pushLog(instance, '[debug] Waiting 3s for volume initialization...')
+          await Bun.sleep(3000)
 
-          // Inject config via docker cp (volume now has /home/node/.openclaw)
           const containerName = `browseros-claw-${name}-openclaw-gateway-1`
+
+          // Debug: check container status
+          pushLog(instance, '[debug] Checking container status...')
+          await runCommandWithLogs(instance, 'docker', [
+            'inspect',
+            '--format',
+            '{{.State.Status}} {{.State.Running}}',
+            containerName,
+          ])
+
+          // Debug: list what's in /home/node inside the container
+          pushLog(instance, '[debug] Listing /home/node in container...')
+          await runCommandWithLogs(instance, 'docker', [
+            'exec',
+            containerName,
+            'ls',
+            '-la',
+            '/home/node/',
+          ])
+
+          // Debug: check if .openclaw exists
+          pushLog(instance, '[debug] Listing /home/node/.openclaw...')
+          await runCommandWithLogs(instance, 'docker', [
+            'exec',
+            containerName,
+            'ls',
+            '-la',
+            '/home/node/.openclaw/',
+          ])
+
+          // Debug: check the volume mounts
+          pushLog(instance, '[debug] Checking volume mounts...')
+          await runCommandWithLogs(instance, 'docker', [
+            'inspect',
+            '--format',
+            '{{range .Mounts}}{{.Type}} {{.Source}} -> {{.Destination}}\n{{end}}',
+            containerName,
+          ])
+
+          // Debug: show container logs so far
+          pushLog(instance, '[debug] Container logs so far...')
+          await runCommandWithLogs(instance, 'docker', [
+            'logs',
+            '--tail',
+            '10',
+            containerName,
+          ])
+
+          // Debug: check tmp files on host
+          pushLog(instance, `[debug] Temp files on host: ${tmpDir}`)
+          const tmpFiles = fs.readdirSync(tmpDir)
+          pushLog(instance, `[debug] Files in tmpDir: ${tmpFiles.join(', ')}`)
+
+          // Inject config via docker cp
           pushLog(instance, 'Injecting configuration...')
 
           for (const [src, dest] of [
@@ -633,6 +687,10 @@ export function createAgentsRoutes(config: { serverPort: number }) {
             ['SOUL.md', '/home/node/.openclaw/workspace/SOUL.md'],
             ['AGENTS.md', '/home/node/.openclaw/workspace/AGENTS.md'],
           ]) {
+            pushLog(
+              instance,
+              `[debug] docker cp ${src} -> ${containerName}:${dest}`,
+            )
             const cpExit = await runCommandWithLogs(instance, 'docker', [
               'cp',
               path.join(tmpDir, src),
@@ -643,8 +701,7 @@ export function createAgentsRoutes(config: { serverPort: number }) {
             }
           }
 
-          // Fix ownership — docker cp creates files as root, but OpenClaw
-          // runs as node (uid 1000)
+          // Fix ownership
           await runCommandWithLogs(instance, 'docker', [
             'exec',
             containerName,
