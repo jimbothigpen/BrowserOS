@@ -21,6 +21,31 @@ from ...common.utils import (
 )
 from ...common.notify import get_notifier, COLOR_GREEN
 
+LINUX_ARCHITECTURE_CONFIG = {
+    "x64": {
+        "appimage_tool": "appimagetool-x86_64.AppImage",
+        "appimage_url": "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage",
+        "appimage_arch": "x86_64",
+        "deb_arch": "amd64",
+    },
+    "arm64": {
+        "appimage_tool": "appimagetool-aarch64.AppImage",
+        "appimage_url": "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage",
+        "appimage_arch": "aarch64",
+        "deb_arch": "arm64",
+    },
+}
+
+
+def get_linux_architecture_config(architecture: str) -> dict[str, str]:
+    config = LINUX_ARCHITECTURE_CONFIG.get(architecture)
+    if not config:
+        supported = ", ".join(sorted(LINUX_ARCHITECTURE_CONFIG))
+        raise ValueError(
+            f"Unsupported Linux architecture: {architecture}. Supported: {supported}"
+        )
+    return config
+
 
 class LinuxPackageModule(CommandModule):
     produces = ["appimage", "deb"]
@@ -30,6 +55,10 @@ class LinuxPackageModule(CommandModule):
     def validate(self, ctx: Context) -> None:
         if not IS_LINUX():
             raise ValidationError("Linux packaging requires Linux")
+        try:
+            get_linux_architecture_config(ctx.architecture)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
 
         out_dir = join_paths(ctx.chromium_src, ctx.out_dir)
         chrome_binary = join_paths(out_dir, ctx.BROWSEROS_APP_NAME)
@@ -73,7 +102,7 @@ class LinuxPackageModule(CommandModule):
             artifacts.append(deb_path.name)
         notifier.notify(
             "📦 Package Created",
-            f"Linux packages created successfully",
+            "Linux packages created successfully",
             {
                 "Artifacts": ", ".join(artifacts),
                 "Version": ctx.semantic_version,
@@ -287,15 +316,16 @@ def download_appimagetool(ctx: Context) -> Optional[Path]:
     """Download appimagetool if not available"""
     tool_dir = Path(join_paths(ctx.root_dir, "build", "tools"))
     tool_dir.mkdir(exist_ok=True)
+    arch_config = get_linux_architecture_config(ctx.architecture)
 
-    tool_path = Path(join_paths(tool_dir, "appimagetool-x86_64.AppImage"))
+    tool_path = Path(join_paths(tool_dir, arch_config["appimage_tool"]))
 
     if tool_path.exists():
         log_info("✓ appimagetool already available")
         return tool_path
 
     log_info("📥 Downloading appimagetool...")
-    url = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+    url = arch_config["appimage_url"]
 
     cmd = ["wget", "-O", str(tool_path), url]
     result = run_command(cmd, check=False)
@@ -312,6 +342,7 @@ def download_appimagetool(ctx: Context) -> Optional[Path]:
 def create_appimage(ctx: Context, appdir: Path, output_path: Path) -> bool:
     """Create AppImage from AppDir"""
     log_info("📦 Creating AppImage...")
+    arch_config = get_linux_architecture_config(ctx.architecture)
 
     # Download appimagetool if needed
     appimagetool = download_appimagetool(ctx)
@@ -319,7 +350,7 @@ def create_appimage(ctx: Context, appdir: Path, output_path: Path) -> bool:
         return False
 
     # Set architecture environment variable (required by appimagetool)
-    arch = "x86_64" if ctx.architecture == "x64" else "aarch64"
+    arch = arch_config["appimage_arch"]
 
     # Create AppImage with ARCH env var set for this command only
     cmd = [
@@ -384,7 +415,7 @@ def create_control_file(ctx: Context, debian_dir: Path) -> None:
     version = version.lstrip("v").replace(" ", "").replace("_", ".")
 
     # Architecture mapping
-    deb_arch = "amd64" if ctx.architecture == "x64" else "arm64"
+    deb_arch = get_linux_architecture_config(ctx.architecture)["deb_arch"]
 
     control_content = f"""Package: browseros
 Version: {version}
@@ -653,7 +684,9 @@ def package_appimage(ctx: Context, package_dir: Path) -> Optional[Path]:
     """
     log_info("🖼️  Building AppImage...")
 
-    appdir = Path(join_paths(package_dir, f"{ctx.BROWSEROS_APP_BASE_NAME}.AppDir"))
+    appdir = Path(
+        join_paths(package_dir, f"{ctx.BROWSEROS_APP_BASE_NAME}-{ctx.architecture}.AppDir")
+    )
     if appdir.exists():
         safe_rmtree(appdir)
 
@@ -683,7 +716,9 @@ def package_deb(ctx: Context, package_dir: Path) -> Optional[Path]:
     """
     log_info("📦 Building .deb package...")
 
-    debdir = Path(join_paths(package_dir, f"{ctx.BROWSEROS_APP_BASE_NAME}_deb"))
+    debdir = Path(
+        join_paths(package_dir, f"{ctx.BROWSEROS_APP_BASE_NAME}_{ctx.architecture}_deb")
+    )
     if debdir.exists():
         safe_rmtree(debdir)
 

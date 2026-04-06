@@ -1,12 +1,15 @@
 # BrowserOS Linux Release Build Configuration
 #
+# Run this config once per target architecture:
+#   browseros build --config build/config/release.linux.yaml --arch x64
+#   browseros build --config build/config/release.linux.yaml --arch arm64
+#
 # Environment Variables:
 #   Use !env tag to reference environment variables:
 #     Example: chromium_src: !env CHROMIUM_SRC
 
 build:
   type: release
-  architecture: x64  # Linux x64
 
 gn_flags:
   file: build/config/gn/flags.linux.release.gn
