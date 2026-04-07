@@ -33,11 +33,6 @@ interface CacheEntry {
   expiresAt: number
 }
 
-interface InflightEntry {
-  promise: Promise<CacheEntry>
-  invalidated: boolean
-}
-
 function normalizeServers(servers: readonly string[]): string {
   return [...new Set(servers)].sort().join(',')
 }
@@ -51,7 +46,7 @@ function keyOf(browserosId: string, normalized: string): string {
 }
 
 export class KlavisStrataCache {
-  private entries = new Map<string, InflightEntry>()
+  private entries = new Map<string, Promise<CacheEntry>>()
 
   constructor(private ttlMs: number = DEFAULT_TTL_MS) {}
 
@@ -65,7 +60,7 @@ export class KlavisStrataCache {
     const existing = this.entries.get(key)
 
     if (existing) {
-      const resolved = await existing.promise.catch(() => null)
+      const resolved = await existing.catch(() => null)
       if (
         resolved &&
         resolved.serverKey === normalized &&
@@ -81,23 +76,15 @@ export class KlavisStrataCache {
       }
     }
 
-    logger.info('Klavis strata cache miss', {
+    logger.debug('Klavis strata cache miss', {
       key,
       serverCount: servers.length,
     })
-    const inflight: InflightEntry = {
-      promise: this.fetch(client, browserosId, servers, normalized),
-      invalidated: false,
-    }
+    const inflight = this.fetch(client, browserosId, servers, normalized)
     this.entries.set(key, inflight)
 
     try {
-      // invalidate() already removes the entry; no post-resolution cleanup
-      // needed on success. The inflight.invalidated flag is read by callers
-      // who awaited via `await existing.promise.catch(...)` to detect that
-      // the value they got is correct-as-of-when-they-asked but should not
-      // be considered cached going forward.
-      return this.toResponse(await inflight.promise)
+      return this.toResponse(await inflight)
     } catch (err) {
       // Identity-check: only drop OUR entry. A racing invalidate() may have
       // already removed it, or a racing miss may have inserted a new one
@@ -112,9 +99,8 @@ export class KlavisStrataCache {
   invalidate(browserosId: string): void {
     const prefix = `${browserosId}|`
     let dropped = 0
-    for (const [key, entry] of this.entries) {
+    for (const key of this.entries.keys()) {
       if (key.startsWith(prefix)) {
-        entry.invalidated = true
         this.entries.delete(key)
         dropped++
       }
