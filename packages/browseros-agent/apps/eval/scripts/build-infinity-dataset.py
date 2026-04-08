@@ -34,8 +34,8 @@ def build_task_entry(
     difficulty = task.get("difficulty", "unknown")
     query = task.get("query", task.get("instruction", task.get("task", "")))
     verifier_path = task.get(
-        "verifier_path",
-        task.get("verifier", f"real-tasks/{task_id}-verify.py"),
+        "verify",
+        task.get("verifier_path", f"real-tasks/{task_id}.py"),
     )
 
     return {

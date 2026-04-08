@@ -12,7 +12,6 @@ interface InfinityEvalOutput {
   pass: boolean
   reward: number
   message: string
-  state_snapshot?: Record<string, unknown> | null
 }
 
 const EVAL_SCRIPT = resolve(
@@ -33,13 +32,12 @@ export class InfinityStateGrader implements Grader {
       }
     }
 
-    const appServerUrl = this.extractAppServerUrl(input)
+    const appServerUrl = this.resolveAppServerUrl(input)
     if (!appServerUrl) {
       return {
         score: 0,
         pass: false,
-        reasoning:
-          'Cannot determine app server URL. Set INFINITY_APP_URL or ensure start_url is in agent messages.',
+        reasoning: 'Cannot determine app server URL',
       }
     }
 
@@ -58,7 +56,7 @@ export class InfinityStateGrader implements Grader {
       'apps',
       parsed.appName,
       'real-tasks',
-      `${parsed.taskId}-verify.py`,
+      `${parsed.taskId}.py`,
     )
 
     const evalInput: InfinityEvalInput = {
@@ -75,8 +73,8 @@ export class InfinityStateGrader implements Grader {
         reasoning: result.message,
         details: {
           reward: result.reward,
-          state_snapshot: result.state_snapshot,
           app_name: parsed.appName,
+          app_server_url: appServerUrl,
         },
       }
     } catch (error) {
@@ -96,15 +94,12 @@ export class InfinityStateGrader implements Grader {
     return { appName: match[1], taskId: match[2] }
   }
 
-  private extractAppServerUrl(input: GraderInput): string | null {
-    if (process.env.INFINITY_APP_URL) return process.env.INFINITY_APP_URL
+  private resolveAppServerUrl(input: GraderInput): string | null {
+    // Passed directly from task executor (started by InfinityAppManager)
+    if (input.infinityAppUrl) return input.infinityAppUrl
 
-    for (const msg of input.messages) {
-      if (msg.type === 'user') {
-        const match = msg.content.match(/http:\/\/localhost:\d+/)
-        if (match) return match[0]
-      }
-    }
+    // Fallback: env var for manual testing
+    if (process.env.INFINITY_APP_URL) return process.env.INFINITY_APP_URL
 
     return null
   }

@@ -12,6 +12,7 @@ export interface GraderInput {
   expectedAnswer?: string | null
   outputDir: string
   mcpUrl?: string
+  infinityAppUrl?: string
 }
 
 export interface Grader {
