@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { GraderResult } from '../../types'
 import type { Grader, GraderInput } from '../types'
@@ -16,17 +15,6 @@ interface InfinityEvalOutput {
   state_snapshot?: Record<string, unknown> | null
 }
 
-interface TaskMetadataFile {
-  query_id: string
-  dataset: string
-  additional?: {
-    app_name?: string
-    app_port?: number
-    verifier_path?: string
-    difficulty?: string
-  }
-}
-
 const EVAL_SCRIPT = resolve(
   import.meta.dir,
   '../../../scripts/infinity-evaluate.py',
@@ -36,35 +24,47 @@ export class InfinityStateGrader implements Grader {
   name = 'infinity_state'
 
   async grade(input: GraderInput): Promise<GraderResult> {
-    let metadata: TaskMetadataFile
-    try {
-      const raw = await readFile(
-        join(input.outputDir, 'metadata.json'),
-        'utf-8',
-      )
-      metadata = JSON.parse(raw)
-    } catch (error) {
+    const parsed = this.parseQueryId(input.task.query_id)
+    if (!parsed) {
       return {
         score: 0,
         pass: false,
-        reasoning: `Failed to read task metadata: ${error}`,
+        reasoning: `Cannot parse query_id "${input.task.query_id}" — expected format: infinity-{app}-{task_id}`,
       }
     }
 
-    const additional = metadata.additional
-    if (!additional?.app_port || !additional?.verifier_path) {
+    const appServerUrl = this.extractAppServerUrl(input)
+    if (!appServerUrl) {
       return {
         score: 0,
         pass: false,
         reasoning:
-          'Missing app_port or verifier_path in task metadata.additional',
+          'Cannot determine app server URL. Set INFINITY_APP_URL or ensure start_url is in agent messages.',
       }
     }
 
+    const infinityDir = process.env.WEBARENA_INFINITY_DIR
+    if (!infinityDir) {
+      return {
+        score: 0,
+        pass: false,
+        reasoning:
+          'WEBARENA_INFINITY_DIR env var not set. Point it to the webarena-infinity repo root.',
+      }
+    }
+
+    const verifierPath = join(
+      infinityDir,
+      'apps',
+      parsed.appName,
+      'real-tasks',
+      `${parsed.taskId}-verify.py`,
+    )
+
     const evalInput: InfinityEvalInput = {
-      app_server_url: `http://localhost:${additional.app_port}`,
-      verifier_path: additional.verifier_path,
-      task_id: metadata.query_id,
+      app_server_url: appServerUrl,
+      verifier_path: verifierPath,
+      task_id: input.task.query_id,
     }
 
     try {
@@ -76,8 +76,7 @@ export class InfinityStateGrader implements Grader {
         details: {
           reward: result.reward,
           state_snapshot: result.state_snapshot,
-          app_name: additional.app_name,
-          difficulty: additional.difficulty,
+          app_name: parsed.appName,
         },
       }
     } catch (error) {
@@ -87,6 +86,27 @@ export class InfinityStateGrader implements Grader {
         reasoning: `Evaluator process error: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
+  }
+
+  private parseQueryId(
+    queryId: string,
+  ): { appName: string; taskId: string } | null {
+    const match = queryId.match(/^infinity-(.+?)-(.+)$/)
+    if (!match) return null
+    return { appName: match[1], taskId: match[2] }
+  }
+
+  private extractAppServerUrl(input: GraderInput): string | null {
+    if (process.env.INFINITY_APP_URL) return process.env.INFINITY_APP_URL
+
+    for (const msg of input.messages) {
+      if (msg.type === 'user') {
+        const match = msg.content.match(/http:\/\/localhost:\d+/)
+        if (match) return match[0]
+      }
+    }
+
+    return null
   }
 
   private async runPythonEvaluator(
