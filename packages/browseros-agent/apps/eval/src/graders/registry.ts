@@ -9,6 +9,7 @@ import { FaraMultimodalGrader } from './fara/multimodal'
 import { FaraRubricGrader } from './fara/rubric'
 import { PerformanceGrader } from './performance/performance-grader'
 import type { Grader, GraderInput } from './types'
+import { VerifiedHarGrader } from './verified/har-grader'
 
 interface GraderOptions {
   apiKey: string
@@ -81,6 +82,10 @@ export function createGrader(
     case 'performance_grader':
       return new PerformanceGrader()
 
+    // WebArena-Verified HAR-based grader (no LLM, exact-match via Python evaluator)
+    case 'verified_har':
+      return new VerifiedHarGrader()
+
     default:
       console.warn(`Unknown grader: ${name}`)
       return null
@@ -123,5 +128,6 @@ export {
   InfinityStateGrader,
   Mind2WebJudgeGrader,
   PerformanceGrader,
+  VerifiedHarGrader,
   WebVoyagerGrader,
 }
