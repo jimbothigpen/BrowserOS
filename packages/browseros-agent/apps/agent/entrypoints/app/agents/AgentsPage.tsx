@@ -8,7 +8,7 @@ import {
   Square,
   Trash2,
 } from 'lucide-react'
-import { type FC, useState } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +19,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useLlmProviders } from '@/lib/llm-providers/useLlmProviders'
 import { AgentChat } from './AgentChat'
 import {
   type AgentEntry,
@@ -30,6 +38,8 @@ import {
   useOpenClawAgents,
   useOpenClawStatus,
 } from './useOpenClaw'
+
+const OAUTH_ONLY_TYPES = new Set(['chatgpt-pro', 'github-copilot', 'qwen-code'])
 
 const StatusBadge: FC<{ status: string }> = ({ status }) => {
   const variants: Record<
@@ -51,23 +61,49 @@ const StatusBadge: FC<{ status: string }> = ({ status }) => {
 
 export const AgentsPage: FC = () => {
   const { status, loading: statusLoading } = useOpenClawStatus()
+  const { providers, defaultProviderId } = useLlmProviders()
   const [refreshKey, setRefreshKey] = useState(0)
   const { agents, loading: agentsLoading } = useOpenClawAgents(refreshKey)
+
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [setupProviderId, setSetupProviderId] = useState('')
+  const [settingUp, setSettingUp] = useState(false)
+
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
-  const [settingUp, setSettingUp] = useState(false)
+
   const [actionInProgress, setActionInProgress] = useState(false)
   const [chatAgent, setChatAgent] = useState<AgentEntry | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const compatibleProviders = providers.filter(
+    (p) => p.apiKey && !OAUTH_ONLY_TYPES.has(p.type),
+  )
+
+  // Pre-select default provider when dialogs open
+  useEffect(() => {
+    if ((setupOpen || createOpen) && compatibleProviders.length > 0) {
+      const defaultMatch = compatibleProviders.find(
+        (p) => p.id === defaultProviderId,
+      )
+      setSetupProviderId(defaultMatch?.id ?? compatibleProviders[0].id)
+    }
+  }, [setupOpen, createOpen, compatibleProviders, defaultProviderId])
+
   const refresh = () => setRefreshKey((k) => k + 1)
 
   const handleSetup = async () => {
+    const provider = compatibleProviders.find((p) => p.id === setupProviderId)
     setSettingUp(true)
     setError(null)
     try {
-      await setupOpenClaw({})
+      await setupOpenClaw({
+        providerType: provider?.type,
+        apiKey: provider?.apiKey,
+        modelId: provider?.modelId,
+      })
+      setSetupOpen(false)
       refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -219,16 +255,7 @@ export const AgentsPage: FC = () => {
               </p>
             </div>
             {status.podmanAvailable && (
-              <Button onClick={handleSetup} disabled={settingUp}>
-                {settingUp ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Setting up...
-                  </>
-                ) : (
-                  'Set Up Now'
-                )}
-              </Button>
+              <Button onClick={() => setSetupOpen(true)}>Set Up Now</Button>
             )}
           </CardContent>
         </Card>
@@ -245,16 +272,7 @@ export const AgentsPage: FC = () => {
                 The OpenClaw gateway is not running.
               </p>
             </div>
-            <Button onClick={handleSetup} disabled={settingUp}>
-              {settingUp ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                'Start Gateway'
-              )}
-            </Button>
+            <Button onClick={() => setSetupOpen(true)}>Start Gateway</Button>
           </CardContent>
         </Card>
       )}
@@ -334,6 +352,37 @@ export const AgentsPage: FC = () => {
         </div>
       )}
 
+      {/* Setup Dialog (with provider selector) */}
+      <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Up OpenClaw</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <ProviderSelector
+              providers={compatibleProviders}
+              defaultProviderId={defaultProviderId}
+              selectedId={setupProviderId}
+              onSelect={setSetupProviderId}
+            />
+            <Button
+              onClick={handleSetup}
+              disabled={settingUp}
+              className="w-full"
+            >
+              {settingUp ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Setting up...
+                </>
+              ) : (
+                'Set Up & Start'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Create Agent Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
@@ -378,6 +427,60 @@ export const AgentsPage: FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+interface ProviderSelectorProps {
+  providers: Array<{ id: string; type: string; name: string; modelId: string }>
+  defaultProviderId: string
+  selectedId: string
+  onSelect: (id: string) => void
+}
+
+const ProviderSelector: FC<ProviderSelectorProps> = ({
+  providers,
+  defaultProviderId,
+  selectedId,
+  onSelect,
+}) => {
+  if (providers.length === 0) {
+    return (
+      <div className="space-y-2">
+        <p className="font-medium text-sm">LLM Provider</p>
+        <p className="text-muted-foreground text-sm">
+          No compatible LLM providers configured.{' '}
+          <a href="#/settings/ai" className="underline">
+            Add one in AI settings
+          </a>{' '}
+          first.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="font-medium text-sm" htmlFor="provider-select">
+        LLM Provider
+      </label>
+      <Select value={selectedId} onValueChange={onSelect}>
+        <SelectTrigger id="provider-select">
+          <SelectValue placeholder="Select a provider" />
+        </SelectTrigger>
+        <SelectContent>
+          {providers.map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              {p.name} — {p.modelId}
+              {p.id === defaultProviderId ? ' (default)' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-muted-foreground text-xs">
+        Uses your existing API key from BrowserOS settings. The key is passed to
+        the container and never leaves your machine.
+      </p>
     </div>
   )
 }
