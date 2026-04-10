@@ -84,11 +84,16 @@ export async function setupOpenClaw(input: {
   })
 }
 
-export async function createAgent(name: string) {
+export async function createAgent(input: {
+  name: string
+  providerType?: string
+  apiKey?: string
+  modelId?: string
+}) {
   return clawFetch<{ agent: AgentEntry }>('/agents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(input),
   })
 }
 

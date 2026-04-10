@@ -27,6 +27,8 @@ export interface AgentEntry {
   id: string
   name: string
   workspace: string
+  providerType?: string
+  modelId?: string
 }
 
 export interface OpenClawConfigInput {
@@ -77,12 +79,20 @@ export function buildOpenClawConfig(
         timeoutSeconds: 4200,
         thinkingDefault: 'adaptive',
       },
-      list: input.agents.map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        workspace: agent.workspace,
-        tools: { exec: { security: 'full' } },
-      })),
+      list: input.agents.map((agent) => {
+        const entry: Record<string, unknown> = {
+          id: agent.id,
+          name: agent.name,
+          workspace: agent.workspace,
+          tools: { exec: { security: 'full' } },
+        }
+        if (agent.providerType && agent.modelId) {
+          entry.model = {
+            primary: `${agent.providerType}/${agent.modelId}`,
+          }
+        }
+        return entry
+      }),
     },
     tools: {
       profile: 'full',
@@ -149,7 +159,10 @@ export function buildEnvFile(input: EnvFileInput): string {
   return `${lines.join('\n')}\n`
 }
 
-export function makeAgentEntry(name: string): AgentEntry {
+export function makeAgentEntry(
+  name: string,
+  provider?: { providerType?: string; modelId?: string },
+): AgentEntry {
   return {
     id: name,
     name,
@@ -157,6 +170,8 @@ export function makeAgentEntry(name: string): AgentEntry {
       name === 'main'
         ? `${CONTAINER_HOME}/workspace`
         : `${CONTAINER_HOME}/workspace-${name}`,
+    providerType: provider?.providerType,
+    modelId: provider?.modelId,
   }
 }
 

@@ -93,7 +93,12 @@ export function createOpenClawRoutes() {
     })
 
     .post('/agents', async (c) => {
-      const body = await c.req.json<{ name: string }>()
+      const body = await c.req.json<{
+        name: string
+        providerType?: string
+        apiKey?: string
+        modelId?: string
+      }>()
       const name = body.name?.trim()
 
       if (!name) {
@@ -101,7 +106,12 @@ export function createOpenClawRoutes() {
       }
 
       try {
-        const agent = await getOpenClawService().createAgent(name)
+        const agent = await getOpenClawService().createAgent({
+          name,
+          providerType: body.providerType,
+          apiKey: body.apiKey,
+          modelId: body.modelId,
+        })
         return c.json({ agent }, 201)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)

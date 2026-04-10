@@ -71,6 +71,7 @@ export const AgentsPage: FC = () => {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
+  const [createProviderId, setCreateProviderId] = useState('')
   const [creating, setCreating] = useState(false)
 
   const [actionInProgress, setActionInProgress] = useState(false)
@@ -83,12 +84,12 @@ export const AgentsPage: FC = () => {
 
   // Pre-select default provider when dialogs open
   useEffect(() => {
-    if ((setupOpen || createOpen) && compatibleProviders.length > 0) {
-      const defaultMatch = compatibleProviders.find(
-        (p) => p.id === defaultProviderId,
-      )
-      setSetupProviderId(defaultMatch?.id ?? compatibleProviders[0].id)
-    }
+    if (compatibleProviders.length === 0) return
+    const fallbackId =
+      compatibleProviders.find((p) => p.id === defaultProviderId)?.id ??
+      compatibleProviders[0].id
+    if (setupOpen) setSetupProviderId(fallbackId)
+    if (createOpen) setCreateProviderId(fallbackId)
   }, [setupOpen, createOpen, compatibleProviders, defaultProviderId])
 
   const refresh = () => setRefreshKey((k) => k + 1)
@@ -114,10 +115,16 @@ export const AgentsPage: FC = () => {
 
   const handleCreate = async () => {
     if (!newName.trim()) return
+    const provider = compatibleProviders.find((p) => p.id === createProviderId)
     setCreating(true)
     setError(null)
     try {
-      await createAgent(newName.trim().toLowerCase().replace(/\s+/g, '-'))
+      await createAgent({
+        name: newName.trim().toLowerCase().replace(/\s+/g, '-'),
+        providerType: provider?.type,
+        apiKey: provider?.apiKey,
+        modelId: provider?.modelId,
+      })
       setCreateOpen(false)
       setNewName('')
       refresh()
@@ -410,6 +417,12 @@ export const AgentsPage: FC = () => {
                 Lowercase letters, numbers, and hyphens only.
               </p>
             </div>
+            <ProviderSelector
+              providers={compatibleProviders}
+              defaultProviderId={defaultProviderId}
+              selectedId={createProviderId}
+              onSelect={setCreateProviderId}
+            />
             <Button
               onClick={handleCreate}
               disabled={!newName.trim() || creating}

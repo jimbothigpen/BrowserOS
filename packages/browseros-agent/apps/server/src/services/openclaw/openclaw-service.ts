@@ -239,7 +239,13 @@ export class OpenClawService {
 
   // ── Agent Management ─────────────────────────────────────────────────
 
-  async createAgent(name: string): Promise<AgentEntry> {
+  async createAgent(input: {
+    name: string
+    providerType?: string
+    apiKey?: string
+    modelId?: string
+  }): Promise<AgentEntry> {
+    const { name } = input
     if (!AGENT_NAME_PATTERN.test(name)) {
       throw new Error(
         'Agent name must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens',
@@ -253,7 +259,10 @@ export class OpenClawService {
       throw new Error(`Agent "${name}" already exists`)
     }
 
-    const entry = makeAgentEntry(name)
+    const entry = makeAgentEntry(name, {
+      providerType: input.providerType,
+      modelId: input.modelId,
+    })
 
     // Create workspace on host (visible inside container via volume mount)
     const hostWorkspaceDir = join(this.openclawDir, `workspace-${name}`)
@@ -263,8 +272,16 @@ export class OpenClawService {
     this.setAgentsList(config, agents)
     await this.writeConfig(config)
 
+    // Merge new provider API key into .env so the container has access
+    if (input.providerType && input.apiKey) {
+      await this.mergeProviderKey(input.providerType, input.apiKey)
+    }
+
     await this.restart()
-    logger.info('Agent created', { agentId: name })
+    logger.info('Agent created', {
+      agentId: name,
+      providerType: input.providerType,
+    })
     return entry
   }
 
@@ -426,6 +443,37 @@ export class OpenClawService {
     const agentsConfig = (config.agents ?? {}) as Record<string, unknown>
     agentsConfig.list = agents
     config.agents = agentsConfig
+  }
+
+  /**
+   * Reads the current .env, adds/updates the provider's API key, writes it back.
+   * Multiple providers can coexist (e.g. ANTHROPIC_API_KEY + OPENAI_API_KEY).
+   */
+  private async mergeProviderKey(
+    providerType: string,
+    apiKey: string,
+  ): Promise<void> {
+    const newKeys = resolveProviderKeys(providerType, apiKey)
+    if (Object.keys(newKeys).length === 0) return
+
+    const envPath = join(this.openclawDir, '.env')
+    let content = ''
+    try {
+      content = await readFile(envPath, 'utf-8')
+    } catch {
+      // .env may not exist yet
+    }
+
+    for (const [key, value] of Object.entries(newKeys)) {
+      const pattern = new RegExp(`^${key}=.*$`, 'm')
+      if (pattern.test(content)) {
+        content = content.replace(pattern, `${key}=${value}`)
+      } else {
+        content = `${content.trimEnd()}\n${key}=${value}\n`
+      }
+    }
+
+    await writeFile(envPath, content, { mode: 0o600 })
   }
 
   private async loadTokenFromEnv(): Promise<void> {
