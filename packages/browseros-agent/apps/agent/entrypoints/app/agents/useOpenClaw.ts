@@ -148,11 +148,13 @@ export async function chatWithAgent(
   agentId: string,
   message: string,
   sessionKey?: string,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const baseUrl = await getAgentServerUrl()
   return fetch(`${baseUrl}/claw/agents/${agentId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, sessionKey }),
+    signal,
   })
 }

@@ -375,6 +375,14 @@ export async function scoreFixture(
     candidates,
   }
 
+  if (candidates.some((candidate) => candidate.semanticBackend === 'error')) {
+    logger.warn('ACL decision computed without semantic scoring', {
+      toolName,
+      pageUrl,
+      candidateCount: candidates.length,
+    })
+  }
+
   if (decision.blocked) {
     logger.info('ACL BLOCKED', {
       toolName,

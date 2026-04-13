@@ -534,7 +534,9 @@ export class OpenClawService {
     }
 
     const jsonStr = output.join('\n')
-    let data: { pending?: Array<{ requestId: string }> }
+    let data: {
+      pending?: Array<{ requestId: string; deviceId?: string }>
+    }
     try {
       data = JSON.parse(jsonStr)
     } catch {
@@ -549,7 +551,19 @@ export class OpenClawService {
       throw new Error('No pending device pair requests to approve')
     }
 
-    const requestId = pending[0].requestId
+    const clientDeviceId = await this.readClientDeviceId()
+    const pendingRequest =
+      pending.find((request) => request.deviceId === clientDeviceId) ??
+      pending[0]
+    const requestId = pendingRequest.requestId
+
+    if (clientDeviceId && pendingRequest.deviceId !== clientDeviceId) {
+      logger.warn('Pending device request did not match client identity', {
+        clientDeviceId,
+        approvedRequestId: requestId,
+      })
+    }
+
     logProgress(`Approving device pair request ${requestId.slice(0, 8)}...`)
 
     const code = await this.runtime.execInContainer([
@@ -653,6 +667,18 @@ export class OpenClawService {
       }
     } catch {
       logger.debug('OpenClaw env file not available while loading token')
+    }
+  }
+
+  private async readClientDeviceId(): Promise<string | null> {
+    try {
+      const identityPath = join(this.openclawDir, 'client-identity.json')
+      const identity = JSON.parse(await readFile(identityPath, 'utf-8')) as {
+        deviceId?: string
+      }
+      return identity.deviceId ?? null
+    } catch {
+      return null
     }
   }
 

@@ -7,13 +7,6 @@ export async function saveConversation(conv: AgentConversation): Promise<void> {
   await set(`${PREFIX}${conv.agentId}:${conv.sessionKey}`, conv)
 }
 
-export async function getConversation(
-  agentId: string,
-  sessionKey: string,
-): Promise<AgentConversation | undefined> {
-  return get(`${PREFIX}${agentId}:${sessionKey}`)
-}
-
 export async function getLatestConversation(
   agentId: string,
 ): Promise<AgentConversation | undefined> {
