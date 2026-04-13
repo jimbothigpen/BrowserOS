@@ -401,24 +401,69 @@ export class OpenClawService {
       await this.loadTokenFromEnv()
       await this.runtime.ensureReady()
 
-      if (await this.runtime.isReady(this.port)) {
-        await this.connectGateway()
-        logger.info('OpenClaw gateway already running')
-        return
+      if (!(await this.runtime.isReady(this.port))) {
+        await this.runtime.composeUp()
+        const ready = await this.runtime.waitForReady(
+          this.port,
+          READY_TIMEOUT_MS,
+        )
+        if (!ready) {
+          logger.warn('OpenClaw gateway failed to become ready on auto-start')
+          return
+        }
       }
 
-      await this.runtime.composeUp()
-      const ready = await this.runtime.waitForReady(this.port, READY_TIMEOUT_MS)
-      if (ready) {
-        await this.connectGateway()
-        logger.info('OpenClaw gateway auto-started')
-      } else {
-        logger.warn('OpenClaw gateway failed to become ready on auto-start')
-      }
+      await this.connectGatewayWithRetry()
+      logger.info('OpenClaw gateway auto-started')
     } catch (err) {
       logger.warn('OpenClaw auto-start failed', {
         error: err instanceof Error ? err.message : String(err),
       })
+    }
+  }
+
+  /**
+   * Connects to the gateway, retrying once after a container restart
+   * if the signature is expired (clock skew from Podman VM sleep).
+   */
+  private async connectGatewayWithRetry(): Promise<void> {
+    try {
+      await this.connectGateway()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (
+        msg.includes('signature expired') ||
+        msg.includes('pairing required')
+      ) {
+        logger.info(
+          'Gateway WS auth failed, restarting container to resync clock...',
+        )
+        await this.runtime.composeRestart()
+        const ready = await this.runtime.waitForReady(
+          this.port,
+          READY_TIMEOUT_MS,
+        )
+        if (!ready)
+          throw new Error('Gateway not ready after clock resync restart')
+
+        // Re-approve device if needed (pairing may have been lost)
+        try {
+          await this.connectGateway()
+        } catch (retryErr) {
+          const retryMsg =
+            retryErr instanceof Error ? retryErr.message : String(retryErr)
+          if (retryMsg.includes('pairing required')) {
+            await this.approvePendingDevice((m) =>
+              logger.debug(`Auto-start: ${m}`),
+            )
+            await this.connectGateway()
+          } else {
+            throw retryErr
+          }
+        }
+      } else {
+        throw err
+      }
     }
   }
 
