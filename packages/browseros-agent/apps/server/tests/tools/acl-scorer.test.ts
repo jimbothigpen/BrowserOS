@@ -6,7 +6,9 @@ import type { AclRule, ElementProperties } from '@browseros/shared/types/acl'
 import { editDistanceRatio } from '../../src/tools/acl/acl-edit-distance'
 import { scoreFixture } from '../../src/tools/acl/acl-scorer'
 
-setDefaultTimeout(30_000)
+const TEST_TIMEOUT_MS = 30_000
+
+setDefaultTimeout(TEST_TIMEOUT_MS)
 process.env.ACL_EMBEDDING_DISABLE = 'true'
 
 // --- Edit distance tests ---
@@ -203,6 +205,7 @@ function runSemanticFixture(name: string) {
     {
       cwd: process.cwd(),
       encoding: 'utf8',
+      timeout: TEST_TIMEOUT_MS,
       env: {
         ...process.env,
         ACL_EMBEDDING_DISABLE: 'false',
@@ -210,12 +213,13 @@ function runSemanticFixture(name: string) {
       },
     },
   )
+  const failureMessage =
+    result.error?.message ||
+    result.stderr ||
+    result.stdout ||
+    'semantic fixture subprocess failed'
 
-  assert.strictEqual(
-    result.status,
-    0,
-    result.stderr || result.stdout || 'semantic fixture subprocess failed',
-  )
+  assert.strictEqual(result.status, 0, failureMessage)
   return JSON.parse(result.stdout)
 }
 
