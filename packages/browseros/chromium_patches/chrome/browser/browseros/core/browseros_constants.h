@@ -1,6 +1,6 @@
 diff --git a/chrome/browser/browseros/core/browseros_constants.h b/chrome/browser/browseros/core/browseros_constants.h
 new file mode 100644
-index 0000000000000..e554c96adc5ad
+index 0000000000000..fdeee36f8cc70
 --- /dev/null
 +++ b/chrome/browser/browseros/core/browseros_constants.h
 @@ -0,0 +1,227 @@
@@ -26,15 +26,15 @@ index 0000000000000..e554c96adc5ad
 +  return base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableUrlOverrides);
 +}
 +
-+// Agent V2 Extension ID
-+inline constexpr char kAgentV2ExtensionId[] =
-+    "bflpfmnmnokmjhmgnolecpppdbdophmk";
-+
 +// BrowserOS extension config URLs
 +inline constexpr char kBrowserOSConfigUrl[] =
 +    "https://cdn.browseros.com/extensions/extensions.json";
 +inline constexpr char kBrowserOSAlphaConfigUrl[] =
 +    "https://cdn.browseros.com/extensions/extensions.alpha.json";
++
++// Agent Extension ID
++inline constexpr char kAgentExtensionId[] =
++    "bflpfmnmnokmjhmgnolecpppdbdophmk";
 +
 +// Bug Reporter Extension ID
 +inline constexpr char kBugReporterExtensionId[] =
@@ -68,9 +68,9 @@ index 0000000000000..e554c96adc5ad
 +};
 +
 +inline constexpr BrowserOSURLRoute kBrowserOSURLRoutes[] = {
-+    {"/settings", kAgentV2ExtensionId, "app.html", "/settings"},
-+    {"/mcp", kAgentV2ExtensionId, "app.html", "/mcp"},
-+    {"/onboarding", kAgentV2ExtensionId, "app.html", "/onboarding"},
++    {"/settings", kAgentExtensionId, "app.html", "/settings"},
++    {"/mcp", kAgentExtensionId, "app.html", "/mcp"},
++    {"/onboarding", kAgentExtensionId, "app.html", "/onboarding"},
 +};
 +
 +inline constexpr size_t kBrowserOSURLRoutesCount =
@@ -171,7 +171,7 @@ index 0000000000000..e554c96adc5ad
 +};
 +
 +inline constexpr BrowserOSExtensionInfo kBrowserOSExtensions[] = {
-+    {kAgentV2ExtensionId, false, false},
++    {kAgentExtensionId, false, false},
 +    {kBugReporterExtensionId, true, false},
 +    {kControllerExtensionId, false, false},
 +    // ublock origin gets installed from chrome web store
@@ -208,9 +208,9 @@ index 0000000000000..e554c96adc5ad
 +}
 +
 +// Returns true if this extension uses the contextual (tab-specific) side panel
-+// toggle behavior. Currently only Agent V2 uses this.
++// toggle behavior. Currently only the Agent extension uses this.
 +inline bool UsesContextualSidePanelToggle(const std::string& extension_id) {
-+  return extension_id == kAgentV2ExtensionId;
++  return extension_id == kAgentExtensionId;
 +}
 +
 +// Get all BrowserOS extension IDs
