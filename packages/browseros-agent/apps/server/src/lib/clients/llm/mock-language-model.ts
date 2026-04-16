@@ -35,7 +35,10 @@ function createMockResult(): LanguageModelV3GenerateResult {
 }
 
 export function isMockBrowserOSLLMEnabled(): boolean {
-  return process.env.BROWSEROS_USE_MOCK_LLM === 'true'
+  return (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.BROWSEROS_USE_MOCK_LLM === 'true'
+  )
 }
 
 export function shouldUseMockBrowserOSLLM(
