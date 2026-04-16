@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "postinstall": "bun run build:agent-sdk",
+    "dev-setup": "bun scripts/dev-setup.ts",
     "dev:watch": "./tools/dev/run.sh watch",
     "dev:watch:new": "./tools/dev/run.sh watch --new",
     "dev:manual": "./tools/dev/run.sh watch --manual",
@@ -27,6 +28,7 @@
     "build:agent": "bun run codegen:agent && bun run --filter @browseros/agent build",
     "build:agent-sdk": "bun run --filter @browseros-ai/agent-sdk build",
     "codegen:agent": "bun run --filter @browseros/agent codegen",
+    "prepare:agent": "bun --cwd apps/agent --env-file=.env.development wxt prepare",
     "test": "bun run test:tools && bun run test:integration",
     "test:tools": "bun run --filter @browseros/server test:tools",
     "test:integration": "bun run --filter @browseros/server test:integration",

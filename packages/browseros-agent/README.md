@@ -82,14 +82,15 @@ brew install process-compose
 ```
 
 ```bash
-# Copy environment files for each package
-cp apps/server/.env.example apps/server/.env.development
-cp apps/agent/.env.example apps/agent/.env.development
-cp apps/server/.env.production.example apps/server/.env.production
+# Install dependencies, sync missing env files for the current worktree,
+# run agent GraphQL codegen, and generate WXT types
+bun run dev-setup
 
 # Start the full dev environment
 process-compose up
 ```
+
+`bun run dev-setup` prefers env files from the main worktree when they exist and falls back to the checked-in examples for missing files.
 
 The `process-compose up` command runs the following in order:
 1. `bun install` — installs dependencies
