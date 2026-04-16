@@ -111,6 +111,7 @@
     },
     {
       "name": "Podman CLI - macOS x64",
+      "notes": "krunkit is intentionally omitted on macOS x64 because the official amd64 Podman installer ships an arm64-only krunkit helper",
       "source": {
         "type": "r2",
         "key": "third_party/podman/podman-darwin-x64"

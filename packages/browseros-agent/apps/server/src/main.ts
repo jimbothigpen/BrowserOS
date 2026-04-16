@@ -56,7 +56,9 @@ export class Application {
       resourcesDir: path.resolve(this.config.resourcesDir),
     })
 
-    configurePodmanRuntime({ resourcesDir: this.config.resourcesDir })
+    configurePodmanRuntime({
+      resourcesDir: path.resolve(this.config.resourcesDir),
+    })
     await this.initCoreServices()
 
     if (!this.config.cdpPort) {
