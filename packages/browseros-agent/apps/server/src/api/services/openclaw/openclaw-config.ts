@@ -184,6 +184,7 @@ export function buildBootstrapConfig(
       auth: { mode: 'none' as const },
       reload: { mode: 'restart' },
       controlUi: {
+        allowInsecureAuth: true,
         allowedOrigins: [
           `http://127.0.0.1:${input.gatewayPort}`,
           `http://localhost:${input.gatewayPort}`,
