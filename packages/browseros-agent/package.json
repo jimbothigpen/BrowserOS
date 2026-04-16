@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "postinstall": "bun run build:agent-sdk",
-    "dev-setup": "bun scripts/dev-setup.ts",
+    "dev-setup": "bun install && bun run codegen:agent && bun run prepare:agent",
     "dev:watch": "./tools/dev/run.sh watch",
     "dev:watch:new": "./tools/dev/run.sh watch --new",
     "dev:manual": "./tools/dev/run.sh watch --manual",

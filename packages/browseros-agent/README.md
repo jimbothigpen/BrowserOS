@@ -75,27 +75,24 @@ packages/
 
 ### Setup
 
-Requires [process-compose](https://github.com/F1bonacc1/process-compose):
-
 ```bash
-brew install process-compose
-```
-
-```bash
-# Install dependencies, sync missing env files for the current worktree,
-# run agent GraphQL codegen, and generate WXT types
+# Install dependencies, generate agent GraphQL output,
+# and prepare WXT types for apps/agent
 bun run dev-setup
 
-# Start the full dev environment
-process-compose up
+# Run the apps
+bun run start:server
+bun run start:agent
 ```
 
-`bun run dev-setup` prefers env files from the main worktree when they exist and falls back to the checked-in examples for missing files.
+`bun run dev-setup` is a preflight command only. It does not manage `.env` files.
 
-The `process-compose up` command runs the following in order:
+It runs the following in order:
 1. `bun install` — installs dependencies
 2. `bun --cwd apps/agent codegen` — generates agent code
-3. `bun --cwd apps/server start` and `bun --cwd apps/agent dev` — starts server and agent in parallel
+3. `bun --cwd apps/agent --env-file=.env.development wxt prepare` — generates WXT type output
+
+If you want the broader dev harness after setup, use `bun run dev:watch`, `bun run dev:watch:new`, or `bun run dev:manual`.
 
 ### Environment Variables
 
