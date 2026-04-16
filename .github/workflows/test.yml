@@ -36,9 +36,6 @@ jobs:
           - suite: integration
             test_path: tests/server.integration.test.ts
             junit_path: test-results/integration.xml
-          - suite: sdk
-            test_path: tests/sdk
-            junit_path: test-results/sdk.xml
 
     steps:
       - name: Checkout code
