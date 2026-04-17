@@ -57,6 +57,10 @@
       "types": "./src/types/role-aware-agents.ts",
       "default": "./src/types/role-aware-agents.ts"
     },
+    "./types/browseros-agents": {
+      "types": "./src/types/browseros-agents.ts",
+      "default": "./src/types/browseros-agents.ts"
+    },
     "./schemas/llm": {
       "types": "./src/schemas/llm.ts",
       "default": "./src/schemas/llm.ts"

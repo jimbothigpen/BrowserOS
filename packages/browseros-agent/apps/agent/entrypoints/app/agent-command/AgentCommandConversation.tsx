@@ -2,7 +2,7 @@ import { Bot, Home, RotateCcw } from 'lucide-react'
 import { type FC, useEffect, useRef } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
-import type { AgentEntry } from '@/entrypoints/app/agents/useOpenClaw'
+import type { AgentEntry } from '@/entrypoints/app/agents/useAgents'
 import { cn } from '@/lib/utils'
 import { useAgentCommandData } from './agent-command-layout'
 import { ConversationInput } from './ConversationInput'
@@ -74,15 +74,30 @@ function EmptyConversationState({ agentName }: { agentName: string }) {
 }
 
 function getConversationStatusCopy(
+  agent: AgentEntry | undefined,
   status: string | undefined,
   streaming: boolean,
 ): string {
   if (streaming) return 'Working on your request'
+  if (!agent || agent.adapterType !== 'openclaw') {
+    return 'Ready for the next task'
+  }
   if (status === 'running') return 'Ready for the next task'
   if (status === 'starting') return 'Connecting to OpenClaw'
   if (status === 'error') return 'OpenClaw needs attention'
   if (status === 'stopped') return 'OpenClaw is offline'
-  return 'Open agent setup to continue'
+  return 'Open Agents to continue'
+}
+
+function canChatWithAgent(
+  agent: AgentEntry | undefined,
+  status: string | undefined,
+): boolean {
+  if (!agent || agent.adapterType !== 'openclaw') {
+    return true
+  }
+
+  return status === 'running'
 }
 
 export const AgentCommandConversation: FC = () => {
@@ -131,10 +146,19 @@ export const AgentCommandConversation: FC = () => {
   }
 
   const handleSelectAgent = (entry: AgentEntry) => {
-    navigate(`/home/agents/${entry.agentId}`)
+    const target = searchParams.get('from')
+      ? `/home/agents/${entry.agentId}?from=${encodeURIComponent(
+          searchParams.get('from') ?? '',
+        )}`
+      : `/home/agents/${entry.agentId}`
+    navigate(target)
   }
 
-  const statusCopy = getConversationStatusCopy(status?.status, streaming)
+  const statusCopy = getConversationStatusCopy(agent, status?.status, streaming)
+  const inputDisabled = !canChatWithAgent(agent, status?.status)
+  const agentStatus =
+    agent?.adapterType === 'openclaw' ? status?.status : 'running'
+  const returnTo = searchParams.get('from') === 'agents' ? '/agents' : '/home'
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -142,7 +166,7 @@ export const AgentCommandConversation: FC = () => {
         <ConversationHeader
           agentName={agentName}
           status={statusCopy}
-          onGoHome={() => navigate('/home')}
+          onGoHome={() => navigate(returnTo)}
           onReset={resetConversation}
         />
 
@@ -183,8 +207,8 @@ export const AgentCommandConversation: FC = () => {
             }}
             onCreateAgent={() => navigate('/agents')}
             streaming={streaming}
-            disabled={status?.status !== 'running'}
-            status={status?.status}
+            disabled={inputDisabled}
+            status={agentStatus}
             placeholder={`Message ${agentName}...`}
           />
         </div>

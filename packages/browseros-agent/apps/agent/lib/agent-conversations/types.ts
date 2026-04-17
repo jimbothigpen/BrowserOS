@@ -14,6 +14,9 @@ export interface ToolEntry {
   name: string
   status: 'running' | 'completed' | 'error'
   durationMs?: number
+  input?: unknown
+  output?: unknown
+  errorText?: string
 }
 
 export interface AssistantToolBatchPart {

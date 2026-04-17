@@ -23,6 +23,7 @@ import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { Sentry } from '../lib/sentry'
 import { createAclRoutes } from './routes/acl'
+import { createAgentsRoutes } from './routes/agents'
 import { createChatRoutes } from './routes/chat'
 import { createCreditsRoutes } from './routes/credits'
 import { createHealthRoute } from './routes/health'
@@ -121,6 +122,10 @@ export async function createHttpServer(config: HttpServerConfig) {
     .use('/*', requireTrustedAppOrigin())
     .route('/', createAclRoutes({ policyService: aclPolicyService }))
 
+  const agentsRoutes = new Hono<Env>()
+    .use('/*', requireTrustedAppOrigin())
+    .route('/', createAgentsRoutes())
+
   const app = new Hono<Env>()
     .use('/*', cors(defaultCorsConfig))
     .route('/health', createHealthRoute({ browser }))
@@ -141,6 +146,7 @@ export async function createHttpServer(config: HttpServerConfig) {
     )
     .route('/status', createStatusRoute({ browser }))
     .route('/soul', createSoulRoutes())
+    .route('/agents', agentsRoutes)
     .route('/memory', createMemoryRoutes())
     .route('/skills', createSkillsRoutes())
     .route('/acl-rules', aclRoutes)

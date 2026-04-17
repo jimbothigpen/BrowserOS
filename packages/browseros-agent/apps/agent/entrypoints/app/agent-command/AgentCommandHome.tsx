@@ -3,7 +3,7 @@ import { type FC, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import type { AgentEntry } from '@/entrypoints/app/agents/useOpenClaw'
+import type { AgentEntry } from '@/entrypoints/app/agents/useAgents'
 import { ImportDataHint } from '@/entrypoints/newtab/index/ImportDataHint'
 import { NewTabBranding } from '@/entrypoints/newtab/index/NewTabBranding'
 import { NewTabTip } from '@/entrypoints/newtab/index/NewTabTip'
@@ -25,11 +25,11 @@ function AgentCommandSetupState({
     <Card className="border-border/60 bg-card/85 shadow-sm">
       <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
         <p className="max-w-xl text-muted-foreground text-sm">
-          Set up OpenClaw agents to turn your new tab into an agent command
+          Set up BrowserOS agents to turn your new tab into an agent command
           center.
         </p>
         <Button onClick={onOpenAgents} className="gap-2">
-          Open Agent Setup
+          Open Agents
           <ArrowRight className="size-4" />
         </Button>
       </CardContent>
@@ -42,7 +42,7 @@ function EmptyAgentsState({ onOpenAgents }: { onOpenAgents: () => void }) {
     <Card className="border-border/60 bg-card/85 shadow-sm">
       <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
         <p className="max-w-xl text-muted-foreground text-sm">
-          OpenClaw is running, but you do not have any agents yet.
+          BrowserOS is ready, but you do not have any agents yet.
         </p>
         <Button variant="outline" onClick={onOpenAgents}>
           Create your first agent
@@ -61,11 +61,11 @@ function OpenClawUnavailableState({
     <Card className="border-border/60 bg-card/85 shadow-sm">
       <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
         <p className="max-w-xl text-muted-foreground text-sm">
-          OpenClaw is unavailable right now. Open the Agents page to restart the
-          gateway or review setup.
+          OpenClaw is unavailable right now. Open Agents to restart the runtime
+          or review setup.
         </p>
         <Button onClick={onOpenAgents} className="gap-2">
-          Open Agent Setup
+          Open Agents
           <ArrowRight className="size-4" />
         </Button>
       </CardContent>
@@ -110,13 +110,28 @@ export const AgentCommandHome: FC = () => {
     setSelectedAgentId(agent.agentId)
   }
 
+  const selectedAgent = agents.find(
+    (agent) => agent.agentId === selectedAgentId,
+  )
   const openClawStatus = status?.status
-  const isSetup = openClawStatus != null && openClawStatus !== 'uninitialized'
+  const hasAgents = agents.length > 0
+  const isSetup =
+    hasAgents || (openClawStatus != null && openClawStatus !== 'uninitialized')
   const shouldShowUnavailableState =
+    !hasAgents &&
     openClawStatus != null &&
     openClawStatus !== 'running' &&
-    openClawStatus !== 'uninitialized' &&
-    cardData.length === 0
+    openClawStatus !== 'uninitialized'
+  const inputDisabled =
+    !selectedAgent ||
+    (selectedAgent.adapterType === 'openclaw' && openClawStatus !== 'running')
+  const inputPlaceholder = !selectedAgent
+    ? 'Create or select an agent...'
+    : selectedAgent.adapterType === 'openclaw' && openClawStatus !== 'running'
+      ? 'OpenClaw is not running...'
+      : undefined
+  const selectorStatus =
+    selectedAgent?.adapterType === 'openclaw' ? openClawStatus : 'running'
 
   return (
     <div className="pt-[max(25vh,16px)]">
@@ -131,13 +146,9 @@ export const AgentCommandHome: FC = () => {
           onSend={handleSend}
           onCreateAgent={() => navigate('/agents')}
           streaming={false}
-          disabled={status?.status !== 'running'}
-          status={status?.status}
-          placeholder={
-            status?.status === 'running'
-              ? undefined
-              : 'OpenClaw is not running...'
-          }
+          disabled={inputDisabled}
+          status={selectorStatus}
+          placeholder={inputPlaceholder}
         />
 
         {mounted ? <NewTabTip /> : null}

@@ -15,10 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  type AgentEntry,
-  getModelDisplayName,
-} from '@/entrypoints/app/agents/useOpenClaw'
+import type { AgentEntry } from '@/entrypoints/app/agents/useAgents'
 import { cn } from '@/lib/utils'
 
 interface AgentSelectorProps {
@@ -34,6 +31,13 @@ function getStatusDot(status?: string) {
   if (status === 'starting') return 'bg-amber-500 animate-pulse'
   if (status === 'error') return 'bg-destructive'
   return 'bg-muted-foreground/50'
+}
+
+function getModelDisplayName(model: unknown): string | undefined {
+  if (typeof model === 'string') {
+    return model.split('/').pop()
+  }
+  return undefined
 }
 
 export const AgentSelector: FC<AgentSelectorProps> = ({

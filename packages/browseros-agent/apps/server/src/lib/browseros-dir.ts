@@ -29,6 +29,22 @@ export function getSessionsDir(): string {
   return join(getBrowserosDir(), PATHS.SESSIONS_DIR_NAME)
 }
 
+export function getAgentsDir(): string {
+  return join(getBrowserosDir(), PATHS.AGENTS_DIR_NAME)
+}
+
+export function getAgentDir(agentId: string): string {
+  return join(getAgentsDir(), agentId)
+}
+
+export function getAgentMetadataPath(agentId: string): string {
+  return join(getAgentDir(agentId), PATHS.AGENT_METADATA_FILE_NAME)
+}
+
+export function getAgentRuntimeDir(agentId: string): string {
+  return join(getAgentDir(agentId), PATHS.AGENT_RUNTIME_DIR_NAME)
+}
+
 export function getSoulPath(): string {
   return join(getBrowserosDir(), PATHS.SOUL_FILE_NAME)
 }
@@ -73,6 +89,7 @@ export async function ensureBrowserosDir(): Promise<void> {
   await mkdir(getSkillsDir(), { recursive: true })
   await mkdir(getBuiltinSkillsDir(), { recursive: true })
   await mkdir(getSessionsDir(), { recursive: true })
+  await mkdir(getAgentsDir(), { recursive: true })
 }
 
 export async function cleanOldSessions(): Promise<void> {
