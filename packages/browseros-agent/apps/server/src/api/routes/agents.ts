@@ -185,10 +185,20 @@ function toErrorStatusCode(error: unknown): 400 | 404 | 409 | 500 {
   if (/already exists/i.test(message)) {
     return 409
   }
-  if (/requires|must be running|invalid/i.test(message)) {
+  if (isBadRequestMessage(message)) {
     return 400
   }
   return 500
+}
+
+function isBadRequestMessage(message: string): boolean {
+  return [
+    /requires/i,
+    /must be running/i,
+    /invalid/i,
+    /hello probe failed/i,
+    /unsupported openclaw provider/i,
+  ].some((pattern) => pattern.test(message))
 }
 
 function validationErrorResponse(result: { success: boolean }, c: Context) {

@@ -177,16 +177,22 @@ describe('createAgentsRoutes', () => {
     expect(invalidChatResponse.status).toBe(400)
   })
 
-  it('returns 404, 409, and 400 for known service errors', async () => {
+  it('returns 404, 409, and 400 for known service errors and validation failures', async () => {
     const { createAgentsRoutes } = await import(
       '../../../src/api/routes/agents'
     )
     const route = createAgentsRoutes({
       catalog: mock(() => []),
       list: mock(async () => []),
-      create: mock(async (input: { adapterType: string }) => {
-        if (input.adapterType === 'codex_local') {
+      create: mock(async (input: { id: string; adapterType: string }) => {
+        if (input.id === 'existing') {
           throw new Error('Agent "agent" already exists')
+        }
+        if (input.id === 'probe') {
+          throw new Error('Codex hello probe failed')
+        }
+        if (input.adapterType === 'openclaw') {
+          throw new Error('Unsupported OpenClaw provider: unsupported')
         }
         throw new Error('claude_local requires a configured binaryPath')
       }),
@@ -202,7 +208,7 @@ describe('createAgentsRoutes', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: 'agent',
+        id: 'existing',
         name: 'Agent',
         adapterType: 'codex_local',
         binaryPath: '/usr/local/bin/codex',
@@ -221,6 +227,30 @@ describe('createAgentsRoutes', () => {
       }),
     })
     expect(invalidResponse.status).toBe(400)
+
+    const probeFailureResponse = await route.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'probe',
+        name: 'Agent',
+        adapterType: 'codex_local',
+        binaryPath: '/usr/local/bin/codex',
+      }),
+    })
+    expect(probeFailureResponse.status).toBe(400)
+
+    const unsupportedProviderResponse = await route.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'agent',
+        name: 'Agent',
+        adapterType: 'openclaw',
+        providerType: 'unsupported',
+      }),
+    })
+    expect(unsupportedProviderResponse.status).toBe(400)
 
     const deleteResponse = await route.request('/missing', {
       method: 'DELETE',
