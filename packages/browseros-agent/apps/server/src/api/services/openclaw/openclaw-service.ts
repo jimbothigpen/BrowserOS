@@ -33,7 +33,6 @@ import {
   type OpenClawConfigBatchEntry,
 } from './openclaw-cli-client'
 import {
-  buildRuntimeEnvFile,
   getHostWorkspaceDir,
   getOpenClawStateConfigPath,
   getOpenClawStateDir,
@@ -102,7 +101,6 @@ export interface OpenClawProviderUpdateResult {
 
 export interface OpenClawServiceConfig {
   browserosServerPort?: number
-  resourcesDir?: string
 }
 
 export class OpenClawService {
@@ -210,11 +208,6 @@ export class OpenClawService {
 
     this.tokenLoaded = false
     await this.loadTokenFromConfig()
-    await this.writeRuntimeEnv()
-    logProgress('Generated runtime env file')
-    logger.info('Wrote OpenClaw runtime env file', {
-      openclawDir: this.openclawDir,
-    })
 
     logProgress('Starting OpenClaw gateway...')
     await this.runtime.startGateway(this.buildGatewayRuntimeSpec(), logProgress)
@@ -266,7 +259,6 @@ export class OpenClawService {
     this.tokenLoaded = false
     await this.loadTokenFromConfig()
     await this.ensureStateEnvFile()
-    await this.writeRuntimeEnv()
 
     logProgress('Starting OpenClaw gateway...')
     await this.runtime.startGateway(this.buildGatewayRuntimeSpec(), logProgress)
@@ -306,7 +298,6 @@ export class OpenClawService {
     this.tokenLoaded = false
     await this.loadTokenFromConfig()
     await this.ensureStateEnvFile()
-    await this.writeRuntimeEnv()
     logProgress('Restarting OpenClaw gateway...')
     await this.runtime.restartGateway(
       this.buildGatewayRuntimeSpec(),
@@ -587,7 +578,6 @@ export class OpenClawService {
       this.tokenLoaded = false
       await this.loadTokenFromConfig()
       await this.ensureStateEnvFile()
-      await this.writeRuntimeEnv()
 
       if (!(await this.runtime.isReady(this.port))) {
         await this.runtime.startGateway(this.buildGatewayRuntimeSpec())
@@ -856,16 +846,6 @@ export class OpenClawService {
     if (existsSync(envPath)) return
     await mkdir(this.getStateDir(), { recursive: true })
     await writeFile(envPath, '', { mode: 0o600 })
-  }
-
-  private async writeRuntimeEnv(): Promise<void> {
-    const envContent = buildRuntimeEnvFile({
-      hostHome: this.openclawDir,
-      image: this.getGatewayImage(),
-      port: this.port,
-      gatewayToken: this.tokenLoaded ? this.token : undefined,
-    })
-    await this.runtime.writeRuntimeEnvFile(envContent)
   }
 
   private getGatewayImage(): string {

@@ -5,10 +5,7 @@
  */
 
 import { join } from 'node:path'
-import { OPENCLAW_GATEWAY_PORT } from '@browseros/shared/constants/openclaw'
 
-// Pin away from latest because newer OpenClaw releases regress OpenRouter chat streams.
-const OPENCLAW_IMAGE = 'ghcr.io/openclaw/openclaw:2026.4.12'
 const STATE_DIR_NAME = '.openclaw'
 
 export function getOpenClawStateDir(openclawDir: string): string {
@@ -31,26 +28,6 @@ export function getHostWorkspaceDir(
     getOpenClawStateDir(openclawDir),
     agentName === 'main' ? 'workspace' : `workspace-${agentName}`,
   )
-}
-
-export function buildRuntimeEnvFile(input: {
-  hostHome: string
-  image?: string
-  port?: number
-  timezone?: string
-  gatewayToken?: string
-}): string {
-  const lines = [
-    `OPENCLAW_IMAGE=${input.image ?? OPENCLAW_IMAGE}`,
-    `OPENCLAW_GATEWAY_PORT=${input.port ?? OPENCLAW_GATEWAY_PORT}`,
-    `OPENCLAW_HOST_HOME=${input.hostHome}`,
-    `TZ=${input.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}`,
-  ]
-  if (input.gatewayToken) {
-    lines.push(`OPENCLAW_GATEWAY_TOKEN=${input.gatewayToken}`)
-  }
-  lines.push('')
-  return lines.join('\n')
 }
 
 export function mergeEnvContent(

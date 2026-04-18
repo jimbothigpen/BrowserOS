@@ -6,8 +6,6 @@
  * OpenClaw container lifecycle abstraction over PodmanRuntime.
  */
 
-import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import {
   OPENCLAW_COMPOSE_PROJECT_NAME,
   OPENCLAW_GATEWAY_CONTAINER_NAME,
@@ -15,7 +13,6 @@ import {
 import { logger } from '../../../lib/logger'
 import type { LogFn, PodmanRuntime } from './podman-runtime'
 
-const ENV_FILE_NAME = '.env'
 const LEGACY_GATEWAY_CONTAINER_NAME = `${OPENCLAW_COMPOSE_PROJECT_NAME}-openclaw-gateway-1`
 const GATEWAY_CONTAINER_HOME = '/home/node'
 const GATEWAY_STATE_DIR = `${GATEWAY_CONTAINER_HOME}/.openclaw`
@@ -158,12 +155,6 @@ export class ContainerRuntime {
       timeoutMs,
     })
     return false
-  }
-
-  async writeRuntimeEnvFile(content: string): Promise<void> {
-    await writeFile(join(this.projectDir, ENV_FILE_NAME), content, {
-      mode: 0o600,
-    })
   }
 
   /**

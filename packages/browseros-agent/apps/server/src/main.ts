@@ -128,7 +128,6 @@ export class Application {
 
     configureOpenClawService({
       browserosServerPort: this.config.serverPort,
-      resourcesDir: path.resolve(this.config.resourcesDir),
     })
       .tryAutoStart()
       .catch((err) =>

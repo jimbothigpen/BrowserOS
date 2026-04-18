@@ -4,42 +4,39 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { buildRuntimeEnvFile } from '../../../../src/api/services/openclaw/openclaw-env'
+import { mergeEnvContent } from '../../../../src/api/services/openclaw/openclaw-env'
 
-describe('buildRuntimeEnvFile', () => {
-  it('pins the default OpenClaw image to 2026.4.12', () => {
+describe('mergeEnvContent', () => {
+  it('appends new env keys and normalizes trailing newline', () => {
     expect(
-      buildRuntimeEnvFile({
-        hostHome: '/tmp/openclaw-home',
-        timezone: 'UTC',
+      mergeEnvContent('OPENAI_API_KEY=sk-old', {
+        ANTHROPIC_API_KEY: 'ant-key',
       }),
-    ).toContain('OPENCLAW_IMAGE=ghcr.io/openclaw/openclaw:2026.4.12')
+    ).toEqual({
+      changed: true,
+      content: 'OPENAI_API_KEY=sk-old\nANTHROPIC_API_KEY=ant-key\n',
+    })
   })
 
-  it('respects an explicit image override', () => {
+  it('overwrites existing keys when values change', () => {
     expect(
-      buildRuntimeEnvFile({
-        hostHome: '/tmp/openclaw-home',
-        timezone: 'UTC',
-        image: 'ghcr.io/openclaw/openclaw:custom',
+      mergeEnvContent('OPENAI_API_KEY=sk-old\n', {
+        OPENAI_API_KEY: 'sk-new',
       }),
-    ).toContain('OPENCLAW_IMAGE=ghcr.io/openclaw/openclaw:custom')
+    ).toEqual({
+      changed: true,
+      content: 'OPENAI_API_KEY=sk-new\n',
+    })
   })
 
-  it('adds the gateway token only when provided', () => {
+  it('reports unchanged when incoming values match existing content', () => {
     expect(
-      buildRuntimeEnvFile({
-        hostHome: '/tmp/openclaw-home',
-        timezone: 'UTC',
+      mergeEnvContent('OPENAI_API_KEY=sk-test\n', {
+        OPENAI_API_KEY: 'sk-test',
       }),
-    ).not.toContain('OPENCLAW_GATEWAY_TOKEN=')
-
-    expect(
-      buildRuntimeEnvFile({
-        hostHome: '/tmp/openclaw-home',
-        timezone: 'UTC',
-        gatewayToken: 'secret-token',
-      }),
-    ).toContain('OPENCLAW_GATEWAY_TOKEN=secret-token')
+    ).toEqual({
+      changed: false,
+      content: 'OPENAI_API_KEY=sk-test\n',
+    })
   })
 })
