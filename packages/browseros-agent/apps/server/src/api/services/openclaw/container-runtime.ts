@@ -18,8 +18,17 @@ import type { LogFn, PodmanRuntime } from './podman-runtime'
 
 const COMPOSE_FILE_NAME = 'docker-compose.yml'
 const ENV_FILE_NAME = '.env'
+const GATEWAY_CONTAINER_HOME = '/home/node'
+const GATEWAY_STATE_DIR = `${GATEWAY_CONTAINER_HOME}/.openclaw`
 
-export type GatewayContainerSpec = Record<string, unknown>
+export type GatewayContainerSpec = {
+  image: string
+  port: number
+  hostHome: string
+  envFilePath: string
+  gatewayToken?: string
+  timezone: string
+}
 
 export class ContainerRuntime {
   constructor(
@@ -43,30 +52,64 @@ export class ContainerRuntime {
     return this.podman.getMachineStatus()
   }
 
-  async pullImage(_image: string, _onLog?: LogFn): Promise<void> {
-    throw new Error('Not implemented')
+  async pullImage(image: string, onLog?: LogFn): Promise<void> {
+    const code = await this.runPodmanCommand(['pull', image], onLog)
+    if (code !== 0) throw new Error(`image pull failed with code ${code}`)
   }
 
   async startGateway(
-    _input: GatewayContainerSpec,
-    _onLog?: LogFn,
+    input: GatewayContainerSpec,
+    onLog?: LogFn,
   ): Promise<void> {
-    throw new Error('Not implemented')
+    await this.ensureGatewayRemoved(onLog)
+    const code = await this.runPodmanCommand(
+      [
+        'run',
+        '-d',
+        '--name',
+        OPENCLAW_GATEWAY_CONTAINER_NAME,
+        '--restart',
+        'unless-stopped',
+        '-p',
+        `127.0.0.1:${input.port}:18789`,
+        ...this.buildGatewayContainerRuntimeArgs(input),
+        input.image,
+        'node',
+        'dist/index.js',
+        'gateway',
+        '--bind',
+        'lan',
+        '--port',
+        '18789',
+        '--allow-unconfigured',
+      ],
+      onLog,
+    )
+    if (code !== 0) throw new Error(`gateway start failed with code ${code}`)
   }
 
-  async stopGateway(_onLog?: LogFn): Promise<void> {
-    throw new Error('Not implemented')
+  async stopGateway(onLog?: LogFn): Promise<void> {
+    const code = await this.runPodmanCommand(
+      ['rm', '-f', OPENCLAW_GATEWAY_CONTAINER_NAME],
+      onLog,
+    )
+    if (code !== 0) throw new Error(`gateway stop failed with code ${code}`)
   }
 
   async restartGateway(
-    _input: GatewayContainerSpec,
-    _onLog?: LogFn,
+    input: GatewayContainerSpec,
+    onLog?: LogFn,
   ): Promise<void> {
-    throw new Error('Not implemented')
+    await this.startGateway(input, onLog)
   }
 
-  async getGatewayLogs(_tail = 50): Promise<string[]> {
-    throw new Error('Not implemented')
+  async getGatewayLogs(tail = 50): Promise<string[]> {
+    const lines: string[] = []
+    await this.runPodmanCommand(
+      ['logs', '--tail', String(tail), OPENCLAW_GATEWAY_CONTAINER_NAME],
+      (line) => lines.push(line),
+    )
+    return lines
   }
 
   async composeUp(onLog?: LogFn): Promise<void> {
@@ -166,8 +209,8 @@ export class ContainerRuntime {
 
     try {
       const containers = await this.podman.listRunningContainers()
-      const allOurs = containers.every((name) =>
-        name.startsWith(OPENCLAW_COMPOSE_PROJECT_NAME),
+      const allOurs = containers.every(
+        (name) => name === OPENCLAW_GATEWAY_CONTAINER_NAME,
       )
 
       if (containers.length === 0 || allOurs) {
@@ -190,18 +233,45 @@ export class ContainerRuntime {
   async runGatewaySetupCommand(
     command: string[],
     onLog?: LogFn,
+  ): Promise<number>
+  async runGatewaySetupCommand(
+    command: string[],
+    spec: GatewayContainerSpec,
+    onLog?: LogFn,
+  ): Promise<number>
+  async runGatewaySetupCommand(
+    command: string[],
+    specOrOnLog?: GatewayContainerSpec | LogFn,
+    maybeOnLog?: LogFn,
   ): Promise<number> {
-    return this.compose(
+    if (!specOrOnLog || typeof specOrOnLog === 'function') {
+      return this.compose(
+        [
+          'run',
+          '--rm',
+          '--no-deps',
+          '--entrypoint',
+          'node',
+          'openclaw-gateway',
+          ...command.slice(1),
+        ],
+        specOrOnLog,
+      )
+    }
+
+    const setupArgs = command[0] === 'node' ? command.slice(1) : command
+    return this.runPodmanCommand(
       [
         'run',
         '--rm',
-        '--no-deps',
-        '--entrypoint',
+        '--name',
+        `${OPENCLAW_GATEWAY_CONTAINER_NAME}-setup`,
+        ...this.buildGatewayContainerRuntimeArgs(specOrOnLog),
+        specOrOnLog.image,
         'node',
-        'openclaw-gateway',
-        ...command.slice(1),
+        ...setupArgs,
       ],
-      onLog,
+      maybeOnLog,
     )
   }
 
@@ -240,5 +310,74 @@ export class ContainerRuntime {
     }
 
     return code
+  }
+
+  private async runPodmanCommand(
+    args: string[],
+    onLog?: LogFn,
+  ): Promise<number> {
+    const lines: string[] = []
+    const command = ['podman', ...args].join(' ')
+    logger.info('Running OpenClaw podman command', {
+      command,
+    })
+    const code = await this.podman.runCommand(args, {
+      cwd: this.projectDir,
+      onOutput: (line) => {
+        lines.push(line)
+        onLog?.(line)
+      },
+    })
+
+    if (code !== 0) {
+      logger.error('OpenClaw podman command failed', {
+        command,
+        exitCode: code,
+        output: lines,
+      })
+    } else {
+      logger.info('OpenClaw podman command succeeded', {
+        command,
+      })
+    }
+
+    return code
+  }
+
+  private async ensureGatewayRemoved(onLog?: LogFn): Promise<void> {
+    await this.runPodmanCommand(
+      ['rm', '-f', OPENCLAW_GATEWAY_CONTAINER_NAME],
+      onLog,
+    )
+  }
+
+  private buildGatewayContainerRuntimeArgs(
+    input: GatewayContainerSpec,
+  ): string[] {
+    return [
+      '--env-file',
+      input.envFilePath,
+      '-e',
+      `HOME=${GATEWAY_CONTAINER_HOME}`,
+      '-e',
+      `OPENCLAW_HOME=${GATEWAY_CONTAINER_HOME}`,
+      '-e',
+      `OPENCLAW_STATE_DIR=${GATEWAY_STATE_DIR}`,
+      '-e',
+      'OPENCLAW_NO_RESPAWN=1',
+      '-e',
+      'NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache',
+      '-e',
+      'NODE_ENV=production',
+      '-e',
+      `TZ=${input.timezone}`,
+      '-v',
+      `${input.hostHome}:${GATEWAY_CONTAINER_HOME}`,
+      '--add-host',
+      'host.containers.internal:host-gateway',
+      ...(input.gatewayToken
+        ? ['-e', `OPENCLAW_GATEWAY_TOKEN=${input.gatewayToken}`]
+        : []),
+    ]
   }
 }
