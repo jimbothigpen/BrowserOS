@@ -19,6 +19,15 @@ import type { LogFn, PodmanRuntime } from './podman-runtime'
 const COMPOSE_FILE_NAME = 'docker-compose.yml'
 const ENV_FILE_NAME = '.env'
 
+interface GatewayContainerSpec {
+  image: string
+  port: number
+  hostHome: string
+  envFilePath: string
+  gatewayToken?: string
+  timezone: string
+}
+
 export class ContainerRuntime {
   constructor(
     private podman: PodmanRuntime,
@@ -122,17 +131,14 @@ export class ContainerRuntime {
     })
   }
 
-  async writeRuntimeEnvFile(content: string): Promise<void> {
-    await writeFile(join(this.projectDir, ENV_FILE_NAME), content, {
-      mode: 0o600,
-    })
-  }
-
   async pullImage(_image: string, _onLog?: LogFn): Promise<void> {
     throw new Error('Not implemented')
   }
 
-  async startGateway(_input: object, _onLog?: LogFn): Promise<void> {
+  async startGateway(
+    _input: GatewayContainerSpec,
+    _onLog?: LogFn,
+  ): Promise<void> {
     throw new Error('Not implemented')
   }
 
@@ -140,7 +146,10 @@ export class ContainerRuntime {
     throw new Error('Not implemented')
   }
 
-  async restartGateway(_input: object, _onLog?: LogFn): Promise<void> {
+  async restartGateway(
+    _input: GatewayContainerSpec,
+    _onLog?: LogFn,
+  ): Promise<void> {
     throw new Error('Not implemented')
   }
 

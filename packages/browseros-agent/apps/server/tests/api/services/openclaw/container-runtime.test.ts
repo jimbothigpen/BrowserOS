@@ -34,6 +34,7 @@ describe('ContainerRuntime', () => {
         tailContainerLogs: () => () => {},
         listRunningContainers: async () => [],
         stopMachine: async () => {},
+        writeEnvFile: async () => {},
       } as never,
       '/tmp/openclaw',
     )
