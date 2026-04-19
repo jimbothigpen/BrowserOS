@@ -25,11 +25,11 @@ export function getPodmanOverridesPath(openclawDir: string): string {
 export async function loadPodmanOverrides(
   openclawDir: string,
 ): Promise<PodmanOverrides> {
-  const path = getPodmanOverridesPath(openclawDir)
-  if (!existsSync(path)) return { podmanPath: null }
+  const overridesPath = getPodmanOverridesPath(openclawDir)
+  if (!existsSync(overridesPath)) return { podmanPath: null }
   try {
     const parsed = JSON.parse(
-      await readFile(path, 'utf-8'),
+      await readFile(overridesPath, 'utf-8'),
     ) as Partial<PodmanOverrides>
     return {
       podmanPath:

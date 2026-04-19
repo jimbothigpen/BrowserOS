@@ -29,6 +29,22 @@ function getCreateAgentValidationError(body: { name?: string }): string | null {
   return null
 }
 
+function getPodmanOverrideValidationError(body: {
+  podmanPath?: string | null
+}): string | null {
+  if (body.podmanPath === null) return null
+  if (typeof body.podmanPath !== 'string' || !body.podmanPath.trim()) {
+    return 'podmanPath must be a non-empty absolute path or null'
+  }
+  if (!path.isAbsolute(body.podmanPath)) {
+    return 'podmanPath must be an absolute path'
+  }
+  if (!existsSync(body.podmanPath)) {
+    return `File does not exist: ${body.podmanPath}`
+  }
+  return null
+}
+
 export function createOpenClawRoutes() {
   return new Hono()
     .get('/status', async (c) => {
@@ -304,23 +320,9 @@ export function createOpenClawRoutes() {
 
     .post('/podman-overrides', async (c) => {
       const body = await c.req.json<{ podmanPath: string | null }>()
-
-      if (body.podmanPath !== null) {
-        if (typeof body.podmanPath !== 'string' || !body.podmanPath.trim()) {
-          return c.json(
-            { error: 'podmanPath must be a non-empty absolute path or null' },
-            400,
-          )
-        }
-        if (!path.isAbsolute(body.podmanPath)) {
-          return c.json({ error: 'podmanPath must be an absolute path' }, 400)
-        }
-        if (!existsSync(body.podmanPath)) {
-          return c.json(
-            { error: `File does not exist: ${body.podmanPath}` },
-            400,
-          )
-        }
+      const validationError = getPodmanOverrideValidationError(body)
+      if (validationError) {
+        return c.json({ error: validationError }, 400)
       }
 
       try {

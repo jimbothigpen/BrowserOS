@@ -543,19 +543,17 @@ export class OpenClawService {
       podmanPath: input.podmanPath ?? undefined,
     })
 
-    const podman = getPodmanRuntime()
-    this.runtime = new ContainerRuntime(podman, this.openclawDir)
-    this.cliClient = new OpenClawCliClient(this.runtime)
-    this.bootstrapCliClient = this.buildBootstrapCliClient()
+    this.rebuildRuntimeClients()
+    const effectivePodmanPath = getPodmanRuntime().getPodmanPath()
 
     logger.info('Applied Podman overrides', {
       podmanPath: input.podmanPath,
-      effectivePodmanPath: podman.getPodmanPath(),
+      effectivePodmanPath,
     })
 
     return {
       podmanPath: input.podmanPath,
-      effectivePodmanPath: podman.getPodmanPath(),
+      effectivePodmanPath,
     }
   }
 
@@ -654,6 +652,12 @@ export class OpenClawService {
           onLog,
         ),
     })
+  }
+
+  private rebuildRuntimeClients(): void {
+    this.runtime = new ContainerRuntime(getPodmanRuntime(), this.openclawDir)
+    this.cliClient = new OpenClawCliClient(this.runtime)
+    this.bootstrapCliClient = this.buildBootstrapCliClient()
   }
 
   private async assertGatewayReady(): Promise<void> {
