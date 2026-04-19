@@ -42,7 +42,8 @@ import {
 import { OpenClawHttpChatClient } from './openclaw-http-chat-client'
 import { resolveSupportedOpenClawProvider } from './openclaw-provider-map'
 import type { OpenClawStreamEvent } from './openclaw-types'
-import { getPodmanRuntime } from './podman-runtime'
+import { loadPodmanOverrides, savePodmanOverrides } from './podman-overrides'
+import { configurePodmanRuntime, getPodmanRuntime } from './podman-runtime'
 
 const READY_TIMEOUT_MS = 30_000
 const AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*$/
@@ -101,6 +102,12 @@ export interface OpenClawProviderUpdateResult {
 
 export interface OpenClawServiceConfig {
   browserosServerPort?: number
+  resourcesDir?: string
+}
+
+export interface OpenClawPodmanOverridesResponse {
+  podmanPath: string | null
+  effectivePodmanPath: string
 }
 
 export class OpenClawService {
@@ -114,6 +121,7 @@ export class OpenClawService {
   private tokenLoaded = false
   private lastError: string | null = null
   private browserosServerPort: number
+  private resourcesDir: string | null
   private controlPlaneStatus: OpenClawControlPlaneStatus = 'disconnected'
   private lastGatewayError: string | null = null
   private lastRecoveryReason: OpenClawGatewayRecoveryReason | null = null
@@ -124,25 +132,22 @@ export class OpenClawService {
     this.runtime = new ContainerRuntime(getPodmanRuntime(), this.openclawDir)
     this.token = crypto.randomUUID()
     this.cliClient = new OpenClawCliClient(this.runtime)
-    this.bootstrapCliClient = new OpenClawCliClient({
-      execInContainer: (command, onLog) =>
-        this.runtime.runGatewaySetupCommand(
-          command,
-          this.buildGatewayRuntimeSpec(),
-          onLog,
-        ),
-    })
+    this.bootstrapCliClient = this.buildBootstrapCliClient()
     this.chatClient = new OpenClawHttpChatClient(
       this.port,
       async () => this.token,
     )
     this.browserosServerPort =
       config.browserosServerPort ?? DEFAULT_PORTS.server
+    this.resourcesDir = config.resourcesDir ?? null
   }
 
   configure(config: OpenClawServiceConfig): void {
     if (config.browserosServerPort !== undefined) {
       this.browserosServerPort = config.browserosServerPort
+    }
+    if (config.resourcesDir !== undefined) {
+      this.resourcesDir = config.resourcesDir
     }
   }
 
@@ -524,6 +529,44 @@ export class OpenClawService {
     )
   }
 
+  // ── Podman Overrides ─────────────────────────────────────────────────
+
+  async applyPodmanOverrides(input: {
+    podmanPath: string | null
+  }): Promise<OpenClawPodmanOverridesResponse> {
+    await savePodmanOverrides(this.openclawDir, {
+      podmanPath: input.podmanPath,
+    })
+
+    configurePodmanRuntime({
+      resourcesDir: this.resourcesDir ?? undefined,
+      podmanPath: input.podmanPath ?? undefined,
+    })
+
+    const podman = getPodmanRuntime()
+    this.runtime = new ContainerRuntime(podman, this.openclawDir)
+    this.cliClient = new OpenClawCliClient(this.runtime)
+    this.bootstrapCliClient = this.buildBootstrapCliClient()
+
+    logger.info('Applied Podman overrides', {
+      podmanPath: input.podmanPath,
+      effectivePodmanPath: podman.getPodmanPath(),
+    })
+
+    return {
+      podmanPath: input.podmanPath,
+      effectivePodmanPath: podman.getPodmanPath(),
+    }
+  }
+
+  async getPodmanOverrides(): Promise<OpenClawPodmanOverridesResponse> {
+    const { podmanPath } = await loadPodmanOverrides(this.openclawDir)
+    return {
+      podmanPath,
+      effectivePodmanPath: getPodmanRuntime().getPodmanPath(),
+    }
+  }
+
   // ── Provider Keys ────────────────────────────────────────────────────
 
   async updateProviderKeys(input: {
@@ -601,6 +644,17 @@ export class OpenClawService {
   }
 
   // ── Internal ─────────────────────────────────────────────────────────
+
+  private buildBootstrapCliClient(): OpenClawCliClient {
+    return new OpenClawCliClient({
+      execInContainer: (command, onLog) =>
+        this.runtime.runGatewaySetupCommand(
+          command,
+          this.buildGatewayRuntimeSpec(),
+          onLog,
+        ),
+    })
+  }
 
   private async assertGatewayReady(): Promise<void> {
     const portReady = await this.runtime.isReady(this.port)

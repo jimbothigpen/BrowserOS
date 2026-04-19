@@ -911,4 +911,61 @@ describe('OpenClawService', () => {
     expect(restart).not.toHaveBeenCalled()
     expect(existsSync(join(tempDir, '.openclaw', '.env'))).toBe(false)
   })
+
+  it('applyPodmanOverrides persists the override and refreshes the runtime', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'openclaw-service-'))
+    const service = new OpenClawService() as MutableOpenClawService
+    service.openclawDir = tempDir
+
+    const result = await service.applyPodmanOverrides({
+      podmanPath: '/opt/homebrew/bin/podman',
+    })
+
+    expect(result.podmanPath).toBe('/opt/homebrew/bin/podman')
+    expect(result.effectivePodmanPath).toBe('/opt/homebrew/bin/podman')
+
+    const persisted = JSON.parse(
+      await readFile(join(tempDir, 'podman-overrides.json'), 'utf-8'),
+    )
+    expect(persisted).toEqual({ podmanPath: '/opt/homebrew/bin/podman' })
+
+    const reloaded = await service.getPodmanOverrides()
+    expect(reloaded.podmanPath).toBe('/opt/homebrew/bin/podman')
+    expect(reloaded.effectivePodmanPath).toBe('/opt/homebrew/bin/podman')
+  })
+
+  it('applyPodmanOverrides with null clears the override and falls back', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'openclaw-service-'))
+    const service = new OpenClawService({
+      resourcesDir: tempDir,
+    }) as MutableOpenClawService
+    service.openclawDir = tempDir
+
+    await service.applyPodmanOverrides({
+      podmanPath: '/opt/homebrew/bin/podman',
+    })
+    const cleared = await service.applyPodmanOverrides({ podmanPath: null })
+
+    expect(cleared.podmanPath).toBeNull()
+    // resourcesDir has no bundled binary, so the runtime falls through to 'podman'
+    expect(cleared.effectivePodmanPath).toBe('podman')
+
+    const persisted = JSON.parse(
+      await readFile(join(tempDir, 'podman-overrides.json'), 'utf-8'),
+    )
+    expect(persisted).toEqual({ podmanPath: null })
+  })
+
+  it('applyPodmanOverrides rebuilds ContainerRuntime so it picks up the new Podman reference', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'openclaw-service-'))
+    const service = new OpenClawService() as MutableOpenClawService
+    service.openclawDir = tempDir
+
+    const before = service.runtime
+    await service.applyPodmanOverrides({
+      podmanPath: '/opt/homebrew/bin/podman',
+    })
+
+    expect(service.runtime).not.toBe(before)
+  })
 })

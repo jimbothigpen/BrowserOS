@@ -59,7 +59,13 @@ export function getModelDisplayName(model: unknown): string | undefined {
 export const OPENCLAW_QUERY_KEYS = {
   status: 'openclaw-status',
   agents: 'openclaw-agents',
+  podmanOverrides: 'openclaw-podman-overrides',
 } as const
+
+export interface PodmanOverrides {
+  podmanPath: string | null
+  effectivePodmanPath: string
+}
 
 async function clawFetch<T>(
   baseUrl: string,
@@ -238,6 +244,50 @@ export function useOpenClawMutations() {
     creating: createMutation.isPending,
     deleting: deleteMutation.isPending,
     reconnecting: reconnectMutation.isPending,
+  }
+}
+
+export function usePodmanOverrides() {
+  const {
+    baseUrl,
+    isLoading: urlLoading,
+    error: urlError,
+  } = useAgentServerUrl()
+  const queryClient = useQueryClient()
+
+  const query = useQuery<PodmanOverrides, Error>({
+    queryKey: [OPENCLAW_QUERY_KEYS.podmanOverrides, baseUrl],
+    queryFn: () =>
+      clawFetch<PodmanOverrides>(baseUrl as string, '/podman-overrides'),
+    enabled: !!baseUrl && !urlLoading,
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async (podmanPath: string | null) =>
+      clawFetch<PodmanOverrides>(baseUrl as string, '/podman-overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ podmanPath }),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [OPENCLAW_QUERY_KEYS.podmanOverrides],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [OPENCLAW_QUERY_KEYS.status],
+        }),
+      ])
+    },
+  })
+
+  return {
+    overrides: query.data ?? null,
+    loading: query.isLoading || urlLoading,
+    error: (query.error ?? urlError) as Error | null,
+    saving: saveMutation.isPending,
+    saveOverrides: (podmanPath: string) => saveMutation.mutateAsync(podmanPath),
+    clearOverrides: () => saveMutation.mutateAsync(null),
   }
 }
 

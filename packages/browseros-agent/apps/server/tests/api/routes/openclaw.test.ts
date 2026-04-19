@@ -160,6 +160,99 @@ describe('createOpenClawRoutes', () => {
     expect(response.status).toBe(404)
   })
 
+  it('returns the current podman overrides on GET', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const getPodmanOverrides = mock(async () => ({
+      podmanPath: '/opt/homebrew/bin/podman',
+      effectivePodmanPath: '/opt/homebrew/bin/podman',
+    }))
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () => ({ getPodmanOverrides }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/podman-overrides')
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      podmanPath: '/opt/homebrew/bin/podman',
+      effectivePodmanPath: '/opt/homebrew/bin/podman',
+    })
+  })
+
+  it('rejects a relative podman path on POST', async () => {
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/podman-overrides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ podmanPath: 'podman' }),
+    })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: 'podmanPath must be an absolute path',
+    })
+  })
+
+  it('rejects a nonexistent podman path on POST', async () => {
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/podman-overrides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ podmanPath: '/does/not/exist/podman' }),
+    })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: 'File does not exist: /does/not/exist/podman',
+    })
+  })
+
+  it('applies and echoes when POST clears the override', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const applyPodmanOverrides = mock(async () => ({
+      podmanPath: null,
+      effectivePodmanPath: 'podman',
+    }))
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () => ({ applyPodmanOverrides }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/podman-overrides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ podmanPath: null }),
+    })
+    expect(response.status).toBe(200)
+    expect(applyPodmanOverrides).toHaveBeenCalledWith({ podmanPath: null })
+    expect(await response.json()).toEqual({
+      podmanPath: null,
+      effectivePodmanPath: 'podman',
+    })
+  })
+
   it('ignores role fields when creating agents', async () => {
     const actualOpenClawService = await import(
       '../../../src/api/services/openclaw/openclaw-service'

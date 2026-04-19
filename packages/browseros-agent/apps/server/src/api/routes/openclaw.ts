@@ -7,6 +7,8 @@
  * Thin layer delegating to OpenClawService.
  */
 
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { OPENCLAW_GATEWAY_PORT } from '@browseros/shared/constants/openclaw'
 import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
@@ -285,6 +287,53 @@ export function createOpenClawRoutes() {
           return c.json({ error: err.message }, 400)
         }
         const message = err instanceof Error ? err.message : String(err)
+        return c.json({ error: message }, 500)
+      }
+    })
+
+    .get('/podman-overrides', async (c) => {
+      try {
+        const overrides = await getOpenClawService().getPodmanOverrides()
+        return c.json(overrides)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error('Podman overrides read failed', { error: message })
+        return c.json({ error: message }, 500)
+      }
+    })
+
+    .post('/podman-overrides', async (c) => {
+      const body = await c.req.json<{ podmanPath: string | null }>()
+
+      if (body.podmanPath !== null) {
+        if (typeof body.podmanPath !== 'string' || !body.podmanPath.trim()) {
+          return c.json(
+            { error: 'podmanPath must be a non-empty absolute path or null' },
+            400,
+          )
+        }
+        if (!path.isAbsolute(body.podmanPath)) {
+          return c.json({ error: 'podmanPath must be an absolute path' }, 400)
+        }
+        if (!existsSync(body.podmanPath)) {
+          return c.json(
+            { error: `File does not exist: ${body.podmanPath}` },
+            400,
+          )
+        }
+      }
+
+      try {
+        logger.info('OpenClaw podman override requested', {
+          podmanPath: body.podmanPath,
+        })
+        const result = await getOpenClawService().applyPodmanOverrides({
+          podmanPath: body.podmanPath,
+        })
+        return c.json(result)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error('Podman overrides apply failed', { error: message })
         return c.json({ error: message }, 500)
       }
     })
