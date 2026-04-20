@@ -216,6 +216,22 @@ export function useOpenClawMutations() {
     onSuccess,
   })
 
+  const repairMutation = useMutation({
+    mutationFn: async () =>
+      clawFetch<OpenClawStatus>(ensureBaseUrl(), '/repair', {
+        method: 'POST',
+      }),
+    onSuccess,
+  })
+
+  const resetMutation = useMutation({
+    mutationFn: async () =>
+      clawFetch<OpenClawStatus>(ensureBaseUrl(), '/reset', {
+        method: 'POST',
+      }),
+    onSuccess,
+  })
+
   const reconnectMutation = useMutation({
     mutationFn: async () =>
       clawFetch<{ status: string }>(ensureBaseUrl(), '/reconnect', {
@@ -231,6 +247,8 @@ export function useOpenClawMutations() {
     startOpenClaw: startMutation.mutateAsync,
     stopOpenClaw: stopMutation.mutateAsync,
     restartOpenClaw: restartMutation.mutateAsync,
+    repairOpenClaw: repairMutation.mutateAsync,
+    resetOpenClaw: resetMutation.mutateAsync,
     reconnectOpenClaw: reconnectMutation.mutateAsync,
     actionInProgress:
       setupMutation.isPending ||
@@ -239,10 +257,14 @@ export function useOpenClawMutations() {
       startMutation.isPending ||
       stopMutation.isPending ||
       restartMutation.isPending ||
+      repairMutation.isPending ||
+      resetMutation.isPending ||
       reconnectMutation.isPending,
     settingUp: setupMutation.isPending,
     creating: createMutation.isPending,
     deleting: deleteMutation.isPending,
+    repairing: repairMutation.isPending,
+    resetting: resetMutation.isPending,
     reconnecting: reconnectMutation.isPending,
   }
 }

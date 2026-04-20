@@ -77,13 +77,15 @@ export function createOpenClawRoutes() {
           hasApiKey: !!body.apiKey,
         })
         const logs: string[] = []
-        await getOpenClawService().setup(body, (msg) => logs.push(msg))
+        const service = getOpenClawService()
+        await service.setup(body, (msg) => logs.push(msg))
+        const status = await service.getStatus()
 
-        const agents = await getOpenClawService().listAgents()
+        const agents = await service.listAgents()
         return c.json(
           {
             status: 'running',
-            port: OPENCLAW_GATEWAY_PORT,
+            port: status.port ?? OPENCLAW_GATEWAY_PORT,
             agents: agents.map((a) => ({
               agentId: a.agentId,
               name: a.name,
@@ -106,6 +108,32 @@ export function createOpenClawRoutes() {
         if (message.includes('Podman is not available')) {
           return c.json({ error: message }, 503)
         }
+        return c.json({ error: message }, 500)
+      }
+    })
+
+    .post('/repair', async (c) => {
+      try {
+        logger.info('OpenClaw repair requested')
+        const service = getOpenClawService()
+        await service.repairRuntime()
+        return c.json(await service.getStatus())
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error('OpenClaw repair failed', { error: message })
+        return c.json({ error: message }, 500)
+      }
+    })
+
+    .post('/reset', async (c) => {
+      try {
+        logger.info('OpenClaw reset requested')
+        const service = getOpenClawService()
+        await service.resetRuntime()
+        return c.json(await service.getStatus())
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error('OpenClaw reset failed', { error: message })
         return c.json({ error: message }, 500)
       }
     })
@@ -275,60 +303,64 @@ export function createOpenClawRoutes() {
         c.header('Cache-Control', 'no-cache')
         c.header('X-Session-Key', sessionKey)
 
-        return stream(c, async (s) => {
-          const reader = eventStream.getReader()
-          const encoder = new TextEncoder()
-          let finalAssistantMessage: string | undefined
-          let status: 'completed' | 'failed' | 'aborted' | 'incomplete' =
-            'incomplete'
-          let finalError: string | undefined
-          try {
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-              if (
-                value.type === 'done' &&
-                typeof value.data.text === 'string' &&
-                value.data.text.trim()
-              ) {
-                finalAssistantMessage = value.data.text
-                status = 'completed'
+        return stream(
+          c,
+          // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SSE framing needs several branches.
+          async (s) => {
+            const reader = eventStream.getReader()
+            const encoder = new TextEncoder()
+            let finalAssistantMessage: string | undefined
+            let status: 'completed' | 'failed' | 'aborted' | 'incomplete' =
+              'incomplete'
+            let finalError: string | undefined
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                if (
+                  value.type === 'done' &&
+                  typeof value.data.text === 'string' &&
+                  value.data.text.trim()
+                ) {
+                  finalAssistantMessage = value.data.text
+                  status = 'completed'
+                }
+                if (value.type === 'error') {
+                  finalError =
+                    (typeof value.data.message === 'string'
+                      ? value.data.message
+                      : typeof value.data.error === 'string'
+                        ? value.data.error
+                        : undefined) ?? 'Unknown chat stream error'
+                  status = 'failed'
+                }
+                await s.write(
+                  encoder.encode(`data: ${JSON.stringify(value)}\n\n`),
+                )
               }
-              if (value.type === 'error') {
-                finalError =
-                  (typeof value.data.message === 'string'
-                    ? value.data.message
-                    : typeof value.data.error === 'string'
-                      ? value.data.error
-                      : undefined) ?? 'Unknown chat stream error'
+              await s.write(encoder.encode('data: [DONE]\n\n'))
+            } catch (error) {
+              if (c.req.raw.signal.aborted) {
+                status = 'aborted'
+              } else {
                 status = 'failed'
+                finalError =
+                  error instanceof Error ? error.message : String(error)
               }
-              await s.write(
-                encoder.encode(`data: ${JSON.stringify(value)}\n\n`),
-              )
+              throw error
+            } finally {
+              await reader.cancel()
+              await getMonitoringService().finalizeSession({
+                monitoringSessionId: monitoringContext.monitoringSessionId,
+                agentId: id,
+                sessionKey,
+                status,
+                finalAssistantMessage,
+                error: finalError,
+              })
             }
-            await s.write(encoder.encode('data: [DONE]\n\n'))
-          } catch (error) {
-            if (c.req.raw.signal.aborted) {
-              status = 'aborted'
-            } else {
-              status = 'failed'
-              finalError =
-                error instanceof Error ? error.message : String(error)
-            }
-            throw error
-          } finally {
-            await reader.cancel()
-            await getMonitoringService().finalizeSession({
-              monitoringSessionId: monitoringContext.monitoringSessionId,
-              agentId: id,
-              sessionKey,
-              status,
-              finalAssistantMessage,
-              error: finalError,
-            })
-          }
-        })
+          },
+        )
       } catch (err) {
         await getMonitoringService().finalizeSession({
           monitoringSessionId: monitoringContext.monitoringSessionId,

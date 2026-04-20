@@ -7,15 +7,11 @@ import {
   MessageSquare,
   Plus,
   RefreshCw,
-  ShieldAlert,
   Square,
   TerminalSquare,
   Trash2,
-  WifiOff,
-  Wrench,
 } from 'lucide-react'
 import { type FC, useEffect, useMemo, useState } from 'react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,6 +32,10 @@ import {
 import { useLlmProviders } from '@/lib/llm-providers/useLlmProviders'
 import { AgentChat } from './AgentChat'
 import { AgentTerminal } from './AgentTerminal'
+import {
+  getOpenClawOperatorState,
+  type OpenClawOperatorState,
+} from './openclaw-operator-state'
 import { getOpenClawSupportedProviders } from './openclaw-supported-providers'
 import {
   type AgentEntry,
@@ -51,58 +51,37 @@ const CONTROL_PLANE_COPY: Record<
   {
     badgeVariant: 'default' | 'secondary' | 'outline' | 'destructive'
     badgeLabel: string
-    title: string
-    description: string
   }
 > = {
   connected: {
     badgeVariant: 'default',
     badgeLabel: 'Control Plane Ready',
-    title: 'Gateway Connected',
-    description: 'OpenClaw can create, manage, and chat with agents normally.',
   },
   connecting: {
     badgeVariant: 'secondary',
     badgeLabel: 'Connecting',
-    title: 'Connecting to Gateway',
-    description:
-      'BrowserOS is establishing the OpenClaw control channel for agent operations.',
   },
   reconnecting: {
     badgeVariant: 'secondary',
     badgeLabel: 'Reconnecting',
-    title: 'Reconnecting Control Plane',
-    description:
-      'The gateway process is up, but BrowserOS is restoring the control channel.',
   },
   recovering: {
     badgeVariant: 'secondary',
     badgeLabel: 'Recovering',
-    title: 'Recovering Gateway Connection',
-    description:
-      'BrowserOS detected a control-plane fault and is trying a safe recovery path.',
   },
   disconnected: {
     badgeVariant: 'outline',
     badgeLabel: 'Disconnected',
-    title: 'Gateway Disconnected',
-    description: 'The gateway process is not available to BrowserOS right now.',
   },
   failed: {
     badgeVariant: 'destructive',
     badgeLabel: 'Needs Attention',
-    title: 'Gateway Recovery Failed',
-    description:
-      'BrowserOS could not restore the OpenClaw control channel automatically.',
   },
 }
 
 const FALLBACK_CONTROL_PLANE_COPY = {
   badgeVariant: 'outline' as const,
   badgeLabel: 'Unknown',
-  title: 'Gateway State Unknown',
-  description:
-    'BrowserOS received a gateway status it does not recognize yet. Refreshing or reconnecting should restore a known state.',
 }
 
 const RECOVERY_REASON_COPY: Record<
@@ -151,10 +130,6 @@ const ControlPlaneBadge: FC<{
   return <Badge variant={current.badgeVariant}>{current.badgeLabel}</Badge>
 }
 
-function getControlPlaneCopy(status: OpenClawStatus['controlPlaneStatus']) {
-  return CONTROL_PLANE_COPY[status] ?? FALLBACK_CONTROL_PLANE_COPY
-}
-
 function getRecoveryDetail(status: OpenClawStatus): string | null {
   if (!status.lastRecoveryReason && !status.lastGatewayError) return null
 
@@ -167,6 +142,58 @@ function getRecoveryDetail(status: OpenClawStatus): string | null {
   }
 
   return status.lastGatewayError ?? detail
+}
+
+function getOperatorCardCopy(
+  status: OpenClawStatus | null,
+  operatorState: OpenClawOperatorState,
+) {
+  switch (operatorState) {
+    case 'loading':
+      return {
+        title: 'Loading OpenClaw',
+        description: 'Checking runtime status...',
+        tone: 'muted' as const,
+      }
+    case 'setup-needed':
+      return {
+        title: 'Set Up OpenClaw',
+        description: status?.podmanAvailable
+          ? 'Create the local runtime so agents can run in a container.'
+          : 'Podman is required before OpenClaw can run agents.',
+        tone: 'muted' as const,
+      }
+    case 'starting':
+      return {
+        title: 'OpenClaw is Starting',
+        description:
+          status?.controlPlaneStatus === 'recovering'
+            ? 'BrowserOS is recovering the runtime and bringing the control plane back up.'
+            : 'OpenClaw is still coming up. Wait for it to become ready before creating agents.',
+        tone: 'muted' as const,
+      }
+    case 'healthy':
+      return {
+        title: 'OpenClaw Ready',
+        description:
+          'OpenClaw can create, manage, and chat with agents normally.',
+        tone: 'healthy' as const,
+      }
+    case 'needs-attention':
+      return {
+        title:
+          status?.status === 'stopped'
+            ? 'Gateway Stopped'
+            : status?.status === 'error'
+              ? 'Gateway Error'
+              : 'OpenClaw Needs Attention',
+        description:
+          status?.error ??
+          status?.lastGatewayError ??
+          'BrowserOS could not keep the OpenClaw runtime healthy.',
+        tone: 'destructive' as const,
+      }
+  }
 }
 
 interface ProviderSelectorProps {
@@ -361,6 +388,7 @@ const PodmanOverridesCard: FC<PodmanOverridesCardProps> = ({ variant }) => {
   )
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: page orchestration spans setup, runtime, agents, and dialogs.
 export const AgentsPage: FC = () => {
   const {
     status,
@@ -382,12 +410,14 @@ export const AgentsPage: FC = () => {
     startOpenClaw,
     stopOpenClaw,
     restartOpenClaw,
-    reconnectOpenClaw,
+    repairOpenClaw,
+    resetOpenClaw,
     actionInProgress,
     settingUp,
     creating,
     deleting,
-    reconnecting,
+    repairing,
+    resetting,
   } = useOpenClawMutations()
 
   const [setupOpen, setSetupOpen] = useState(false)
@@ -398,6 +428,7 @@ export const AgentsPage: FC = () => {
 
   const [chatAgent, setChatAgent] = useState<AgentEntry | null>(null)
   const [showTerminal, setShowTerminal] = useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const compatibleProviders = getOpenClawSupportedProviders(providers)
@@ -424,40 +455,16 @@ export const AgentsPage: FC = () => {
     setNewName((current) => current || 'agent')
   }, [createOpen])
 
-  const inlineError =
+  const operatorState = useMemo(() => {
+    if (status) return getOpenClawOperatorState(status).kind
+    return statusError || agentsError ? 'needs-attention' : 'loading'
+  }, [status, statusError, agentsError])
+
+  const canManageAgents = operatorState === 'healthy'
+  const operatorCopy = getOperatorCardCopy(status, operatorState)
+  const operatorIssue =
     error ?? statusError?.message ?? agentsError?.message ?? null
-
-  const gatewayUiState = useMemo(() => {
-    if (!status) {
-      return {
-        canManageAgents: false,
-        controlPlaneDegraded: false,
-        controlPlaneBusy: false,
-      }
-    }
-
-    const controlPlaneBusy =
-      status.controlPlaneStatus === 'connecting' ||
-      status.controlPlaneStatus === 'reconnecting' ||
-      status.controlPlaneStatus === 'recovering'
-
-    const canManageAgents =
-      status.status === 'running' && status.controlPlaneStatus === 'connected'
-
-    const controlPlaneDegraded =
-      status.status === 'running' && status.controlPlaneStatus !== 'connected'
-
-    return {
-      canManageAgents,
-      controlPlaneBusy,
-      controlPlaneDegraded,
-    }
-  }, [status])
-
   const recoveryDetail = status ? getRecoveryDetail(status) : null
-  const controlPlaneCopy = status
-    ? getControlPlaneCopy(status.controlPlaneStatus)
-    : null
 
   const runWithErrorHandling = async (fn: () => Promise<unknown>) => {
     setError(null)
@@ -530,9 +537,16 @@ export const AgentsPage: FC = () => {
     })
   }
 
-  const handleReconnect = async () => {
+  const handleRepair = async () => {
     await runWithErrorHandling(async () => {
-      await reconnectOpenClaw()
+      await repairOpenClaw()
+    })
+  }
+
+  const handleReset = async () => {
+    setResetConfirmOpen(false)
+    await runWithErrorHandling(async () => {
+      await resetOpenClaw()
     })
   }
 
@@ -560,7 +574,7 @@ export const AgentsPage: FC = () => {
 
   return (
     <div className="fade-in slide-in-from-bottom-5 animate-in space-y-6 duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="font-bold text-2xl">Agents</h1>
           <p className="text-muted-foreground text-sm">
@@ -569,30 +583,13 @@ export const AgentsPage: FC = () => {
         </div>
 
         {status && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <StatusBadge status={status.status} />
             {status.status !== 'uninitialized' && (
               <ControlPlaneBadge status={status.controlPlaneStatus} />
             )}
-
-            {status.status === 'running' && (
+            {operatorState === 'healthy' && (
               <>
-                {status.controlPlaneStatus !== 'connected' && (
-                  <Button
-                    variant="outline"
-                    onClick={handleReconnect}
-                    disabled={
-                      actionInProgress || gatewayUiState.controlPlaneBusy
-                    }
-                  >
-                    {reconnecting ? (
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-2 size-4" />
-                    )}
-                    Retry Connection
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -617,7 +614,7 @@ export const AgentsPage: FC = () => {
                 </Button>
                 <Button
                   onClick={() => setCreateOpen(true)}
-                  disabled={!gatewayUiState.canManageAgents}
+                  disabled={!canManageAgents}
                 >
                   <Plus className="mr-1 size-4" />
                   New Agent
@@ -628,123 +625,65 @@ export const AgentsPage: FC = () => {
         )}
       </div>
 
-      {inlineError && (
-        <Alert variant="destructive">
-          <AlertCircle />
-          <AlertTitle>OpenClaw action failed</AlertTitle>
-          <AlertDescription>
-            <p>{inlineError}</p>
-            <div className="mt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setError(null)}
-              >
-                Dismiss
-              </Button>
+      <Card
+        className={
+          operatorCopy.tone === 'destructive' ? 'border-destructive' : ''
+        }
+      >
+        <CardContent className="space-y-4 py-8">
+          <div className="flex items-start gap-4">
+            <div
+              className={`flex size-12 items-center justify-center rounded-full border ${
+                operatorCopy.tone === 'destructive'
+                  ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                  : 'border-border bg-muted text-muted-foreground'
+              }`}
+            >
+              {operatorState === 'loading' || operatorState === 'starting' ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : operatorState === 'needs-attention' ? (
+                <AlertCircle className="size-5" />
+              ) : (
+                <Cpu className="size-5" />
+              )}
             </div>
-          </AlertDescription>
-        </Alert>
-      )}
 
-      {status && gatewayUiState.controlPlaneDegraded && (
-        <Alert
-          variant={
-            status.controlPlaneStatus === 'failed' ? 'destructive' : 'default'
-          }
-        >
-          {status.controlPlaneStatus === 'failed' ? (
-            <ShieldAlert />
-          ) : status.controlPlaneStatus === 'recovering' ? (
-            <Wrench />
-          ) : (
-            <WifiOff />
-          )}
-          <AlertTitle>{controlPlaneCopy?.title}</AlertTitle>
-          <AlertDescription>
-            <p>{controlPlaneCopy?.description}</p>
-            {recoveryDetail && <p>{recoveryDetail}</p>}
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReconnect}
-                disabled={actionInProgress || gatewayUiState.controlPlaneBusy}
-              >
-                {reconnecting ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-2 size-4" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold text-lg">{operatorCopy.title}</h3>
+                {status && status.status !== 'uninitialized' && (
+                  <ControlPlaneBadge status={status.controlPlaneStatus} />
                 )}
-                Retry Connection
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRestart}
-                disabled={actionInProgress}
-              >
-                Restart Gateway
-              </Button>
-            </div>
-            <PodmanOverridesCard variant="inline" />
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {status?.status === 'uninitialized' && (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-12">
-            <Cpu className="size-12 text-muted-foreground" />
-            <div className="text-center">
-              <h3 className="font-semibold text-lg">Set Up OpenClaw</h3>
+              </div>
               <p className="text-muted-foreground text-sm">
-                {status.podmanAvailable
-                  ? 'Create a local container to run autonomous agents with full tool access.'
-                  : 'Podman is required to run OpenClaw agents. Install Podman first.'}
+                {operatorCopy.description}
               </p>
+              {recoveryDetail && operatorState === 'needs-attention' && (
+                <p className="text-muted-foreground text-sm">
+                  {recoveryDetail}
+                </p>
+              )}
+              {operatorIssue && (
+                <p className="text-destructive text-sm">{operatorIssue}</p>
+              )}
+              {status?.port !== null && status?.port !== undefined && (
+                <p className="text-muted-foreground text-xs">
+                  Runtime port: <code>{status.port}</code>
+                </p>
+              )}
+              {status?.status === 'running' && (
+                <p className="text-muted-foreground text-xs">
+                  Agent count: {status.agentCount}
+                </p>
+              )}
             </div>
-            {status.podmanAvailable && (
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {operatorState === 'setup-needed' && status?.podmanAvailable && (
               <Button onClick={() => setSetupOpen(true)}>Set Up Now</Button>
             )}
-            <div className="w-full max-w-md">
-              <PodmanOverridesCard variant="inline" />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {status?.status === 'stopped' && (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-12">
-            <Cpu className="size-12 text-muted-foreground" />
-            <div className="text-center">
-              <h3 className="font-semibold text-lg">Gateway Stopped</h3>
-              <p className="text-muted-foreground text-sm">
-                The OpenClaw gateway is not running.
-              </p>
-            </div>
-            <Button onClick={handleStart} disabled={actionInProgress}>
-              Start Gateway
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {status?.status === 'error' && (
-        <Card className="border-destructive">
-          <CardContent className="flex flex-col items-center gap-4 py-12">
-            <AlertCircle className="size-12 text-destructive" />
-            <div className="text-center">
-              <h3 className="font-semibold text-lg">Gateway Error</h3>
-              <p className="text-muted-foreground text-sm">
-                {status.error ?? status.lastGatewayError}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleStart} disabled={actionInProgress}>
-                Start Gateway
-              </Button>
+            {operatorState === 'starting' && (
               <Button
                 variant="outline"
                 onClick={handleRestart}
@@ -752,15 +691,54 @@ export const AgentsPage: FC = () => {
               >
                 Restart Gateway
               </Button>
-            </div>
+            )}
+            {operatorState === 'needs-attention' && (
+              <>
+                {status?.status === 'stopped' || status?.status === 'error' ? (
+                  <Button onClick={handleStart} disabled={actionInProgress}>
+                    Start Gateway
+                  </Button>
+                ) : null}
+                <Button
+                  variant="outline"
+                  onClick={handleRepair}
+                  disabled={actionInProgress || repairing}
+                >
+                  {repairing ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 size-4" />
+                  )}
+                  Repair Runtime
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setResetConfirmOpen(true)}
+                  disabled={actionInProgress || resetting}
+                >
+                  Reset Runtime
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRestart}
+                  disabled={actionInProgress}
+                >
+                  Restart Gateway
+                </Button>
+              </>
+            )}
+          </div>
+
+          {(operatorState === 'setup-needed' ||
+            operatorState === 'needs-attention') && (
             <div className="w-full max-w-md">
               <PodmanOverridesCard variant="inline" />
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
-      {status?.status === 'running' && (
+      {status?.status === 'running' && operatorState === 'healthy' && (
         <div className="space-y-3">
           {agentsLoading ? (
             <div className="flex justify-center py-8">
@@ -775,7 +753,7 @@ export const AgentsPage: FC = () => {
                 <Button
                   variant="outline"
                   onClick={() => setCreateOpen(true)}
-                  disabled={!gatewayUiState.canManageAgents}
+                  disabled={!canManageAgents}
                 >
                   <Plus className="mr-1 size-4" />
                   Create Agent
@@ -804,7 +782,7 @@ export const AgentsPage: FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => setChatAgent(agent)}
-                      disabled={!gatewayUiState.canManageAgents}
+                      disabled={!canManageAgents}
                     >
                       <MessageSquare className="mr-1 size-4" />
                       Chat
@@ -814,7 +792,7 @@ export const AgentsPage: FC = () => {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDelete(agent.agentId)}
-                        disabled={!gatewayUiState.canManageAgents || deleting}
+                        disabled={!canManageAgents || deleting}
                       >
                         <Trash2 className="size-4 text-destructive" />
                       </Button>
@@ -898,7 +876,7 @@ export const AgentsPage: FC = () => {
               disabled={
                 !newName.trim() ||
                 creating ||
-                !gatewayUiState.canManageAgents ||
+                !canManageAgents ||
                 compatibleProviders.length === 0
               }
               className="w-full"
@@ -912,6 +890,39 @@ export const AgentsPage: FC = () => {
                 'Create Agent'
               )}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset OpenClaw runtime?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-muted-foreground text-sm">
+              This stops the gateway and Podman machine, clears the stored
+              runtime port, and removes recovery state. Use repair first if you
+              just need a non-destructive restart.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setResetConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => void handleReset()}
+                disabled={actionInProgress || resetting}
+              >
+                {resetting ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : null}
+                Reset Runtime
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

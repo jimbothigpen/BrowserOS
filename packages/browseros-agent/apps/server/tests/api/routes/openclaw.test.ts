@@ -253,6 +253,154 @@ describe('createOpenClawRoutes', () => {
     })
   })
 
+  it('returns the runtime-aware port after setup', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const setup = mock(async () => {})
+    const listAgents = mock(async () => [
+      {
+        agentId: 'main',
+        name: 'main',
+        workspace: '/home/node/.openclaw/workspace-main',
+      },
+    ])
+    const getStatus = mock(async () => ({
+      status: 'running' as const,
+      podmanAvailable: true,
+      machineReady: true,
+      port: 45678,
+      agentCount: 1,
+      error: null,
+      controlPlaneStatus: 'connected' as const,
+      lastGatewayError: null,
+      lastRecoveryReason: null,
+    }))
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () =>
+        ({
+          setup,
+          listAgents,
+          getStatus,
+        }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerType: 'openai',
+        apiKey: 'sk-test',
+      }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(setup).toHaveBeenCalledTimes(1)
+    expect(getStatus).toHaveBeenCalledTimes(1)
+    expect(await response.json()).toMatchObject({
+      status: 'running',
+      port: 45678,
+      agents: [
+        {
+          agentId: 'main',
+          name: 'main',
+          status: 'running',
+        },
+      ],
+    })
+  })
+
+  it('wires POST /repair to repairRuntime', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const repairRuntime = mock(async () => {})
+    const getStatus = mock(async () => ({
+      status: 'running' as const,
+      podmanAvailable: true,
+      machineReady: true,
+      port: 46789,
+      agentCount: 2,
+      error: null,
+      controlPlaneStatus: 'connected' as const,
+      lastGatewayError: null,
+      lastRecoveryReason: null,
+    }))
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () =>
+        ({
+          repairRuntime,
+          getStatus,
+        }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/repair', { method: 'POST' })
+
+    expect(response.status).toBe(200)
+    expect(repairRuntime).toHaveBeenCalledTimes(1)
+    expect(getStatus).toHaveBeenCalledTimes(1)
+    expect(await response.json()).toMatchObject({
+      status: 'running',
+      port: 46789,
+    })
+  })
+
+  it('wires POST /reset to resetRuntime', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const resetRuntime = mock(async () => {})
+    const getStatus = mock(async () => ({
+      status: 'stopped' as const,
+      podmanAvailable: true,
+      machineReady: false,
+      port: null,
+      agentCount: 0,
+      error: null,
+      controlPlaneStatus: 'disconnected' as const,
+      lastGatewayError: null,
+      lastRecoveryReason: null,
+    }))
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () =>
+        ({
+          resetRuntime,
+          getStatus,
+        }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/reset', { method: 'POST' })
+
+    expect(response.status).toBe(200)
+    expect(resetRuntime).toHaveBeenCalledTimes(1)
+    expect(getStatus).toHaveBeenCalledTimes(1)
+    expect(await response.json()).toMatchObject({
+      status: 'stopped',
+      port: null,
+    })
+  })
+
   it('does not expose a roles route', async () => {
     const { createOpenClawRoutes } = await import(
       '../../../src/api/routes/openclaw'
