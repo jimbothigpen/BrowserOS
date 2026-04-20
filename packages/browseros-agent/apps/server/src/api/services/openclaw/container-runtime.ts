@@ -14,6 +14,7 @@ import type { LogFn, PodmanRuntime } from './podman-runtime'
 const GATEWAY_CONTAINER_HOME = '/home/node'
 const GATEWAY_STATE_DIR = `${GATEWAY_CONTAINER_HOME}/.openclaw`
 const GATEWAY_CONTAINER_PORT = 18789
+const GATEWAY_START_MAX_ATTEMPTS = 3
 
 export type GatewayContainerSpec = {
   image: string
@@ -48,11 +49,33 @@ type PodmanInspectContainer = {
   }
 }
 
+type PodmanCommandCaptureResult = {
+  code: number
+  stdout: string
+  stderr: string
+}
+
+type PodmanCommandCaptureFn = (
+  args: string[],
+  options?: {
+    cwd?: string
+  },
+) => Promise<PodmanCommandCaptureResult>
+
 export class ContainerRuntime {
+  private readonly capturePodmanCommand: PodmanCommandCaptureFn
+
   constructor(
     private podman: PodmanRuntime,
     private projectDir: string,
-  ) {}
+    options?: {
+      capturePodmanCommand?: PodmanCommandCaptureFn
+    },
+  ) {
+    this.capturePodmanCommand =
+      options?.capturePodmanCommand ??
+      this.defaultCapturePodmanCommand.bind(this)
+  }
 
   async ensureReady(onLog?: LogFn): Promise<void> {
     logger.info('Ensuring Podman runtime readiness')
@@ -80,41 +103,38 @@ export class ContainerRuntime {
     onLog?: LogFn,
   ): Promise<number> {
     await this.ensureGatewayRemoved(onLog)
-    const hostPort = await this.chooseGatewayHostPort(input.port)
-    const code = await this.runPodmanCommand(
-      [
-        'run',
-        '-d',
-        '--name',
-        OPENCLAW_GATEWAY_CONTAINER_NAME,
-        '--restart',
-        'unless-stopped',
-        '-p',
-        `127.0.0.1:${hostPort}:${GATEWAY_CONTAINER_PORT}`,
-        ...this.buildGatewayContainerRuntimeArgs(input),
-        '--health-cmd',
-        `curl -sf http://127.0.0.1:${GATEWAY_CONTAINER_PORT}/healthz`,
-        '--health-interval',
-        '30s',
-        '--health-timeout',
-        '10s',
-        '--health-retries',
-        '3',
-        input.image,
-        'node',
-        'dist/index.js',
-        'gateway',
-        '--bind',
-        'lan',
-        '--port',
-        String(GATEWAY_CONTAINER_PORT),
-        '--allow-unconfigured',
-      ],
-      onLog,
-    )
-    if (code !== 0) throw new Error(`gateway start failed with code ${code}`)
+    const attemptedPorts = new Set<number>()
 
-    return hostPort
+    for (let attempt = 1; attempt <= GATEWAY_START_MAX_ATTEMPTS; attempt++) {
+      const hostPort = await this.chooseGatewayHostPort(
+        input.port,
+        attemptedPorts,
+      )
+      attemptedPorts.add(hostPort)
+      const runArgs = this.buildGatewayStartArgs(input, hostPort)
+
+      const result = await this.runPodmanCommandResult(runArgs, onLog)
+      this.logPodmanCommandResult(runArgs, result)
+
+      if (result.code === 0) {
+        return hostPort
+      }
+
+      if (
+        this.isGatewayBindConflict(result.output) &&
+        attempt < GATEWAY_START_MAX_ATTEMPTS
+      ) {
+        logger.warn('OpenClaw gateway start hit a bind conflict; retrying', {
+          attempt,
+          hostPort,
+        })
+        continue
+      }
+
+      throw new Error(`gateway start failed with code ${result.code}`)
+    }
+
+    throw new Error('gateway start failed after exhausting retries')
   }
 
   async stopGateway(onLog?: LogFn): Promise<void> {
@@ -132,13 +152,15 @@ export class ContainerRuntime {
   }
 
   async inspectGateway(): Promise<GatewayInspection> {
-    const result = await this.runPodmanCommandCapture([
+    const result = await this.capturePodmanCommand([
       'inspect',
       OPENCLAW_GATEWAY_CONTAINER_NAME,
     ])
 
     if (result.code !== 0) {
-      if (this.isMissingGatewayContainer(result.output)) {
+      if (
+        this.isMissingGatewayContainer(`${result.stdout}\n${result.stderr}`)
+      ) {
         return {
           exists: false,
           running: false,
@@ -149,7 +171,7 @@ export class ContainerRuntime {
       throw new Error(`gateway inspect failed with code ${result.code}`)
     }
 
-    const container = this.parseGatewayInspection(result.output)
+    const container = this.parseGatewayInspection(result.stdout)
     if (!container) {
       throw new Error('gateway inspect returned unexpected output')
     }
@@ -278,24 +300,12 @@ export class ContainerRuntime {
     args: string[],
     onLog?: LogFn,
   ): Promise<number> {
-    const result = await this.runPodmanCommandCapture(args, onLog)
-    const command = ['podman', ...args].join(' ')
-    if (result.code !== 0) {
-      logger.error('OpenClaw podman command failed', {
-        command,
-        exitCode: result.code,
-        output: result.output,
-      })
-    } else {
-      logger.info('OpenClaw podman command succeeded', {
-        command,
-      })
-    }
-
+    const result = await this.runPodmanCommandResult(args, onLog)
+    this.logPodmanCommandResult(args, result)
     return result.code
   }
 
-  private async runPodmanCommandCapture(
+  private async runPodmanCommandResult(
     args: string[],
     onLog?: LogFn,
   ): Promise<{ code: number; output: string[] }> {
@@ -318,6 +328,24 @@ export class ContainerRuntime {
     }
   }
 
+  private logPodmanCommandResult(
+    args: string[],
+    result: { code: number; output: string[] },
+  ): void {
+    const command = ['podman', ...args].join(' ')
+    if (result.code !== 0) {
+      logger.error('OpenClaw podman command failed', {
+        command,
+        exitCode: result.code,
+        output: result.output,
+      })
+    } else {
+      logger.info('OpenClaw podman command succeeded', {
+        command,
+      })
+    }
+  }
+
   private async ensureGatewayRemoved(onLog?: LogFn): Promise<void> {
     await this.removeGatewayContainer(onLog)
   }
@@ -329,12 +357,18 @@ export class ContainerRuntime {
     )
   }
 
-  private async chooseGatewayHostPort(preferredPort: number): Promise<number> {
-    if (await this.isLocalPortAvailable(preferredPort)) {
+  private async chooseGatewayHostPort(
+    preferredPort: number,
+    attemptedPorts = new Set<number>(),
+  ): Promise<number> {
+    if (
+      !attemptedPorts.has(preferredPort) &&
+      (await this.isLocalPortAvailable(preferredPort))
+    ) {
       return preferredPort
     }
 
-    return this.allocateEphemeralPort()
+    return this.allocateDistinctEphemeralPort(attemptedPorts)
   }
 
   private async isLocalPortAvailable(port: number): Promise<boolean> {
@@ -374,8 +408,21 @@ export class ContainerRuntime {
     })
   }
 
-  private isMissingGatewayContainer(output: string[]): boolean {
-    const text = output.join('\n').toLowerCase()
+  private async allocateDistinctEphemeralPort(
+    attemptedPorts: Set<number>,
+  ): Promise<number> {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const port = await this.allocateEphemeralPort()
+      if (!attemptedPorts.has(port)) {
+        return port
+      }
+    }
+
+    throw new Error('failed to allocate a distinct gateway host port')
+  }
+
+  private isMissingGatewayContainer(output: string): boolean {
+    const text = output.toLowerCase()
     return (
       text.includes('no such object') ||
       text.includes('no container') ||
@@ -385,15 +432,26 @@ export class ContainerRuntime {
   }
 
   private parseGatewayInspection(
-    output: string[],
+    output: string,
   ): PodmanInspectContainer | null {
-    const raw = output.join('\n').trim()
+    const raw = output.trim()
     if (!raw) return null
 
     const parsed = JSON.parse(raw) as
       | PodmanInspectContainer
       | PodmanInspectContainer[]
     return Array.isArray(parsed) ? (parsed[0] ?? null) : parsed
+  }
+
+  private isGatewayBindConflict(output: string[]): boolean {
+    const text = output.join('\n').toLowerCase()
+    return (
+      text.includes('address already in use') ||
+      text.includes('eaddrinuse') ||
+      text.includes('port is already allocated') ||
+      text.includes('port already allocated') ||
+      text.includes('bind: address already in use')
+    )
   }
 
   private extractGatewayHostPort(
@@ -408,6 +466,73 @@ export class ContainerRuntime {
 
     const parsed = Number.parseInt(hostPort, 10)
     return Number.isInteger(parsed) ? parsed : null
+  }
+
+  private buildGatewayStartArgs(
+    input: GatewayContainerSpec,
+    hostPort: number,
+  ): string[] {
+    return [
+      'run',
+      '-d',
+      '--name',
+      OPENCLAW_GATEWAY_CONTAINER_NAME,
+      '--restart',
+      'unless-stopped',
+      '-p',
+      `127.0.0.1:${hostPort}:${GATEWAY_CONTAINER_PORT}`,
+      ...this.buildGatewayContainerRuntimeArgs(input),
+      '--health-cmd',
+      `curl -sf http://127.0.0.1:${GATEWAY_CONTAINER_PORT}/healthz`,
+      '--health-interval',
+      '30s',
+      '--health-timeout',
+      '10s',
+      '--health-retries',
+      '3',
+      input.image,
+      'node',
+      'dist/index.js',
+      'gateway',
+      '--bind',
+      'lan',
+      '--port',
+      String(GATEWAY_CONTAINER_PORT),
+      '--allow-unconfigured',
+    ]
+  }
+
+  private async defaultCapturePodmanCommand(
+    args: string[],
+    options?: {
+      cwd?: string
+    },
+  ): Promise<PodmanCommandCaptureResult> {
+    const command = [this.podman.getPodmanPath(), ...args]
+    logger.info('Running OpenClaw podman command', {
+      command: command.join(' '),
+    })
+
+    const proc = Bun.spawn(command, {
+      cwd: options?.cwd,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+
+    const [stdout, stderr, code] = await Promise.all([
+      this.readStreamText(proc.stdout),
+      this.readStreamText(proc.stderr),
+      proc.exited,
+    ])
+
+    return { code, stdout, stderr }
+  }
+
+  private async readStreamText(
+    stream: ReadableStream<Uint8Array> | null,
+  ): Promise<string> {
+    if (!stream) return ''
+    return new Response(stream).text()
   }
 
   private buildGatewayContainerRuntimeArgs(

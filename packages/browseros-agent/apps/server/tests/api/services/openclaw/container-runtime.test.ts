@@ -18,6 +18,12 @@ const defaultSpec = {
   timezone: 'America/Los_Angeles',
 }
 
+type InspectCaptureResult = {
+  code: number
+  stdout: string
+  stderr: string
+}
+
 function createRuntime(
   runCommand: (
     args: string[],
@@ -25,6 +31,10 @@ function createRuntime(
   ) => Promise<number>,
   listRunningContainers: () => Promise<string[]> = async () => [],
   stopMachine: () => Promise<void> = async () => {},
+  captureCommand?: (
+    args: string[],
+    options?: { cwd?: string },
+  ) => Promise<InspectCaptureResult>,
 ): ContainerRuntime {
   return new ContainerRuntime(
     {
@@ -37,6 +47,11 @@ function createRuntime(
       stopMachine,
     } as never,
     PROJECT_DIR,
+    captureCommand
+      ? ({
+          capturePodmanCommand: captureCommand,
+        } as never)
+      : undefined,
   )
 }
 
@@ -177,28 +192,30 @@ describe('ContainerRuntime', () => {
   })
 
   it('inspectGateway reports container state and mapped host port', async () => {
-    const runtime = createRuntime(async (args, options) => {
-      if (args[0] === 'inspect') {
-        options?.onOutput?.(
-          JSON.stringify([
-            {
-              State: { Running: true },
-              NetworkSettings: {
-                Ports: {
-                  '18789/tcp': [
-                    {
-                      HostIp: '127.0.0.1',
-                      HostPort: '43210',
-                    },
-                  ],
-                },
+    const runtime = createRuntime(
+      async () => 0,
+      async () => [],
+      async () => {},
+      async () => ({
+        code: 0,
+        stdout: JSON.stringify([
+          {
+            State: { Running: true },
+            NetworkSettings: {
+              Ports: {
+                '18789/tcp': [
+                  {
+                    HostIp: '127.0.0.1',
+                    HostPort: '43210',
+                  },
+                ],
               },
             },
-          ]),
-        )
-      }
-      return 0
-    })
+          },
+        ]),
+        stderr: 'warning: harmless stderr output',
+      }),
+    )
 
     const result = await (
       runtime as unknown as {
@@ -214,15 +231,16 @@ describe('ContainerRuntime', () => {
   })
 
   it('inspectGateway reports an absent container when podman inspect says it is missing', async () => {
-    const runtime = createRuntime(async (args, options) => {
-      if (args[0] === 'inspect') {
-        options?.onOutput?.(
-          `Error: no such object: ${OPENCLAW_GATEWAY_CONTAINER_NAME}`,
-        )
-        return 1
-      }
-      return 0
-    })
+    const runtime = createRuntime(
+      async () => 0,
+      async () => [],
+      async () => {},
+      async () => ({
+        code: 1,
+        stdout: '',
+        stderr: `Error: no such object: ${OPENCLAW_GATEWAY_CONTAINER_NAME}`,
+      }),
+    )
 
     const result = await (
       runtime as unknown as {
@@ -238,31 +256,33 @@ describe('ContainerRuntime', () => {
   })
 
   it('inspectGateway falls back to HostConfig PortBindings for the host port', async () => {
-    const runtime = createRuntime(async (args, options) => {
-      if (args[0] === 'inspect') {
-        options?.onOutput?.(
-          JSON.stringify([
-            {
-              State: { Status: 'running' },
-              NetworkSettings: {
-                Ports: {},
-              },
-              HostConfig: {
-                PortBindings: {
-                  '18789/tcp': [
-                    {
-                      HostIp: '127.0.0.1',
-                      HostPort: '54321',
-                    },
-                  ],
-                },
+    const runtime = createRuntime(
+      async () => 0,
+      async () => [],
+      async () => {},
+      async () => ({
+        code: 0,
+        stdout: JSON.stringify([
+          {
+            State: { Status: 'running' },
+            NetworkSettings: {
+              Ports: {},
+            },
+            HostConfig: {
+              PortBindings: {
+                '18789/tcp': [
+                  {
+                    HostIp: '127.0.0.1',
+                    HostPort: '54321',
+                  },
+                ],
               },
             },
-          ]),
-        )
-      }
-      return 0
-    })
+          },
+        ]),
+        stderr: '',
+      }),
+    )
 
     const result = await (
       runtime as unknown as {
@@ -275,6 +295,34 @@ describe('ContainerRuntime', () => {
       running: true,
       hostPort: 54321,
     })
+  })
+
+  it('startGateway retries with a different host port when podman reports a bind conflict', async () => {
+    const calls: Array<{ args: string[]; cwd?: string }> = []
+    let runAttempts = 0
+    const runtime = createRuntime(async (args, options) => {
+      calls.push({ args, cwd: options?.cwd })
+      if (args[0] === 'run') {
+        runAttempts += 1
+        if (runAttempts === 1) {
+          options?.onOutput?.(
+            'Error: unable to bind 127.0.0.1:18789: address already in use',
+          )
+          return 1
+        }
+      }
+      return 0
+    })
+
+    const chosenPort = await runtime.startGateway(defaultSpec)
+
+    const runCalls = calls.filter((call) => call.args[0] === 'run')
+    expect(runCalls).toHaveLength(2)
+    expect(runCalls[0].args).toContain(`127.0.0.1:${defaultSpec.port}:18789`)
+    expect(runCalls[1].args).not.toContain(
+      `127.0.0.1:${defaultSpec.port}:18789`,
+    )
+    expect(chosenPort).toBeGreaterThan(0)
   })
 
   it('runGatewaySetupCommand in direct mode builds a one-off podman run command', async () => {
