@@ -28,7 +28,8 @@ export function getOpenClawOperatorState(
   }
   if (
     status.status === 'starting' ||
-    TRANSIENT_CONTROL_PLANE_STATUSES.has(status.controlPlaneStatus)
+    (status.status === 'running' &&
+      TRANSIENT_CONTROL_PLANE_STATUSES.has(status.controlPlaneStatus))
   ) {
     return { kind: 'starting' }
   }

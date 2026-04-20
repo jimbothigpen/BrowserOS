@@ -66,4 +66,22 @@ describe('getOpenClawOperatorState', () => {
 
     expect(state.kind).toBe('starting')
   })
+
+  it('treats transient control-plane states as needs-attention when runtime is stopped or error', () => {
+    const stoppedState = getOpenClawOperatorState(
+      buildStatus({
+        status: 'stopped',
+        controlPlaneStatus: 'recovering',
+      }),
+    )
+    const errorState = getOpenClawOperatorState(
+      buildStatus({
+        status: 'error',
+        controlPlaneStatus: 'reconnecting',
+      }),
+    )
+
+    expect(stoppedState.kind).toBe('needs-attention')
+    expect(errorState.kind).toBe('needs-attention')
+  })
 })
