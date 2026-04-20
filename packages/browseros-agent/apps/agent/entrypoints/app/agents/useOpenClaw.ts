@@ -102,7 +102,13 @@ export const OPENCLAW_QUERY_KEYS = {
   roles: 'openclaw-roles',
   programs: 'openclaw-programs',
   programRuns: 'openclaw-program-runs',
+  podmanOverrides: 'openclaw-podman-overrides',
 } as const
+
+export interface PodmanOverrides {
+  podmanPath: string | null
+  effectivePodmanPath: string
+}
 
 async function clawFetch<T>(
   baseUrl: string,
@@ -187,6 +193,9 @@ async function invalidateAgentProgramQueries(
     }),
     queryClient.invalidateQueries({
       queryKey: [OPENCLAW_QUERY_KEYS.agents, baseUrl],
+    }),
+    queryClient.invalidateQueries({
+      queryKey: [OPENCLAW_QUERY_KEYS.status, baseUrl],
     }),
   ])
 }
@@ -495,6 +504,50 @@ export function useOpenClawMutations() {
   }
 }
 
+export function usePodmanOverrides() {
+  const {
+    baseUrl,
+    isLoading: urlLoading,
+    error: urlError,
+  } = useAgentServerUrl()
+  const queryClient = useQueryClient()
+
+  const query = useQuery<PodmanOverrides, Error>({
+    queryKey: [OPENCLAW_QUERY_KEYS.podmanOverrides, baseUrl],
+    queryFn: () =>
+      clawFetch<PodmanOverrides>(baseUrl as string, '/podman-overrides'),
+    enabled: !!baseUrl && !urlLoading,
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async (podmanPath: string | null) =>
+      clawFetch<PodmanOverrides>(baseUrl as string, '/podman-overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ podmanPath }),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [OPENCLAW_QUERY_KEYS.podmanOverrides],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [OPENCLAW_QUERY_KEYS.status],
+        }),
+      ])
+    },
+  })
+
+  return {
+    overrides: query.data ?? null,
+    loading: query.isLoading || urlLoading,
+    error: (query.error ?? urlError) as Error | null,
+    saving: saveMutation.isPending,
+    saveOverrides: (podmanPath: string) => saveMutation.mutateAsync(podmanPath),
+    clearOverrides: () => saveMutation.mutateAsync(null),
+  }
+}
+
 export interface OpenClawStreamEvent {
   type:
     | 'text-delta'
@@ -508,17 +561,60 @@ export interface OpenClawStreamEvent {
   data: Record<string, unknown>
 }
 
+export interface OpenClawChatHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+interface ChatHistoryTurnLike {
+  userText: string
+  parts: Array<{ kind: string; text?: string }>
+}
+
+export function buildChatHistoryFromTurns(
+  turns: ChatHistoryTurnLike[],
+): OpenClawChatHistoryMessage[] {
+  const messages: OpenClawChatHistoryMessage[] = []
+
+  for (const turn of turns) {
+    const userText = turn.userText.trim()
+    if (userText) {
+      messages.push({ role: 'user', content: userText })
+    }
+
+    const assistantText = turn.parts
+      .filter(
+        (
+          part,
+        ): part is {
+          kind: 'text'
+          text: string
+        } => part.kind === 'text' && typeof part.text === 'string',
+      )
+      .map((part) => part.text.trim())
+      .filter(Boolean)
+      .join('\n\n')
+
+    if (assistantText) {
+      messages.push({ role: 'assistant', content: assistantText })
+    }
+  }
+
+  return messages
+}
+
 export async function chatWithAgent(
   agentId: string,
   message: string,
   sessionKey?: string,
+  history: OpenClawChatHistoryMessage[] = [],
   signal?: AbortSignal,
 ): Promise<Response> {
   const baseUrl = await getAgentServerUrl()
   return fetch(`${baseUrl}/claw/agents/${agentId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, sessionKey }),
+    body: JSON.stringify({ message, sessionKey, history }),
     signal,
   })
 }

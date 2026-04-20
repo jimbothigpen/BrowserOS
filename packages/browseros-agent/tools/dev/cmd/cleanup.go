@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"browseros-dev/proc"
 
@@ -33,7 +34,9 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	if doPorts {
 		ports := proc.DefaultLocalPorts()
 		proc.LogMsgf(proc.TagInfo, "Killing processes on ports %d, %d, %d...", ports.CDP, ports.Server, ports.Extension)
-		proc.KillPorts(ports)
+		if err := proc.KillPortsAndWait(ports, 3*time.Second); err != nil {
+			return err
+		}
 		proc.LogMsg(proc.TagInfo, "Ports cleared")
 	}
 

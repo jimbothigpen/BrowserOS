@@ -1,110 +1,132 @@
 {
   "resources": [
     {
-      "name": "Bun Runtime - macOS ARM64",
+      "name": "Podman CLI - macOS ARM64",
       "source": {
         "type": "r2",
-        "key": "third_party/bun/bun-darwin-arm64"
+        "key": "third_party/podman/podman-darwin-arm64"
       },
-      "destination": "resources/bin/third_party/bun",
+      "destination": "resources/bin/third_party/podman/podman",
       "os": ["macos"],
       "arch": ["arm64"],
       "executable": true
     },
     {
-      "name": "Bun Runtime - macOS x64",
+      "name": "Podman gvproxy - macOS ARM64",
       "source": {
         "type": "r2",
-        "key": "third_party/bun/bun-darwin-x64"
+        "key": "third_party/podman/gvproxy-darwin-arm64"
       },
-      "destination": "resources/bin/third_party/bun",
+      "destination": "resources/bin/third_party/podman/gvproxy",
+      "os": ["macos"],
+      "arch": ["arm64"],
+      "executable": true
+    },
+    {
+      "name": "Podman vfkit - macOS ARM64",
+      "source": {
+        "type": "r2",
+        "key": "third_party/podman/vfkit-darwin-arm64"
+      },
+      "destination": "resources/bin/third_party/podman/vfkit",
+      "os": ["macos"],
+      "arch": ["arm64"],
+      "executable": true
+    },
+    {
+      "name": "Podman krunkit - macOS ARM64",
+      "source": {
+        "type": "r2",
+        "key": "third_party/podman/krunkit-darwin-arm64"
+      },
+      "destination": "resources/bin/third_party/podman/krunkit",
+      "os": ["macos"],
+      "arch": ["arm64"],
+      "executable": true
+    },
+    {
+      "name": "Podman mac helper - macOS ARM64",
+      "source": {
+        "type": "r2",
+        "key": "third_party/podman/podman-mac-helper-darwin-arm64"
+      },
+      "destination": "resources/bin/third_party/podman/podman-mac-helper",
+      "os": ["macos"],
+      "arch": ["arm64"],
+      "executable": true
+    },
+    {
+      "name": "Podman CLI - macOS x64",
+      "notes": "krunkit is intentionally omitted on macOS x64 because the official amd64 Podman installer ships an arm64-only krunkit helper",
+      "source": {
+        "type": "r2",
+        "key": "third_party/podman/podman-darwin-x64"
+      },
+      "destination": "resources/bin/third_party/podman/podman",
       "os": ["macos"],
       "arch": ["x64"],
       "executable": true
     },
     {
-      "name": "Bun Runtime - Linux ARM64",
+      "name": "Podman gvproxy - macOS x64",
       "source": {
         "type": "r2",
-        "key": "third_party/bun/bun-linux-arm64"
+        "key": "third_party/podman/gvproxy-darwin-x64"
       },
-      "destination": "resources/bin/third_party/bun",
-      "os": ["linux"],
-      "arch": ["arm64"],
-      "executable": true
-    },
-    {
-      "name": "Bun Runtime - Linux x64",
-      "source": {
-        "type": "r2",
-        "key": "third_party/bun/bun-linux-x64"
-      },
-      "destination": "resources/bin/third_party/bun",
-      "os": ["linux"],
+      "destination": "resources/bin/third_party/podman/gvproxy",
+      "os": ["macos"],
       "arch": ["x64"],
       "executable": true
     },
     {
-      "name": "Bun Runtime - Windows x64",
+      "name": "Podman vfkit - macOS x64",
       "source": {
         "type": "r2",
-        "key": "third_party/bun/bun-windows-x64.exe"
+        "key": "third_party/podman/vfkit-darwin-x64"
       },
-      "destination": "resources/bin/third_party/bun.exe",
+      "destination": "resources/bin/third_party/podman/vfkit",
+      "os": ["macos"],
+      "arch": ["x64"],
+      "executable": true
+    },
+    {
+      "name": "Podman mac helper - macOS x64",
+      "source": {
+        "type": "r2",
+        "key": "third_party/podman/podman-mac-helper-darwin-x64"
+      },
+      "destination": "resources/bin/third_party/podman/podman-mac-helper",
+      "os": ["macos"],
+      "arch": ["x64"],
+      "executable": true
+    },
+    {
+      "name": "Podman CLI - Windows x64",
+      "source": {
+        "type": "r2",
+        "key": "third_party/podman/podman-windows-x64.exe"
+      },
+      "destination": "resources/bin/third_party/podman/podman.exe",
       "os": ["windows"],
       "arch": ["x64"]
     },
     {
-      "name": "ripgrep - macOS ARM64",
+      "name": "Podman gvproxy - Windows x64",
       "source": {
         "type": "r2",
-        "key": "third_party/ripgrep/rg-darwin-arm64"
+        "key": "third_party/podman/gvproxy-windows-x64.exe"
       },
-      "destination": "resources/bin/third_party/rg",
-      "os": ["macos"],
-      "arch": ["arm64"],
-      "executable": true
+      "destination": "resources/bin/third_party/podman/gvproxy.exe",
+      "os": ["windows"],
+      "arch": ["x64"]
     },
     {
-      "name": "ripgrep - macOS x64",
+      "name": "Podman win-sshproxy - Windows x64",
       "source": {
         "type": "r2",
-        "key": "third_party/ripgrep/rg-darwin-x64"
+        "key": "third_party/podman/win-sshproxy-windows-x64.exe"
       },
-      "destination": "resources/bin/third_party/rg",
-      "os": ["macos"],
-      "arch": ["x64"],
-      "executable": true
-    },
-    {
-      "name": "ripgrep - Linux ARM64",
-      "source": {
-        "type": "r2",
-        "key": "third_party/ripgrep/rg-linux-arm64"
-      },
-      "destination": "resources/bin/third_party/rg",
-      "os": ["linux"],
-      "arch": ["arm64"],
-      "executable": true
-    },
-    {
-      "name": "ripgrep - Linux x64",
-      "source": {
-        "type": "r2",
-        "key": "third_party/ripgrep/rg-linux-x64"
-      },
-      "destination": "resources/bin/third_party/rg",
-      "os": ["linux"],
-      "arch": ["x64"],
-      "executable": true
-    },
-    {
-      "name": "ripgrep - Windows x64",
-      "source": {
-        "type": "r2",
-        "key": "third_party/ripgrep/rg-windows-x64.exe"
-      },
-      "destination": "resources/bin/third_party/rg.exe",
+      "destination": "resources/bin/third_party/podman/win-sshproxy.exe",
       "os": ["windows"],
       "arch": ["x64"]
     }

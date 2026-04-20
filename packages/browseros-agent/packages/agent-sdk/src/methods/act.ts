@@ -15,14 +15,13 @@ async function executeAct(
   ctx.throwIfAborted()
 
   const url = `${ctx.baseUrl}/sdk/act`
-
-  const browserContextForAct = ctx.browserContext
-    ? {
-        windowId: ctx.browserContext.windowId,
-        enabledMcpServers: ctx.browserContext.enabledMcpServers,
-        customMcpServers: ctx.browserContext.customMcpServers,
-      }
-    : undefined
+  const browserContext =
+    options?.windowId === undefined
+      ? ctx.browserContext
+      : {
+          ...(ctx.browserContext ?? {}),
+          windowId: options.windowId,
+        }
 
   let response: Response
   try {
@@ -33,7 +32,7 @@ async function executeAct(
         instruction,
         context: options?.context,
         maxSteps: options?.maxSteps,
-        browserContext: browserContextForAct,
+        browserContext,
         llm: ctx.llmConfig,
         sessionId: ctx.sessionId,
       }),

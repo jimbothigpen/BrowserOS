@@ -5,17 +5,62 @@ interface SemanticScore {
   backend: string
 }
 
-type FeatureExtractionPipeline = (
-  texts: string[],
-  options: { pooling: string; normalize: boolean },
-) => Promise<{ tolist: () => number[][] }>
+interface EmbeddingOutput {
+  tolist: () => number[][]
+  dispose?: () => void
+}
+
+interface FeatureExtractionPipeline {
+  (
+    texts: string[],
+    options: { pooling: string; normalize: boolean },
+  ): Promise<EmbeddingOutput>
+  dispose?: () => Promise<void>
+}
 
 let pipelineInstance: FeatureExtractionPipeline | null = null
 const LOAD_RETRY_MS = 60_000
 let lastLoadFailedAt = 0
+let cleanupListener: (() => void) | null = null
 
 function getModelName(): string {
   return process.env.ACL_EMBEDDING_MODEL ?? 'Xenova/bge-small-en-v1.5'
+}
+
+function isSemanticDisabled(): boolean {
+  return process.env.ACL_EMBEDDING_DISABLE === 'true'
+}
+
+export async function disposeSemanticPipeline(): Promise<void> {
+  const current = pipelineInstance
+  pipelineInstance = null
+  if (cleanupListener) {
+    process.removeListener('beforeExit', cleanupListener)
+    cleanupListener = null
+  }
+  if (!current?.dispose) {
+    return
+  }
+
+  try {
+    await current.dispose()
+  } catch (error) {
+    logger.warn('ACL embedding model disposal failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+function registerPipelineCleanup(): void {
+  if (cleanupListener) {
+    return
+  }
+  cleanupListener = () => {
+    // beforeExit cannot await async cleanup, so explicit disposal is still
+    // required anywhere teardown must be deterministic.
+    void disposeSemanticPipeline()
+  }
+  process.once('beforeExit', cleanupListener)
 }
 
 async function ensurePipeline(): Promise<FeatureExtractionPipeline | null> {
@@ -30,6 +75,7 @@ async function ensurePipeline(): Promise<FeatureExtractionPipeline | null> {
       dtype: 'fp32',
     })
     pipelineInstance = extractor as unknown as FeatureExtractionPipeline
+    registerPipelineCleanup()
     lastLoadFailedAt = 0
     logger.info('ACL embedding model loaded', { model: getModelName() })
     return pipelineInstance
@@ -64,6 +110,7 @@ export async function computeSemanticSimilarity(
   right: string,
 ): Promise<SemanticScore> {
   if (!left || !right) return { score: 0, backend: 'none' }
+  if (isSemanticDisabled()) return { score: 0, backend: 'disabled' }
 
   const extractor = await ensurePipeline()
   if (!extractor) return { score: 0, backend: 'error' }
@@ -74,6 +121,7 @@ export async function computeSemanticSimilarity(
       normalize: true,
     })
     const embeddings = output.tolist()
+    output.dispose?.()
     const score = cosineSimilarity(embeddings[0], embeddings[1])
     return {
       score: Math.max(0, Math.min(score, 1)),

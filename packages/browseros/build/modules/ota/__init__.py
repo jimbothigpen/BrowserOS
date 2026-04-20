@@ -9,12 +9,16 @@ from .common import (
     SignedArtifact,
     SERVER_PLATFORMS,
     APPCAST_TEMPLATE,
-    find_server_binary,
+    find_server_resources_dir,
+    create_server_bundle_zip,
 )
 from .sign_binary import (
     sign_macos_binary,
     notarize_macos_binary,
+    notarize_macos_zip,
     sign_windows_binary,
+    sign_server_bundle_macos,
+    sign_server_bundle_windows,
 )
 from .server import ServerOTAModule
 
@@ -30,10 +34,14 @@ __all__ = [
     "parse_existing_appcast",
     "ExistingAppcast",
     "SignedArtifact",
-    "find_server_binary",
+    "find_server_resources_dir",
+    "create_server_bundle_zip",
     "sign_macos_binary",
     "notarize_macos_binary",
+    "notarize_macos_zip",
     "sign_windows_binary",
+    "sign_server_bundle_macos",
+    "sign_server_bundle_windows",
     "SERVER_PLATFORMS",
     "APPCAST_TEMPLATE",
 ]

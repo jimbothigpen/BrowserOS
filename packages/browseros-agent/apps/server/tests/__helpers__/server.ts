@@ -79,7 +79,11 @@ export async function spawnServer(config: ServerConfig): Promise<ServerState> {
     ],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...globalThis.process.env, NODE_ENV: 'test' },
+      env: {
+        ...globalThis.process.env,
+        NODE_ENV: 'test',
+        BROWSEROS_USE_MOCK_LLM: 'true',
+      },
     },
   )
 

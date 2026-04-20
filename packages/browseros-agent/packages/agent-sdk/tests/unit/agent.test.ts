@@ -332,6 +332,94 @@ describe('Agent', () => {
 
       expect(agent.sessionId).not.toBe(originalSessionId)
     })
+
+    it('uses the active tab established by nav() for subsequent act() calls', async () => {
+      let callCount = 0
+      globalThis.fetch = mock((url: string, init?: RequestInit) => {
+        callCount++
+
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                tabId: 123,
+                windowId: 456,
+              }),
+          } as Response)
+        }
+
+        const sseData = [{ type: 'start-step' }, { type: 'finish-step' }]
+          .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+          .join('')
+        const encoded = new TextEncoder().encode(sseData)
+
+        expect(url).toBe('http://localhost:9222/sdk/act')
+        const body = JSON.parse(init?.body as string)
+        expect(body.browserContext).toEqual({
+          windowId: 456,
+          activeTab: {
+            id: 123,
+            url: 'https://example.com',
+          },
+        })
+
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          body: {
+            getReader: () => {
+              let read = false
+              return {
+                read: async () => {
+                  if (read) return { done: true, value: undefined }
+                  read = true
+                  return { done: false, value: encoded }
+                },
+                releaseLock: () => {},
+              }
+            },
+          },
+        } as unknown as Response)
+      })
+
+      const agent = new Agent({ url: TEST_URL })
+      await agent.nav('https://example.com')
+      await agent.act('click the button')
+    })
+
+    it('allows act() to override windowId while preserving active tab context', async () => {
+      const fetchMock = mockSSEFetch([
+        { type: 'start-step' },
+        { type: 'finish-step' },
+      ])
+      globalThis.fetch = fetchMock
+
+      const agent = new Agent({
+        url: TEST_URL,
+        browserContext: {
+          windowId: 456,
+          activeTab: {
+            id: 123,
+            url: 'https://example.com',
+          },
+        },
+      })
+
+      await agent.act('click the button', { windowId: 789 })
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call[1].body)
+      expect(body.browserContext).toEqual({
+        windowId: 789,
+        activeTab: {
+          id: 123,
+          url: 'https://example.com',
+        },
+      })
+    })
   })
 
   describe('act() with verify option', () => {
@@ -613,6 +701,28 @@ describe('Agent', () => {
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call[1].body)
       expect(body.llm).toEqual(llmConfig)
+    })
+
+    it('includes browser context windowId and active tab id', async () => {
+      const fetchMock = mockFetch({ success: true, reason: 'Verified' })
+      globalThis.fetch = fetchMock
+
+      const agent = new Agent({
+        url: TEST_URL,
+        browserContext: {
+          windowId: 456,
+          activeTab: {
+            id: 123,
+            url: 'https://example.com',
+          },
+        },
+      })
+      await agent.verify('the page has some content')
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call[1].body)
+      expect(body.windowId).toBe(456)
+      expect(body.tabId).toBe(123)
     })
 
     it('returns VerifyResult on success', async () => {

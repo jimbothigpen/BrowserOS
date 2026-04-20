@@ -1,12 +1,15 @@
 import { describe, it, setDefaultTimeout } from 'bun:test'
-
-setDefaultTimeout(30_000)
-
 import assert from 'node:assert'
+import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import type { AclRule, ElementProperties } from '@browseros/shared/types/acl'
 import { editDistanceRatio } from '../../src/tools/acl/acl-edit-distance'
 import { scoreFixture } from '../../src/tools/acl/acl-scorer'
+
+const TEST_TIMEOUT_MS = 30_000
+
+setDefaultTimeout(TEST_TIMEOUT_MS)
+process.env.ACL_EMBEDDING_DISABLE = 'true'
 
 // --- Edit distance tests ---
 
@@ -191,19 +194,38 @@ describe('scoreFixture', () => {
 
 // --- Fixture tests ---
 
-async function loadFixture(name: string) {
-  const path = resolve(import.meta.dir, `../__fixtures__/acl/${name}.json`)
-  return Bun.file(path).json()
-}
+function runSemanticFixture(name: string) {
+  const runnerPath = resolve(
+    import.meta.dir,
+    '../__helpers__/acl-fixture-runner.ts',
+  )
+  const result = spawnSync(
+    'bun',
+    ['--env-file=.env.development', runnerPath, name],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      timeout: TEST_TIMEOUT_MS,
+      env: {
+        ...process.env,
+        ACL_EMBEDDING_DISABLE: 'false',
+        LOG_LEVEL: 'silent',
+      },
+    },
+  )
+  const failureMessage =
+    result.error?.message ||
+    result.stderr ||
+    result.stdout ||
+    'semantic fixture subprocess failed'
 
-async function runFixture(name: string) {
-  const f = await loadFixture(name)
-  return scoreFixture(f.tool_name, f.page_url, f.element, f.rules)
+  assert.strictEqual(result.status, 0, failureMessage)
+  return JSON.parse(result.stdout)
 }
 
 describe('fixture: submit-button (exact match)', () => {
   it('blocks checkout submit button', async () => {
-    const decision = await runFixture('submit-button')
+    const decision = runSemanticFixture('submit-button')
 
     assert.strictEqual(decision.blocked, true)
     assert.strictEqual(decision.matchedRuleId, 'checkout-submit')
@@ -215,7 +237,7 @@ describe('fixture: submit-button (exact match)', () => {
   })
 
   it('uses the embedding model for scoring', async () => {
-    const decision = await runFixture('submit-button')
+    const decision = runSemanticFixture('submit-button')
     const top = decision.candidates[0]
 
     assert.ok(
@@ -228,7 +250,7 @@ describe('fixture: submit-button (exact match)', () => {
 
 describe('fixture: semantic-payment (semantic match)', () => {
   it('blocks "Proceed to Checkout" against payment prevention rule', async () => {
-    const decision = await runFixture('semantic-payment')
+    const decision = runSemanticFixture('semantic-payment')
 
     assert.strictEqual(decision.blocked, true)
     assert.strictEqual(decision.matchedRuleId, 'block-payments')
@@ -239,7 +261,7 @@ describe('fixture: semantic-payment (semantic match)', () => {
   })
 
   it('has a meaningful semantic score', async () => {
-    const decision = await runFixture('semantic-payment')
+    const decision = runSemanticFixture('semantic-payment')
     const top = decision.candidates[0]
 
     if (top.semanticBackend === 'transformers.js') {
@@ -253,7 +275,7 @@ describe('fixture: semantic-payment (semantic match)', () => {
 
 describe('fixture: semantic-delete (semantic match)', () => {
   it('blocks "Remove my account permanently" against deletion rule', async () => {
-    const decision = await runFixture('semantic-delete')
+    const decision = runSemanticFixture('semantic-delete')
 
     assert.strictEqual(decision.blocked, true)
     assert.strictEqual(decision.matchedRuleId, 'block-delete')
@@ -266,7 +288,7 @@ describe('fixture: semantic-delete (semantic match)', () => {
 
 describe('fixture: semantic-send-email (semantic match)', () => {
   it('blocks send button on mail compose page', async () => {
-    const decision = await runFixture('semantic-send-email')
+    const decision = runSemanticFixture('semantic-send-email')
 
     assert.strictEqual(decision.blocked, true)
     assert.strictEqual(decision.matchedRuleId, 'block-outbound-email')
@@ -279,7 +301,7 @@ describe('fixture: semantic-send-email (semantic match)', () => {
 
 describe('fixture: semantic-safe (no false positive)', () => {
   it('allows "View Report" against payment and deletion rules', async () => {
-    const decision = await runFixture('semantic-safe')
+    const decision = runSemanticFixture('semantic-safe')
 
     assert.strictEqual(decision.blocked, false)
     assert.ok(

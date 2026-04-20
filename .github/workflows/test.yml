@@ -30,15 +30,54 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: tools
-            test_path: tests/tools
-            junit_path: test-results/tools.xml
-          - suite: integration
-            test_path: tests/server.integration.test.ts
-            junit_path: test-results/integration.xml
-          - suite: sdk
-            test_path: tests/sdk
-            junit_path: test-results/sdk.xml
+          - suite: server-agent
+            command: (cd apps/server && bun run test:agent)
+            junit_path: test-results/server-agent.xml
+            needs_browser: false
+          - suite: server-api
+            command: (cd apps/server && bun run test:api)
+            junit_path: test-results/server-api.xml
+            needs_browser: false
+          - suite: server-skills
+            command: (cd apps/server && bun run test:skills)
+            junit_path: test-results/server-skills.xml
+            needs_browser: false
+          - suite: server-tools
+            command: (cd apps/server && bun run test:tools)
+            junit_path: test-results/server-tools.xml
+            needs_browser: true
+          - suite: server-browser
+            command: (cd apps/server && bun run test:browser)
+            junit_path: test-results/server-browser.xml
+            needs_browser: false
+          - suite: server-integration
+            command: (cd apps/server && bun run test:integration)
+            junit_path: test-results/server-integration.xml
+            needs_browser: true
+          - suite: server-sdk
+            command: (cd apps/server && bun run test:sdk)
+            junit_path: test-results/server-sdk.xml
+            needs_browser: true
+          - suite: server-root
+            command: (cd apps/server && bun run test:root)
+            junit_path: test-results/server-root.xml
+            needs_browser: false
+          - suite: agent
+            command: bun run test:agent
+            junit_path: test-results/agent.xml
+            needs_browser: false
+          - suite: eval
+            command: bun run test:eval
+            junit_path: test-results/eval.xml
+            needs_browser: false
+          - suite: agent-sdk
+            command: bun run test:agent-sdk
+            junit_path: test-results/agent-sdk.xml
+            needs_browser: false
+          - suite: build
+            command: bun run test:build
+            junit_path: test-results/build.xml
+            needs_browser: false
 
     steps:
       - name: Checkout code
@@ -51,6 +90,7 @@ jobs:
         run: bun ci
 
       - name: Resolve BrowserOS cache key
+        if: matrix.needs_browser == true
         id: browseros-cache-key
         run: |
           set -euo pipefail
@@ -65,6 +105,7 @@ jobs:
           echo "key=browseros-appimage-${{ runner.os }}-$cache_key" >> "$GITHUB_OUTPUT"
 
       - name: Restore BrowserOS cache
+        if: matrix.needs_browser == true
         id: browseros-cache
         uses: actions/cache@v4
         with:
@@ -72,13 +113,14 @@ jobs:
           key: ${{ steps.browseros-cache-key.outputs.key }}
 
       - name: Download BrowserOS
-        if: steps.browseros-cache.outputs.cache-hit != 'true'
+        if: matrix.needs_browser == true && steps.browseros-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p .ci/bin
           curl -fsSL "$BROWSEROS_APPIMAGE_URL" -o .ci/bin/BrowserOS.AppImage
           chmod +x .ci/bin/BrowserOS.AppImage
 
       - name: Prepare BrowserOS wrapper
+        if: matrix.needs_browser == true
         run: |
           mkdir -p .ci/bin
           cat > .ci/bin/browseros <<'EOF'
@@ -99,16 +141,23 @@ jobs:
           BROWSEROS_BINARY: ${{ github.workspace }}/packages/browseros-agent/.ci/bin/browseros
           BROWSEROS_TEST_HEADLESS: "true"
           BROWSEROS_TEST_EXTRA_ARGS: --no-sandbox --disable-dev-shm-usage
+          BROWSEROS_JUNIT_PATH: ${{ github.workspace }}/packages/browseros-agent/${{ matrix.junit_path }}
         run: |
           set +e
           mkdir -p test-results
-          cd apps/server
-          bun run test:cleanup
-          bun --env-file=.env.development test "${{ matrix.test_path }}" --reporter=junit --reporter-outfile="../../${{ matrix.junit_path }}"
+          ${{ matrix.command }}
           exit_code=$?
-          cd ../..
           if [ ! -f "${{ matrix.junit_path }}" ]; then
-            cat > "${{ matrix.junit_path }}" <<EOF
+            if [ "$exit_code" = "0" ]; then
+              cat > "${{ matrix.junit_path }}" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <testsuites tests="0" failures="0">
+            <testsuite name="${{ matrix.suite }}" tests="0" failures="0">
+            </testsuite>
+          </testsuites>
+          EOF
+            else
+              cat > "${{ matrix.junit_path }}" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <testsuites tests="1" failures="1">
             <testsuite name="${{ matrix.suite }}" tests="1" failures="1">
@@ -118,6 +167,7 @@ jobs:
             </testsuite>
           </testsuites>
           EOF
+            fi
           fi
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
 
@@ -139,3 +189,124 @@ jobs:
             echo "See the uploaded \`junit-${{ matrix.suite }}\` artifact for details." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+
+  comment:
+    name: PR test summary
+    needs: test
+    if: >-
+      always()
+      && github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Download JUnit artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: junit
+          pattern: junit-*
+
+      - name: Build comment body
+        run: |
+          python3 <<'PY'
+          import glob, os, xml.etree.ElementTree as ET
+
+          run_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          marker = "<!-- browseros-agent-tests-summary -->"
+
+          suites = []
+          failed_cases = []
+          total_tests = total_failed = total_skipped = 0
+
+          for xml_path in sorted(glob.glob("junit/junit-*/*.xml")):
+              suite_name = os.path.basename(os.path.dirname(xml_path)).removeprefix("junit-")
+              try:
+                  root = ET.parse(xml_path).getroot()
+              except ET.ParseError:
+                  suites.append({"name": suite_name, "passed": 0, "failed": 1, "skipped": 0, "total": 1})
+                  total_tests += 1
+                  total_failed += 1
+                  failed_cases.append((suite_name, "(could not parse junit XML)"))
+                  continue
+
+              testsuites = root.findall("testsuite") if root.tag == "testsuites" else [root]
+              s_tests = s_fail = s_err = s_skip = 0
+              for ts in testsuites:
+                  s_tests += int(ts.get("tests") or 0)
+                  s_fail += int(ts.get("failures") or 0)
+                  s_err += int(ts.get("errors") or 0)
+                  s_skip += int(ts.get("skipped") or 0)
+                  for tc in ts.iter("testcase"):
+                      if tc.find("failure") is not None or tc.find("error") is not None:
+                          cls = tc.get("classname") or ""
+                          name = tc.get("name") or "(unnamed)"
+                          label = f"{cls} > {name}" if cls else name
+                          failed_cases.append((suite_name, label))
+
+              s_failed = s_fail + s_err
+              s_passed = max(s_tests - s_failed - s_skip, 0)
+              suites.append({"name": suite_name, "passed": s_passed, "failed": s_failed, "skipped": s_skip, "total": s_tests})
+              total_tests += s_tests
+              total_failed += s_failed
+              total_skipped += s_skip
+
+          total_passed = max(total_tests - total_failed - total_skipped, 0)
+
+          if total_tests == 0:
+              header = "## :warning: No test results were produced"
+          elif total_failed == 0:
+              header = f"## :white_check_mark: Tests passed — {total_passed}/{total_tests}"
+          else:
+              header = f"## :x: Tests failed — {total_failed}/{total_tests} failed"
+
+          lines = [marker, header, ""]
+          if suites:
+              lines.append("| Suite | Passed | Failed | Skipped |")
+              lines.append("|-------|--------|--------|---------|")
+              for s in suites:
+                  icon = ":white_check_mark:" if s["failed"] == 0 and s["total"] > 0 else ":warning:" if s["total"] == 0 else ":x:"
+                  lines.append(f"| {icon} `{s['name']}` | {s['passed']}/{s['total']} | {s['failed']} | {s['skipped']} |")
+
+          if failed_cases:
+              lines += ["", "<details open>", "<summary><b>Failed tests</b></summary>", ""]
+              for suite_name, label in failed_cases[:50]:
+                  lines.append(f"- **{suite_name}** — `{label}`")
+              if len(failed_cases) > 50:
+                  lines.append(f"- …and {len(failed_cases) - 50} more")
+              lines += ["", "</details>"]
+
+          lines += ["", f"[View workflow run]({run_url})"]
+
+          with open("comment.md", "w") as f:
+              f.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upsert sticky PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('comment.md', 'utf8');
+            const marker = '<!-- browseros-agent-tests-summary -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const triggerSha = context.payload.pull_request.head.sha;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: issue_number });
+            if (pr.head.sha !== triggerSha) {
+              core.info(`PR head has moved (${pr.head.sha} vs ${triggerSha}) — skipping stale comment.`);
+              return;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

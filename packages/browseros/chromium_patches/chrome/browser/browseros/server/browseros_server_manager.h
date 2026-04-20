@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/browseros/server/browseros_server_manager.h b/chrome/browser/browseros/server/browseros_server_manager.h
 new file mode 100644
-index 0000000000000..241343e436f94
+index 0000000000000..62e098b92b358
 --- /dev/null
 +++ b/chrome/browser/browseros/server/browseros_server_manager.h
-@@ -0,0 +1,158 @@
+@@ -0,0 +1,159 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -126,6 +126,7 @@ index 0000000000000..241343e436f94
 +  void OnProcessExited(int exit_code);
 +  void CheckServerHealth();
 +  void OnAllowRemoteInMCPChanged();
++  void OnProxyPortChanged();
 +  void OnRestartServerRequestedChanged();
 +  void CheckProcessStatus();
 +

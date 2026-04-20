@@ -25,6 +25,13 @@ export async function nav(
     NavigationError,
   )
 
+  if (result.success && result.tabId !== undefined) {
+    ctx.updateNavigationContext(
+      { tabId: result.tabId, windowId: result.windowId },
+      url,
+    )
+  }
+
   ctx.emit({
     type: 'text-delta',
     id: 'nav',

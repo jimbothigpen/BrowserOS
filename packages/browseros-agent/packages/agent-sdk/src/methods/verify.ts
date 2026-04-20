@@ -23,6 +23,7 @@ export async function verify(
       expectation,
       context: options?.context,
       windowId: ctx.browserContext?.windowId,
+      tabId: ctx.browserContext?.activeTab?.id,
       llm: ctx.llmConfig,
     },
     VerificationError,
@@ -54,6 +55,7 @@ export async function verifyInternal(
     {
       expectation,
       windowId: ctx.browserContext?.windowId,
+      tabId: ctx.browserContext?.activeTab?.id,
       llm: ctx.llmConfig,
     },
     VerificationError,

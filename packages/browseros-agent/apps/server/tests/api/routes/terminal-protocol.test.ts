@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { OPENCLAW_GATEWAY_CONTAINER_NAME } from '@browseros/shared/constants/openclaw'
 import {
   parseTerminalClientMessage,
   serializeTerminalServerMessage,
@@ -53,7 +54,7 @@ describe('terminal protocol', () => {
     expect(
       buildTerminalExecCommand(
         'podman',
-        'browseros-openclaw-openclaw-gateway-1',
+        OPENCLAW_GATEWAY_CONTAINER_NAME,
         TERMINAL_HOME_DIR,
       ),
     ).toEqual([
@@ -62,7 +63,7 @@ describe('terminal protocol', () => {
       '-it',
       '-w',
       '/home/node/.openclaw',
-      'browseros-openclaw-openclaw-gateway-1',
+      OPENCLAW_GATEWAY_CONTAINER_NAME,
       '/bin/sh',
     ])
   })

@@ -21,6 +21,10 @@ import { logger } from '../../logger'
 import { createOpenRouterCompatibleFetch } from '../../openrouter-fetch'
 import { createCodexFetch } from '../oauth/codex-fetch'
 import { createCopilotFetch } from '../oauth/copilot-fetch'
+import {
+  createMockBrowserOSLanguageModel,
+  shouldUseMockBrowserOSLLM,
+} from './mock-language-model'
 import type { ResolvedLLMConfig } from './types'
 
 type ProviderFactory = (config: ResolvedLLMConfig) => LanguageModel
@@ -195,6 +199,9 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
 }
 
 export function createLLMProvider(config: ResolvedLLMConfig): LanguageModel {
+  if (shouldUseMockBrowserOSLLM(config)) {
+    return createMockBrowserOSLanguageModel()
+  }
   const factory = PROVIDER_FACTORIES[config.provider]
   if (!factory) throw new Error(`Unknown provider: ${config.provider}`)
   return factory(config)

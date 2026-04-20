@@ -4,6 +4,8 @@ import type {
 } from '@browseros/shared/types/role-aware-agents'
 import {
   AlertCircle,
+  ChevronDown,
+  ChevronRight,
   Cpu,
   Loader2,
   MessageSquare,
@@ -39,6 +41,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useLlmProviders } from '@/lib/llm-providers/useLlmProviders'
 import { AgentChat } from './AgentChat'
 import { AgentTerminal } from './AgentTerminal'
+import { getOpenClawSupportedProviders } from './openclaw-supported-providers'
 import { AgentProgramsPage } from './programs/AgentProgramsPage'
 import {
   type AgentEntry,
@@ -48,9 +51,9 @@ import {
   useOpenClawMutations,
   useOpenClawRoles,
   useOpenClawStatus,
+  usePodmanOverrides,
 } from './useOpenClaw'
 
-const OAUTH_ONLY_TYPES = new Set(['chatgpt-pro', 'github-copilot', 'qwen-code'])
 const CUSTOM_ROLE_VALUE = '__custom__'
 const PLAIN_AGENT_VALUE = '__plain__'
 type AgentCreationMode = 'builtin' | 'custom' | 'plain'
@@ -268,6 +271,138 @@ const ProviderSelector: FC<ProviderSelectorProps> = ({
   )
 }
 
+interface PodmanOverridesCardProps {
+  variant: 'inline' | 'standalone'
+}
+
+const PodmanOverridesCard: FC<PodmanOverridesCardProps> = ({ variant }) => {
+  const { overrides, loading, saving, error, saveOverrides, clearOverrides } =
+    usePodmanOverrides()
+
+  const [value, setValue] = useState('')
+  const [touched, setTouched] = useState(false)
+  const [collapsed, setCollapsed] = useState(variant === 'standalone')
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!touched && overrides) setValue(overrides.podmanPath ?? '')
+  }, [overrides, touched])
+
+  const handleSave = async () => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    setLocalError(null)
+    try {
+      await saveOverrides(trimmed)
+      setTouched(false)
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const handleClear = async () => {
+    setLocalError(null)
+    try {
+      await clearOverrides()
+      setValue('')
+      setTouched(false)
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const hasOverride = !!overrides?.podmanPath
+  const effective = overrides?.effectivePodmanPath ?? null
+  const inlineErrorMessage = localError ?? error?.message ?? null
+
+  const body = (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <label
+          htmlFor={`podman-path-${variant}`}
+          className="font-medium text-sm"
+        >
+          Podman binary path
+        </label>
+        <Input
+          id={`podman-path-${variant}`}
+          value={value}
+          onChange={(event) => {
+            setTouched(true)
+            setValue(event.target.value)
+          }}
+          placeholder="/opt/homebrew/bin/podman"
+          spellCheck={false}
+          autoCapitalize="none"
+          autoCorrect="off"
+        />
+        <p className="text-muted-foreground text-xs">
+          Install Podman yourself (e.g. <code>brew install podman</code>) and
+          paste the absolute path to the binary. Restart the gateway after
+          saving.
+        </p>
+      </div>
+
+      {effective && (
+        <p className="text-muted-foreground text-xs">
+          Currently using: <code className="break-all">{effective}</code>
+        </p>
+      )}
+
+      {inlineErrorMessage && (
+        <p className="text-destructive text-xs">{inlineErrorMessage}</p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={saving || loading || !value.trim()}
+        >
+          {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+          Save
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleClear}
+          disabled={saving || loading || !hasOverride}
+        >
+          Clear
+        </Button>
+      </div>
+    </div>
+  )
+
+  if (variant === 'inline') {
+    return (
+      <div className="mt-3 rounded-md border bg-background p-3">
+        <p className="mb-2 font-medium text-sm">Use your own Podman</p>
+        {body}
+      </div>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        className="cursor-pointer py-3"
+        onClick={() => setCollapsed((prev) => !prev)}
+      >
+        <CardTitle className="flex items-center gap-2 text-base">
+          {collapsed ? (
+            <ChevronRight className="size-4" />
+          ) : (
+            <ChevronDown className="size-4" />
+          )}
+          Advanced: Podman binary path
+        </CardTitle>
+      </CardHeader>
+      {!collapsed && <CardContent className="pt-0">{body}</CardContent>}
+    </Card>
+  )
+}
+
 export const AgentsPage: FC = () => {
   const {
     status,
@@ -322,9 +457,7 @@ export const AgentsPage: FC = () => {
   const [showTerminal, setShowTerminal] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const compatibleProviders = providers.filter(
-    (provider) => provider.apiKey && !OAUTH_ONLY_TYPES.has(provider.type),
-  )
+  const compatibleProviders = getOpenClawSupportedProviders(providers)
   const creationMode: AgentCreationMode =
     selectedRoleValue === CUSTOM_ROLE_VALUE
       ? 'custom'
@@ -700,6 +833,7 @@ export const AgentsPage: FC = () => {
                 Restart Gateway
               </Button>
             </div>
+            <PodmanOverridesCard variant="inline" />
           </AlertDescription>
         </Alert>
       )}
@@ -719,6 +853,9 @@ export const AgentsPage: FC = () => {
             {status.podmanAvailable && (
               <Button onClick={() => setSetupOpen(true)}>Set Up Now</Button>
             )}
+            <div className="w-full max-w-md">
+              <PodmanOverridesCard variant="inline" />
+            </div>
           </CardContent>
         </Card>
       )}
@@ -761,6 +898,9 @@ export const AgentsPage: FC = () => {
               >
                 Restart Gateway
               </Button>
+            </div>
+            <div className="w-full max-w-md">
+              <PodmanOverridesCard variant="inline" />
             </div>
           </CardContent>
         </Card>
@@ -851,6 +991,8 @@ export const AgentsPage: FC = () => {
           )}
         </div>
       )}
+
+      <PodmanOverridesCard variant="standalone" />
 
       <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
         <DialogContent>

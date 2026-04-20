@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
-index deb531f8832e3..91cf6b70413ff 100644
+index 977849483f5b8..06699914cd23c 100644
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
-@@ -70,6 +70,8 @@
- #include "chrome/browser/ui/ui_features.h"
+@@ -76,6 +76,8 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
  #include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 +#include "chrome/browser/ui/views/side_panel/third_party_llm/third_party_llm_panel_coordinator.h"
@@ -11,7 +11,7 @@ index deb531f8832e3..91cf6b70413ff 100644
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
  #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
  #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
-@@ -104,7 +106,13 @@
+@@ -110,7 +112,13 @@
  #include "content/public/browser/web_contents_observer.h"
  #include "content/public/common/profiling.h"
  #include "content/public/common/url_constants.h"
@@ -24,8 +24,8 @@ index deb531f8832e3..91cf6b70413ff 100644
 +#include "extensions/browser/extension_registry.h"
  #include "extensions/common/extension_urls.h"
  #include "printing/buildflags/buildflags.h"
- #include "ui/actions/actions.h"
-@@ -988,6 +996,71 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
+ #include "ui/accessibility/accessibility_features.h"
+@@ -1050,6 +1058,71 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
        browser_->GetFeatures().side_panel_ui()->Show(
            SidePanelEntryId::kBookmarks, SidePanelOpenTrigger::kAppMenu);
        break;
@@ -67,7 +67,7 @@ index deb531f8832e3..91cf6b70413ff 100644
 +      const extensions::Extension* extension =
 +          extensions::ExtensionRegistry::Get(profile)
 +              ->enabled_extensions()
-+              .GetByID(browseros::kAgentV2ExtensionId);
++              .GetByID(browseros::kAgentExtensionId);
 +      if (!extension) {
 +        infobars::ContentInfoBarManager* infobar_manager =
 +            infobars::ContentInfoBarManager::FromWebContents(active_contents);
@@ -97,7 +97,7 @@ index deb531f8832e3..91cf6b70413ff 100644
      case IDC_SHOW_APP_MENU:
        base::RecordAction(base::UserMetricsAction("Accel_Show_App_Menu"));
        ShowAppMenu(browser_);
-@@ -1648,6 +1721,13 @@ void BrowserCommandController::InitCommandState() {
+@@ -1741,6 +1814,13 @@ void BrowserCommandController::InitCommandState() {
    }
  
    command_updater_.UpdateCommandEnabled(IDC_SHOW_BOOKMARK_SIDE_PANEL, true);

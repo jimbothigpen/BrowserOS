@@ -1,6 +1,7 @@
-import { describe, it } from 'bun:test'
+import { afterAll, describe, it } from 'bun:test'
 import assert from 'node:assert'
 import type { Browser } from '../../src/browser/browser'
+import { disposeSemanticPipeline } from '../../src/tools/acl/acl-embeddings'
 import { executeTool, type ToolContext } from '../../src/tools/framework'
 import {
   check,
@@ -16,7 +17,9 @@ import {
 } from '../../src/tools/input'
 import { close_page, navigate_page, new_page } from '../../src/tools/navigation'
 import { evaluate_script, take_snapshot } from '../../src/tools/snapshot'
-import { withBrowser } from '../__helpers__/with-browser'
+import { cleanupWithBrowser, withBrowser } from '../__helpers__/with-browser'
+
+process.env.ACL_EMBEDDING_DISABLE = 'true'
 
 function textOf(result: {
   content: { type: string; text?: string }[]
@@ -50,6 +53,72 @@ function findElementId(snapshotText: string, label: string): number {
   const match = snapshotText.match(regex)
   if (!match) throw new Error(`Element "${label}" not found in snapshot`)
   return Number.parseInt(match[1], 10)
+}
+
+async function pointInsideElement(
+  ctx: ToolContext,
+  pageId: number,
+  elementDomId: string,
+): Promise<{ x: number; y: number }> {
+  const pointResult = await executeTool(
+    evaluate_script,
+    {
+      page: pageId,
+      expression: `(() => {
+        const el = document.getElementById(${JSON.stringify(elementDomId)});
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        const insetX = Math.max(1, Math.min(10, Math.floor(rect.width / 4)));
+        const insetY = Math.max(1, Math.min(10, Math.floor(rect.height / 4)));
+        const candidates = [
+          {
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+          },
+          {
+            x: Math.round(rect.left + insetX),
+            y: Math.round(rect.top + insetY),
+          },
+          {
+            x: Math.round(rect.right - insetX),
+            y: Math.round(rect.top + insetY),
+          },
+          {
+            x: Math.round(rect.left + insetX),
+            y: Math.round(rect.bottom - insetY),
+          },
+          {
+            x: Math.round(rect.right - insetX),
+            y: Math.round(rect.bottom - insetY),
+          },
+        ];
+        for (const candidate of candidates) {
+          const target = document.elementFromPoint(candidate.x, candidate.y);
+          if (target && (target === el || el.contains(target))) {
+            return { ...candidate, matched: true, hitId: target.id || null };
+          }
+        }
+        const fallback = candidates[0];
+        const fallbackTarget = document.elementFromPoint(fallback.x, fallback.y);
+        return {
+          ...fallback,
+          matched: false,
+          hitId: fallbackTarget instanceof Element ? fallbackTarget.id || null : null,
+        };
+      })()`,
+    },
+    ctx,
+    AbortSignal.timeout(30_000),
+  )
+  const point = structuredOf<{
+    value: { x: number; y: number; matched: boolean; hitId: string | null }
+  } | null>(pointResult)?.value
+  assert.ok(point, `Expected a point for #${elementDomId}`)
+  assert.ok(
+    point.matched,
+    `Expected coordinates inside #${elementDomId}, got ${point.hitId ?? 'null'}`,
+  )
+  return { x: point.x, y: point.y }
 }
 
 const FORM_PAGE = `data:text/html,${encodeURIComponent(`<!DOCTYPE html>
@@ -88,6 +157,11 @@ const FORM_PAGE = `data:text/html,${encodeURIComponent(`<!DOCTYPE html>
     });
   </script>
 </body></html>`)}`
+
+afterAll(async () => {
+  await disposeSemanticPipeline()
+  await cleanupWithBrowser()
+})
 
 describe('input tools', () => {
   it('fill types text into an input', async () => {
@@ -410,7 +484,7 @@ describe('input tools', () => {
         {
           id: 'submit-rule',
           sitePattern: '*',
-          description: 'submit',
+          textMatch: 'Submit',
           enabled: true,
         },
       ]
@@ -437,7 +511,7 @@ describe('input tools', () => {
           {
             id: 'submit-rule',
             sitePattern: '*',
-            description: 'submit',
+            textMatch: 'Submit',
             enabled: true,
           },
           {
@@ -457,24 +531,7 @@ describe('input tools', () => {
       )
       const pageId = pageIdOf(newResult)
 
-      const buttonCenter = await executeTool(
-        evaluate_script,
-        {
-          page: pageId,
-          expression: `(() => {
-            const rect = document.getElementById('submit-btn').getBoundingClientRect();
-            return {
-              x: Math.round(rect.left + rect.width / 2),
-              y: Math.round(rect.top + rect.height / 2),
-            };
-          })()`,
-        },
-        ctx,
-        AbortSignal.timeout(30_000),
-      )
-      const buttonPoint = structuredOf<{ value: { x: number; y: number } }>(
-        buttonCenter,
-      ).value
+      const buttonPoint = await pointInsideElement(ctx, pageId, 'submit-btn')
 
       const blockedClick = await executeTool(
         click_at,
@@ -492,24 +549,7 @@ describe('input tools', () => {
         },
       ]
 
-      const inputCenter = await executeTool(
-        evaluate_script,
-        {
-          page: pageId,
-          expression: `(() => {
-            const rect = document.getElementById('name').getBoundingClientRect();
-            return {
-              x: Math.round(rect.left + rect.width / 2),
-              y: Math.round(rect.top + rect.height / 2),
-            };
-          })()`,
-        },
-        ctx,
-        AbortSignal.timeout(30_000),
-      )
-      const inputPoint = structuredOf<{ value: { x: number; y: number } }>(
-        inputCenter,
-      ).value
+      const inputPoint = await pointInsideElement(ctx, pageId, 'name')
 
       const blockedType = await executeTool(
         type_at,

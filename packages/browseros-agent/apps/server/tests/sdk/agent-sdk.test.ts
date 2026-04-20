@@ -257,24 +257,5 @@ describe('Agent SDK Integration', () => {
 
       assert.ok(result.data, 'Should return extracted data')
     }, 60000)
-
-    it('passes windowId through verify()', async () => {
-      const testWindowId = runtimeWindowId
-      const agent = createAgent({ windowId: testWindowId })
-
-      const plainAgent = createAgent()
-      await plainAgent.nav('data:text/html,<h1>Verify Test</h1>')
-
-      const result = await agent.verify('the page has some content')
-
-      console.log('\n=== verify() with windowId ===')
-      console.log('windowId:', testWindowId)
-      console.log('result:', JSON.stringify(result, null, 2))
-
-      assert.ok(
-        typeof result.success === 'boolean',
-        'Should return success boolean',
-      )
-    }, 60000)
   })
 })

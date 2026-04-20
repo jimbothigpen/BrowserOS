@@ -1,3 +1,4 @@
+import { env } from '../env'
 import { BrowserOSAdapter } from './adapter'
 
 const SERVER_VERSION_PREF = 'browseros.server.version'
@@ -7,16 +8,20 @@ type FeatureConfig = {
   maxBrowserOSVersion?: string
   minServerVersion?: string
   maxServerVersion?: string
+  requiresAlphaFlag?: boolean
 }
 
 /**
- * Features gated by BrowserOS version.
+ * Features gated by BrowserOS version or explicit environment flags.
  * Add new features here with corresponding config in FEATURE_CONFIG.
  *
- * Note: In development mode, all features are enabled regardless of version.
+ * Note: In development mode, all features are enabled regardless of version
+ * or alpha flag.
  * @public
  */
 export enum Feature {
+  // Unfinished UI surfaces behind an explicit alpha opt-in
+  ALPHA_FEATURES_SUPPORT = 'ALPHA_FEATURES_SUPPORT',
   // support for OpenAI-compatible provider
   OPENAI_COMPATIBLE_SUPPORT = 'OPENAI_COMPATIBLE_SUPPORT',
   // Managed MCP servers integration
@@ -61,9 +66,11 @@ export enum Feature {
  * - maxServerVersion: feature enabled when server < this version (for deprecation)
  *
  * TypeScript enforces that every Feature has a config entry.
- * Note: In development mode, all features are enabled regardless of version.
+ * In development mode, all features are enabled regardless of version or
+ * alpha flag.
  */
 const FEATURE_CONFIG: { [K in Feature]: FeatureConfig } = {
+  [Feature.ALPHA_FEATURES_SUPPORT]: { requiresAlphaFlag: true },
   [Feature.OPENAI_COMPATIBLE_SUPPORT]: { minBrowserOSVersion: '0.33.0.1' },
   [Feature.MANAGED_MCP_SUPPORT]: { minBrowserOSVersion: '0.34.0.0' },
   [Feature.PERSONALIZATION_SUPPORT]: { minBrowserOSVersion: '0.36.1.0' },
@@ -121,12 +128,40 @@ function checkVersionConstraints(
   return true
 }
 
+export function resolveStaticFeatureSupport({
+  isDevelopment,
+  alphaFeaturesEnabled,
+  requiresAlphaFlag = false,
+}: {
+  isDevelopment: boolean
+  alphaFeaturesEnabled: boolean
+  requiresAlphaFlag?: boolean
+}): boolean | null {
+  if (isDevelopment) {
+    return true
+  }
+  if (requiresAlphaFlag) {
+    return alphaFeaturesEnabled
+  }
+  return null
+}
+
 type CapabilitiesState = {
   browserOSVersion: number[] | null
   serverVersion: number[] | null
 }
 
 let initPromise: Promise<CapabilitiesState> | null = null
+
+function getStaticFeatureSupport(feature: Feature): boolean | null {
+  const config = FEATURE_CONFIG[feature]
+  if (!config) return false
+  return resolveStaticFeatureSupport({
+    isDevelopment: import.meta.env.DEV,
+    alphaFeaturesEnabled: env.VITE_ALPHA_FEATURES,
+    requiresAlphaFlag: config.requiresAlphaFlag,
+  })
+}
 
 async function doInitialize(): Promise<CapabilitiesState> {
   const adapter = BrowserOSAdapter.getInstance()
@@ -205,12 +240,17 @@ function checkFeatureSupport(
  * @public
  */
 export const Capabilities = {
+  getStaticSupport(feature: Feature): boolean | null {
+    return getStaticFeatureSupport(feature)
+  },
+
   /**
    * Check if a feature is supported.
    * In development mode, all features are enabled.
    */
   async supports(feature: Feature): Promise<boolean> {
-    if (import.meta.env.DEV) return true
+    const staticSupport = getStaticFeatureSupport(feature)
+    if (staticSupport !== null) return staticSupport
     const state = await ensureInitialized()
     return checkFeatureSupport(state, feature)
   },

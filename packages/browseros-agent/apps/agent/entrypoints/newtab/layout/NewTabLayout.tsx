@@ -4,10 +4,19 @@ import { ChatSessionProvider } from '@/entrypoints/sidepanel/layout/ChatSessionC
 import { NewTabFocusGrid } from './NewTabFocusGrid'
 import { shouldHideFocusGrid, shouldUseChatSession } from './route-utils'
 
-export const NewTabLayout: FC = () => {
+interface NewTabLayoutProps {
+  useChatSessionOnHome?: boolean
+}
+
+export const NewTabLayout: FC<NewTabLayoutProps> = ({
+  useChatSessionOnHome = false,
+}) => {
   const location = useLocation()
   const hideGrid = shouldHideFocusGrid(location.pathname)
-  const useChatSession = shouldUseChatSession(location.pathname)
+  const useChatSession = shouldUseChatSession(
+    location.pathname,
+    useChatSessionOnHome,
+  )
   const content = (
     <>
       {!hideGrid && <NewTabFocusGrid />}

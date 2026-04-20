@@ -11,6 +11,10 @@ import { INLINED_ENV } from '../../../env'
 import { logger } from '../../logger'
 import { fetchBrowserOSConfig, getLLMConfigFromProvider } from '../gateway'
 import { getOAuthTokenManager } from '../oauth'
+import {
+  resolveMockBrowserOSConfig,
+  shouldUseMockBrowserOSLLM,
+} from './mock-language-model'
 import type { ResolvedLLMConfig } from './types'
 
 export async function resolveLLMConfig(
@@ -49,6 +53,9 @@ export async function resolveLLMConfig(
 
   // BrowserOS gateway: fetch config from remote service
   if (config.provider === LLM_PROVIDERS.BROWSEROS) {
+    if (shouldUseMockBrowserOSLLM(config)) {
+      return resolveMockBrowserOSConfig(config, browserosId)
+    }
     return resolveBrowserOSConfig(config, browserosId)
   }
 

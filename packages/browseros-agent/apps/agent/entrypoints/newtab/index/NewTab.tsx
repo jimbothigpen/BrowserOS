@@ -102,6 +102,7 @@ export const NewTab = () => {
   })
   const { selectedFolder } = useWorkspace()
   const { supports } = useCapabilities()
+  const alphaEnabled = supports(Feature.ALPHA_FEATURES_SUPPORT)
   const { providers, selectedProvider, handleSelectProvider } =
     useChatSessionContext()
   const { servers: mcpServers } = useMcpServers()
@@ -168,6 +169,8 @@ export const NewTab = () => {
     selectedTabs,
   })
   const searchPlaceholder = `Ask BrowserOS or search ${providerConfig.name}...`
+  const supportsInlineChat =
+    alphaEnabled && supports(Feature.NEWTAB_CHAT_SUPPORT)
 
   const {
     isOpen,
@@ -357,7 +360,7 @@ export const NewTab = () => {
           tabs_count: selectedTabs.length,
         })
         const searchQuery = `${item.name}${item.description ? ` - ${item.description}` : ''}}`
-        if (supports(Feature.NEWTAB_CHAT_SUPPORT)) {
+        if (supportsInlineChat) {
           startInlineChat(searchQuery, 'agent', {
             name: item.name,
             description: item.description,
@@ -383,7 +386,7 @@ export const NewTab = () => {
           mode: item.mode,
           tabs_count: selectedTabs.length,
         })
-        if (supports(Feature.NEWTAB_CHAT_SUPPORT)) {
+        if (supportsInlineChat) {
           startInlineChat(item.message, item.mode)
         } else {
           const action = createBrowserOSAction({

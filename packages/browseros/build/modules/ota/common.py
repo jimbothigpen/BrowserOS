@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Common utilities for OTA update modules"""
 
-import os
 import re
-import shutil
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -13,8 +11,9 @@ from dataclasses import dataclass
 
 from ...common.utils import log_error, log_info, log_success
 
-# Re-export sparkle_sign_file from common module
-from ...common.sparkle import sparkle_sign_file
+# Re-exported so callers (and ota/__init__.py) can get sparkle_sign_file
+# from ota.common alongside the other OTA helpers.
+from ...common.sparkle import sparkle_sign_file as sparkle_sign_file
 
 # Sparkle XML namespace
 SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
@@ -76,33 +75,15 @@ class ExistingAppcast:
     artifacts: Dict[str, SignedArtifact]
 
 
-def find_server_binary(binaries_dir: Path, platform: dict) -> Optional[Path]:
-    """Find server binary in either flat or artifact-extracted directory structure.
+def find_server_resources_dir(binaries_dir: Path, platform: dict) -> Optional[Path]:
+    """Return the extracted ``resources/`` dir for a platform, or ``None``.
 
-    Supports two layouts:
-      Flat:     {binaries_dir}/{binary_name}        (e.g., browseros-server-darwin-arm64)
-      Artifact: {binaries_dir}/{target}/resources/bin/browseros_server[.exe]
-
-    Args:
-        binaries_dir: Root directory containing server binaries
-        platform: Platform dict from SERVER_PLATFORMS
-
-    Returns:
-        Path to binary if found, None otherwise
+    ``binaries_dir`` is the temp root created by ``_download_artifacts``; each
+    platform lives at ``<binaries_dir>/<target>/resources/``.
     """
-    # Flat structure (used with --binaries pointing to mono build output)
-    flat_path = binaries_dir / platform["binary"]
-    if flat_path.exists():
-        return flat_path
-
-    # Artifact-extracted structure (used after download_resources)
     target = platform.get("target", platform["name"].replace("_", "-"))
-    bin_name = "browseros_server.exe" if platform["os"] == "windows" else "browseros_server"
-    artifact_path = binaries_dir / target / "resources" / "bin" / bin_name
-    if artifact_path.exists():
-        return artifact_path
-
-    return None
+    resources = binaries_dir / target / "resources"
+    return resources if resources.is_dir() else None
 
 
 def parse_existing_appcast(appcast_path: Path) -> Optional[ExistingAppcast]:
@@ -254,46 +235,31 @@ def generate_server_appcast(
     )
 
 
-def create_server_zip(
-    binary_path: Path,
-    output_zip: Path,
-    is_windows: bool = False,
-) -> bool:
-    """Create zip with proper structure: resources/bin/browseros_server
+def create_server_bundle_zip(resources_dir: Path, output_zip: Path) -> bool:
+    """Zip an extracted ``resources/`` tree into a Sparkle payload.
 
-    Args:
-        binary_path: Path to the binary to package
-        output_zip: Path for output zip file
-        is_windows: Whether this is Windows binary (affects target name)
-
-    Returns:
-        True on success, False on failure
+    Produces entries like ``resources/bin/browseros_server``,
+    ``resources/bin/third_party/podman/podman`` — mirroring what the agent
+    build staged and what the Chromium build bakes into the installed app.
+    File modes are preserved by ``ZipFile.write`` so executable bits survive.
     """
-    staging_dir = output_zip.parent / f"staging_{output_zip.stem}"
+    if not resources_dir.is_dir():
+        log_error(f"Resources dir not found: {resources_dir}")
+        return False
+
+    bundle_root = resources_dir.parent
     try:
-        staging_dir.mkdir(parents=True, exist_ok=True)
-        bin_dir = staging_dir / "resources" / "bin"
-        bin_dir.mkdir(parents=True, exist_ok=True)
-
-        target_name = "browseros_server.exe" if is_windows else "browseros_server"
-        shutil.copy2(binary_path, bin_dir / target_name)
-
-        with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for root, _, files in os.walk(staging_dir):
-                for file in files:
-                    file_path = Path(root) / file
-                    arcname = file_path.relative_to(staging_dir)
-                    zf.write(file_path, arcname)
-
+        with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            for path in sorted(resources_dir.rglob("*")):
+                if not path.is_file():
+                    continue
+                arcname = path.relative_to(bundle_root).as_posix()
+                zf.write(path, arcname)
         log_success(f"Created {output_zip.name}")
         return True
-
     except Exception as e:
-        log_error(f"Failed to create zip: {e}")
+        log_error(f"Failed to create bundle zip: {e}")
         return False
-    finally:
-        if staging_dir.exists():
-            shutil.rmtree(staging_dir)
 
 
 def get_appcast_path(channel: str = "alpha") -> Path:

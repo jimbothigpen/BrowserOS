@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/browseros/server/process_controller_impl.cc b/chrome/browser/browseros/server/process_controller_impl.cc
 new file mode 100644
-index 0000000000000..a398856f672fd
+index 0000000000000..d1bb340ae3d86
 --- /dev/null
 +++ b/chrome/browser/browseros/server/process_controller_impl.cc
-@@ -0,0 +1,210 @@
+@@ -0,0 +1,211 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -47,6 +47,7 @@ index 0000000000000..a398856f672fd
 +  ports_dict.Set("cdp", config.ports.cdp);
 +  ports_dict.Set("server", config.ports.server);
 +  ports_dict.Set("extension", config.ports.extension);
++  ports_dict.Set("proxy", config.ports.proxy);
 +  root.Set("ports", std::move(ports_dict));
 +
 +  // directories

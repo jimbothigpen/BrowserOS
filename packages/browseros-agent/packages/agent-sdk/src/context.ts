@@ -15,4 +15,11 @@ export interface AgentContext {
 
   emit(event: UIMessageStreamEvent): void
   throwIfAborted(): void
+  updateNavigationContext(
+    result: {
+      tabId: number
+      windowId?: number
+    },
+    url: string,
+  ): void
 }

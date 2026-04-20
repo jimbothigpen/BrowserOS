@@ -1,5 +1,8 @@
 import type { FC } from 'react'
 import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router'
+import { Feature } from '@/lib/browseros/capabilities'
+import { useCapabilities } from '@/lib/browseros/useCapabilities'
+import { NewTab } from '../newtab/index/NewTab'
 import { NewTabChat } from '../newtab/index/NewTabChat'
 import { NewTabLayout } from '../newtab/layout/NewTabLayout'
 import { Personalize } from '../newtab/personalize/Personalize'
@@ -65,6 +68,8 @@ const OptionsRedirect: FC = () => {
 
 export const App: FC = () => {
   const surveyParams = getSurveyParams()
+  const { supports } = useCapabilities()
+  const alphaEnabled = supports(Feature.ALPHA_FEATURES_SUPPORT)
 
   return (
     <HashRouter>
@@ -80,16 +85,25 @@ export const App: FC = () => {
         {/* Main app with sidebar */}
         <Route element={<SidebarLayout />}>
           {/* Home routes */}
-          <Route path="home" element={<NewTabLayout />}>
-            <Route element={<AgentCommandLayout />}>
-              <Route index element={<AgentCommandHome />} />
-              <Route
-                path="agents/:agentId"
-                element={<AgentCommandConversation />}
-              />
-            </Route>
-            <Route path="chat" element={<NewTabChat />} />
-            <Route path="personalize" element={<Personalize />} />
+          <Route
+            path="home"
+            element={<NewTabLayout useChatSessionOnHome={!alphaEnabled} />}
+          >
+            {alphaEnabled ? (
+              <>
+                <Route element={<AgentCommandLayout />}>
+                  <Route index element={<AgentCommandHome />} />
+                  <Route
+                    path="agents/:agentId"
+                    element={<AgentCommandConversation />}
+                  />
+                </Route>
+                <Route path="chat" element={<NewTabChat />} />
+                <Route path="personalize" element={<Personalize />} />
+              </>
+            ) : (
+              <Route index element={<NewTab />} />
+            )}
             <Route path="soul" element={<SoulPage />} />
             <Route path="skills" element={<SkillsPage />} />
             <Route path="memory" element={<MemoryPage />} />
@@ -98,8 +112,12 @@ export const App: FC = () => {
           {/* Primary nav routes */}
           <Route path="connect-apps" element={<ConnectMCP />} />
           <Route path="scheduled" element={<ScheduledTasksPage />} />
-          <Route path="agents" element={<AgentsPage />} />
-          <Route path="admin" element={<AdminDashboardPage />} />
+          {alphaEnabled ? (
+            <Route path="agents" element={<AgentsPage />} />
+          ) : null}
+          {alphaEnabled ? (
+            <Route path="admin" element={<AdminDashboardPage />} />
+          ) : null}
         </Route>
 
         {/* Settings with dedicated sidebar */}
@@ -113,8 +131,12 @@ export const App: FC = () => {
             <Route path="search" element={<SearchProviderPage />} />
             <Route path="survey" element={<SurveyPage {...surveyParams} />} />
             <Route path="usage" element={<UsagePage />} />
-            <Route path="acl" element={<AclSettingsPage />} />
-            <Route path="approvals" element={<ToolApprovalsPage />} />
+            {alphaEnabled ? (
+              <>
+                <Route path="acl" element={<AclSettingsPage />} />
+                <Route path="approvals" element={<ToolApprovalsPage />} />
+              </>
+            ) : null}
           </Route>
         </Route>
 
@@ -130,7 +152,12 @@ export const App: FC = () => {
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route
           path="/personalize"
-          element={<Navigate to="/home/personalize" replace />}
+          element={
+            <Navigate
+              to={alphaEnabled ? '/home/personalize' : '/home'}
+              replace
+            />
+          }
         />
         <Route
           path="/settings/connect-mcp"
@@ -144,12 +171,18 @@ export const App: FC = () => {
           path="/settings/skills"
           element={<Navigate to="/home/skills" replace />}
         />
-        <Route path="/audit" element={<Navigate to="/admin" replace />} />
+        <Route
+          path="/audit"
+          element={<Navigate to={alphaEnabled ? '/admin' : '/home'} replace />}
+        />
         <Route
           path="/observability"
-          element={<Navigate to="/admin" replace />}
+          element={<Navigate to={alphaEnabled ? '/admin' : '/home'} replace />}
         />
-        <Route path="/executions" element={<Navigate to="/admin" replace />} />
+        <Route
+          path="/executions"
+          element={<Navigate to={alphaEnabled ? '/admin' : '/home'} replace />}
+        />
         <Route path="/options/*" element={<OptionsRedirect />} />
 
         {/* Fallback to home */}

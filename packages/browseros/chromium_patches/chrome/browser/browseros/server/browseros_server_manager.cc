@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/browseros/server/browseros_server_manager.cc b/chrome/browser/browseros/server/browseros_server_manager.cc
 new file mode 100644
-index 0000000000000..9cd8a510e86ec
+index 0000000000000..069d1b79d6ae2
 --- /dev/null
 +++ b/chrome/browser/browseros/server/browseros_server_manager.cc
-@@ -0,0 +1,1076 @@
+@@ -0,0 +1,1120 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -318,6 +318,10 @@ index 0000000000000..9cd8a510e86ec
 +      base::BindRepeating(
 +          &BrowserOSServerManager::OnRestartServerRequestedChanged,
 +          base::Unretained(this)));
++  pref_change_registrar_->Add(
++      browseros_server::kProxyPort,
++      base::BindRepeating(&BrowserOSServerManager::OnProxyPortChanged,
++                          base::Unretained(this)));
 +}
 +
 +void BrowserOSServerManager::ResolvePortsForStartup() {
@@ -989,6 +993,46 @@ index 0000000000000..9cd8a510e86ec
 +
 +    RestartBrowserOSProcess();
 +  }
++}
++
++void BrowserOSServerManager::OnProxyPortChanged() {
++  if (!is_running_ || !local_state_) {
++    return;
++  }
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          browseros::kProxyPort)) {
++    LOG(INFO) << "browseros: Ignoring proxy_port pref change "
++              << "(CLI --browseros-proxy-port overrides)";
++    return;
++  }
++
++  int new_port = local_state_->GetInteger(browseros_server::kProxyPort);
++  if (new_port <= 0) {
++    new_port = browseros_server::kDefaultProxyPort;
++  }
++  if (new_port == ports_.proxy) {
++    return;
++  }
++  if (!net::IsPortValid(new_port)) {
++    LOG(WARNING) << "browseros: Invalid proxy port " << new_port
++                 << " (must be 1-65535), ignoring pref change";
++    return;
++  }
++  if (new_port == ports_.cdp || new_port == ports_.server ||
++      new_port == ports_.extension) {
++    LOG(WARNING) << "browseros: Proxy port " << new_port
++                 << " collides with another bound port, ignoring pref change";
++    return;
++  }
++
++  LOG(INFO) << "browseros: proxy_port preference changed from " << ports_.proxy
++            << " to " << new_port
++            << ", rebinding proxy and restarting server";
++  ports_.proxy = new_port;
++  SavePortsToPrefs();
++  StopProxy();
++  StartProxy();
++  RestartBrowserOSProcess();
 +}
 +
 +void BrowserOSServerManager::OnRestartServerRequestedChanged() {

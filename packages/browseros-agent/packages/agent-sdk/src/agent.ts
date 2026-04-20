@@ -45,9 +45,9 @@ export class Agent implements AsyncDisposable, AgentContext {
   readonly baseUrl: string
   readonly llmConfig?: LLMConfig
   readonly signal?: AbortSignal
-  readonly browserContext?: BrowserContext
   readonly stateful: boolean
 
+  private _browserContext?: BrowserContext
   private progressCallback?: (event: UIMessageStreamEvent) => void
   private _sessionId: string | null = null
   private _disposed = false
@@ -57,12 +57,16 @@ export class Agent implements AsyncDisposable, AgentContext {
     this.llmConfig = options.llm
     this.progressCallback = options.onProgress
     this.signal = options.signal
-    this.browserContext = options.browserContext
+    this._browserContext = options.browserContext
     this.stateful = options.stateful ?? true
 
     if (this.stateful) {
       this._sessionId = crypto.randomUUID()
     }
+  }
+
+  get browserContext(): BrowserContext | undefined {
+    return this._browserContext
   }
 
   get sessionId(): string | null {
@@ -100,6 +104,21 @@ export class Agent implements AsyncDisposable, AgentContext {
 
   emit(event: UIMessageStreamEvent): void {
     this.progressCallback?.(event)
+  }
+
+  updateNavigationContext(
+    result: { tabId: number; windowId?: number },
+    url: string,
+  ): void {
+    const nextWindowId = result.windowId ?? this._browserContext?.windowId
+    this._browserContext = {
+      ...this._browserContext,
+      ...(nextWindowId !== undefined ? { windowId: nextWindowId } : {}),
+      activeTab: {
+        id: result.tabId,
+        url,
+      },
+    }
   }
 
   /**

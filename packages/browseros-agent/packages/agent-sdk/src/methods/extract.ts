@@ -27,6 +27,7 @@ export async function extract<T>(
       schema: jsonSchema,
       context: options.context,
       windowId: ctx.browserContext?.windowId,
+      tabId: ctx.browserContext?.activeTab?.id,
     },
     ExtractionError,
   )

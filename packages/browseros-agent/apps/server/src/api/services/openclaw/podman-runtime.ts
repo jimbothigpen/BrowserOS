@@ -8,9 +8,32 @@
  * On Linux, machine operations are no-ops since Podman runs natively.
  */
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
 const isLinux = process.platform === 'linux'
+const PODMAN_BUNDLE_PATH = ['bin', 'third_party', 'podman'] as const
 
 export type LogFn = (msg: string) => void
+
+function getPodmanBinaryName(platform: NodeJS.Platform): string {
+  return platform === 'win32' ? 'podman.exe' : 'podman'
+}
+
+export function resolveBundledPodmanPath(
+  resourcesDir?: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  if (!resourcesDir) return null
+
+  const bundledPath = join(
+    resourcesDir,
+    ...PODMAN_BUNDLE_PATH,
+    getPodmanBinaryName(platform),
+  )
+
+  return existsSync(bundledPath) ? bundledPath : null
+}
 
 export class PodmanRuntime {
   private podmanPath: string
@@ -76,9 +99,9 @@ export class PodmanRuntime {
         'machine',
         'init',
         '--cpus',
-        '2',
+        '8',
         '--memory',
-        '2048',
+        '8096',
         '--disk-size',
         '10',
       ],
@@ -163,6 +186,32 @@ export class PodmanRuntime {
   }
 
   /**
+   * Follow container logs. Returns a stop function that terminates the
+   * underlying `podman logs -f` process. Each output line is passed to
+   * onLine as-is.
+   */
+  tailContainerLogs(containerName: string, onLine: LogFn): () => void {
+    const proc = Bun.spawn(
+      [this.podmanPath, 'logs', '-f', '--tail', '0', containerName],
+      { stdout: 'pipe', stderr: 'pipe' },
+    )
+
+    void this.drainStream(proc.stdout ?? null, onLine)
+    void this.drainStream(proc.stderr ?? null, onLine)
+
+    let stopped = false
+    return () => {
+      if (stopped) return
+      stopped = true
+      try {
+        proc.kill()
+      } catch {
+        // process may already be gone
+      }
+    }
+  }
+
+  /**
    * Lists running container names. Used to check whether non-BrowserOS
    * containers are running before stopping the Podman machine.
    */
@@ -216,6 +265,19 @@ export class PodmanRuntime {
 }
 
 let runtime: PodmanRuntime | null = null
+
+export function configurePodmanRuntime(config: {
+  resourcesDir?: string
+  podmanPath?: string
+}): PodmanRuntime {
+  const podmanPath =
+    config.podmanPath ??
+    resolveBundledPodmanPath(config.resourcesDir) ??
+    'podman'
+
+  runtime = new PodmanRuntime({ podmanPath })
+  return runtime
+}
 
 export function getPodmanRuntime(): PodmanRuntime {
   if (!runtime) runtime = new PodmanRuntime()

@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Platform-specific binary signing for OTA binaries"""
 
+import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from ...common.env import EnvConfig
+from ...common.server_binaries import (
+    expected_windows_binary_paths,
+    macos_sign_spec_for,
+)
 from ...common.utils import (
     log_info,
     log_error,
@@ -21,16 +27,17 @@ def sign_macos_binary(
     binary_path: Path,
     env: Optional[EnvConfig] = None,
     entitlements_path: Optional[Path] = None,
+    *,
+    identifier: Optional[str] = None,
+    options: str = "runtime",
 ) -> bool:
-    """Sign a macOS binary with codesign
+    """Sign a macOS binary with codesign.
 
-    Args:
-        binary_path: Path to binary to sign
-        env: Environment config with certificate name
-        entitlements_path: Optional path to entitlements plist
-
-    Returns:
-        True on success, False on failure
+    ``identifier`` defaults to ``com.browseros.<stem>`` to preserve the
+    previous single-binary signature shape. Callers that have a shared sign
+    table (see ``common/server_binaries.py``) should pass identifier and
+    options derived from that table so OTA-signed and Chromium-build-signed
+    binaries share the same code identifier.
     """
     if not IS_MACOS():
         log_error("macOS signing requires macOS")
@@ -46,13 +53,14 @@ def sign_macos_binary(
 
     log_info(f"Signing {binary_path.name}...")
 
+    resolved_identifier = identifier or f"com.browseros.{binary_path.stem}"
     cmd = [
         "codesign",
         "--sign", certificate_name,
         "--force",
         "--timestamp",
-        "--identifier", f"com.browseros.{binary_path.stem}",
-        "--options", "runtime",
+        "--identifier", resolved_identifier,
+        "--options", options,
     ]
 
     if entitlements_path and entitlements_path.exists():
@@ -91,48 +99,91 @@ def verify_macos_signature(binary_path: Path) -> bool:
         return False
 
 
+def _resolve_notarization_credentials(
+    env: Optional[EnvConfig],
+) -> Optional[EnvConfig]:
+    if env is None:
+        env = EnvConfig()
+
+    missing: List[str] = []
+    if not env.macos_notarization_apple_id:
+        missing.append("PROD_MACOS_NOTARIZATION_APPLE_ID")
+    if not env.macos_notarization_team_id:
+        missing.append("PROD_MACOS_NOTARIZATION_TEAM_ID")
+    if not env.macos_notarization_password:
+        missing.append("PROD_MACOS_NOTARIZATION_PWD")
+    if missing:
+        log_error("Missing notarization credentials:")
+        for name in missing:
+            log_error(f"  {name} not set")
+        return None
+    return env
+
+
+def _submit_notarization(submission_path: Path, env: EnvConfig) -> bool:
+    assert env.macos_notarization_apple_id is not None
+    assert env.macos_notarization_team_id is not None
+    assert env.macos_notarization_password is not None
+
+    subprocess.run(
+        [
+            "xcrun", "notarytool", "store-credentials", "notarytool-profile",
+            "--apple-id", env.macos_notarization_apple_id,
+            "--team-id", env.macos_notarization_team_id,
+            "--password", env.macos_notarization_password,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    log_info("Submitting for notarization (this may take a while)...")
+    result = subprocess.run(
+        [
+            "xcrun", "notarytool", "submit", str(submission_path),
+            "--keychain-profile", "notarytool-profile",
+            "--wait",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        log_error(f"Notarization failed: {result.stderr}")
+        log_error(result.stdout)
+        return False
+
+    if "status: Accepted" not in result.stdout:
+        log_error("Notarization was not accepted")
+        log_error(result.stdout)
+        return False
+    return True
+
+
 def notarize_macos_binary(
     binary_path: Path,
     env: Optional[EnvConfig] = None,
 ) -> bool:
-    """Notarize a macOS binary with Apple
+    """Notarize a single macOS binary with Apple.
 
-    The binary must be zipped for notarization submission.
-
-    Args:
-        binary_path: Path to binary to notarize (will be zipped internally)
-        env: Environment config with notarization credentials
-
-    Returns:
-        True on success, False on failure
+    The binary is first wrapped in a zip via ``ditto --keepParent`` because
+    ``notarytool`` does not accept bare executables. For an already-zipped
+    Sparkle bundle, call :func:`notarize_macos_zip` instead — double-wrapping
+    nests zips and notarytool does not descend into nested archives.
     """
     if not IS_MACOS():
         log_error("macOS notarization requires macOS")
         return False
 
+    env = _resolve_notarization_credentials(env)
     if env is None:
-        env = EnvConfig()
-
-    apple_id = env.macos_notarization_apple_id
-    team_id = env.macos_notarization_team_id
-    password = env.macos_notarization_password
-
-    if not all([apple_id, team_id, password]):
-        log_error("Missing notarization credentials:")
-        if not apple_id:
-            log_error("  PROD_MACOS_NOTARIZATION_APPLE_ID not set")
-        if not team_id:
-            log_error("  PROD_MACOS_NOTARIZATION_TEAM_ID not set")
-        if not password:
-            log_error("  PROD_MACOS_NOTARIZATION_PWD not set")
         return False
 
     log_info(f"Notarizing {binary_path.name}...")
-
-    notarize_zip = None
+    notarize_zip: Optional[Path] = None
     try:
         fd, tmp_path = tempfile.mkstemp(suffix=".zip")
-        import os
         os.close(fd)
         notarize_zip = Path(tmp_path)
 
@@ -146,41 +197,7 @@ def notarize_macos_binary(
             log_error(f"Failed to create zip: {result.stderr}")
             return False
 
-        assert apple_id is not None
-        assert team_id is not None
-        assert password is not None
-        subprocess.run(
-            [
-                "xcrun", "notarytool", "store-credentials", "notarytool-profile",
-                "--apple-id", apple_id,
-                "--team-id", team_id,
-                "--password", password,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        log_info("Submitting for notarization (this may take a while)...")
-        result = subprocess.run(
-            [
-                "xcrun", "notarytool", "submit", str(notarize_zip),
-                "--keychain-profile", "notarytool-profile",
-                "--wait",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            log_error(f"Notarization failed: {result.stderr}")
-            log_error(result.stdout)
-            return False
-
-        if "status: Accepted" not in result.stdout:
-            log_error("Notarization was not accepted")
-            log_error(result.stdout)
+        if not _submit_notarization(notarize_zip, env):
             return False
 
         log_success(f"Notarized {binary_path.name}")
@@ -192,6 +209,33 @@ def notarize_macos_binary(
     finally:
         if notarize_zip and notarize_zip.exists():
             notarize_zip.unlink()
+
+
+def notarize_macos_zip(zip_path: Path, env: Optional[EnvConfig] = None) -> bool:
+    """Notarize a pre-built Sparkle bundle zip by submitting it directly.
+
+    ``notarytool`` accepts ``.zip`` submissions and recursively scans the
+    Mach-O binaries inside. No extra wrapping — passing this zip through
+    ``ditto --keepParent`` would nest zips and Apple's service would not
+    descend into the inner archive.
+    """
+    if not IS_MACOS():
+        log_error("macOS notarization requires macOS")
+        return False
+
+    env = _resolve_notarization_credentials(env)
+    if env is None:
+        return False
+
+    log_info(f"Notarizing {zip_path.name}...")
+    try:
+        if not _submit_notarization(zip_path, env):
+            return False
+        log_success(f"Notarized {zip_path.name}")
+        return True
+    except Exception as e:
+        log_error(f"Notarization failed: {e}")
+        return False
 
 
 def sign_windows_binary(
@@ -264,7 +308,6 @@ def sign_windows_binary(
 
         signed_file = temp_output_dir / binary_path.name
         if signed_file.exists():
-            import shutil
             shutil.move(str(signed_file), str(binary_path))
 
         try:
@@ -294,15 +337,81 @@ def sign_windows_binary(
         return False
 
 
-def get_entitlements_path(root_dir: Path) -> Optional[Path]:
-    """Get path to server binary entitlements file"""
-    candidates = [
-        root_dir / "resources" / "entitlements" / "browseros-executable-entitlements.plist",
-        root_dir / "packages" / "browseros" / "resources" / "entitlements" / "browseros-executable-entitlements.plist",
+def sign_server_bundle_macos(
+    resources_dir: Path,
+    env: EnvConfig,
+    entitlements_root: Path,
+) -> bool:
+    """Codesign every known binary under ``resources_dir/bin/**``.
+
+    Unknown executables are a hard error: every regular file under
+    ``resources/bin/`` must have an entry in ``MACOS_SERVER_BINARIES``.
+    This prevents silently shipping an unsigned binary when a new
+    third-party dep is added to the agent build without being registered
+    in the shared sign table. The unknown-file check runs before any
+    codesign call so a bad release fails in seconds rather than after
+    several minutes of signing.
+    """
+    bin_dir = resources_dir / "bin"
+    if not bin_dir.is_dir():
+        log_error(f"bin dir not found: {bin_dir}")
+        return False
+
+    # Only Mach-O-style executables need signing; any future data/config file
+    # shipped under resources/bin/ (plists, shell completion, etc.) is not a
+    # codesign target and must not trigger the unknown-binary guard.
+    executables = [
+        p
+        for p in sorted(bin_dir.rglob("*"))
+        if p.is_file() and not p.is_symlink() and os.access(p, os.X_OK)
     ]
+    unknowns = [p for p in executables if macos_sign_spec_for(p) is None]
+    if unknowns:
+        log_error(
+            "Unknown executables found under resources/bin/ not registered in "
+            "MACOS_SERVER_BINARIES (see build/common/server_binaries.py):"
+        )
+        for path in unknowns:
+            log_error(f"  - {path.relative_to(resources_dir)}")
+        return False
 
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
+    for path in executables:
+        spec = macos_sign_spec_for(path)
+        assert spec is not None  # unknowns filtered above
 
-    return None
+        entitlements_path: Optional[Path] = None
+        if spec.entitlements:
+            entitlements_path = entitlements_root / spec.entitlements
+            if not entitlements_path.exists():
+                log_error(
+                    f"Missing entitlements for {path.name}: {entitlements_path}"
+                )
+                return False
+
+        if not sign_macos_binary(
+            path,
+            env,
+            entitlements_path,
+            identifier=f"com.browseros.{spec.identifier_suffix}",
+            options=spec.options,
+        ):
+            return False
+
+    return True
+
+
+def sign_server_bundle_windows(resources_dir: Path, env: EnvConfig) -> bool:
+    """Sign each Windows binary enumerated in ``WINDOWS_SERVER_BINARIES``.
+
+    A missing expected binary is a hard error: publishing an incomplete
+    Windows bundle would ship a broken OTA update without a pipeline signal.
+    Symmetric with the macOS bundle's unknown-file guard.
+    """
+    bin_dir = resources_dir / "bin"
+    for path in expected_windows_binary_paths(bin_dir):
+        if not path.exists():
+            log_error(f"Windows binary missing (cannot sign): {path}")
+            return False
+        if not sign_windows_binary(path, env):
+            return False
+    return True

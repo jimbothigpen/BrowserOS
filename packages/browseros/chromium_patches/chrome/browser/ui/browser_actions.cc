@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
-index 96ccc8d0a6acc..9c446a5e041a9 100644
+index 19d0181ac8285..5bc3edd1fff8e 100644
 --- a/chrome/browser/ui/browser_actions.cc
 +++ b/chrome/browser/ui/browser_actions.cc
 @@ -14,6 +14,7 @@
@@ -24,7 +24,7 @@ index 96ccc8d0a6acc..9c446a5e041a9 100644
  #include "chrome/browser/ui/autofill/address_bubbles_icon_controller.h"
  #include "chrome/browser/ui/autofill/autofill_bubble_base.h"
  #include "chrome/browser/ui/autofill/payments/filled_card_information_bubble_controller_impl.h"
-@@ -272,6 +280,110 @@ void BrowserActions::InitializeBrowserActions() {
+@@ -273,6 +281,110 @@ void BrowserActions::InitializeBrowserActions() {
              .Build());
    }
  
@@ -79,7 +79,7 @@ index 96ccc8d0a6acc..9c446a5e041a9 100644
 +                const extensions::Extension* extension =
 +                    extensions::ExtensionRegistry::Get(profile)
 +                        ->enabled_extensions()
-+                        .GetByID(browseros::kAgentV2ExtensionId);
++                        .GetByID(browseros::kAgentExtensionId);
 +                if (!extension) {
 +                  LOG(WARNING) << "browseros: Agent extension not found";
 +                  infobars::ContentInfoBarManager* infobar_manager =

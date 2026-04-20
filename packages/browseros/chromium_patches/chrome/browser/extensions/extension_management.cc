@@ -1,16 +1,33 @@
 diff --git a/chrome/browser/extensions/extension_management.cc b/chrome/browser/extensions/extension_management.cc
-index fd38c92b7493b..08d05ceb30782 100644
+index bb0e7b5cba7e0..f3d6a10d2605e 100644
 --- a/chrome/browser/extensions/extension_management.cc
 +++ b/chrome/browser/extensions/extension_management.cc
-@@ -24,6 +24,7 @@
+@@ -25,6 +25,8 @@
  #include "base/values.h"
  #include "base/version.h"
  #include "build/chromeos_buildflags.h"
++#include "chrome/browser/browser_features.h"
 +#include "chrome/browser/browseros/core/browseros_constants.h"
  #include "chrome/browser/enterprise/util/managed_browser_utils.h"
  #include "chrome/browser/extensions/cws_info_service.h"
  #include "chrome/browser/extensions/extension_management_constants.h"
-@@ -664,6 +665,14 @@ ExtensionIdSet ExtensionManagement::GetForcePinnedList() const {
+@@ -277,6 +279,15 @@ bool ExtensionManagement::IsUpdateUrlOverridden(const ExtensionId& id) {
+ }
+ 
+ GURL ExtensionManagement::GetEffectiveUpdateURL(const Extension& extension) {
++  // BrowserOS: route bundled extensions to the alpha update manifest when on
++  // the alpha channel. Must live here (not in the extension's manifest.json
++  // update_url) so a mid-session channel flip takes effect on the next update
++  // check, without uninstalling the extension.
++  if (browseros::IsBrowserOSExtension(extension.id()) &&
++      base::FeatureList::IsEnabled(features::kBrowserOsAlphaFeatures)) {
++    return GURL(browseros::kBrowserOSAlphaUpdateUrl);
++  }
++
+   if (IsUpdateUrlOverridden(extension.id())) {
+     DCHECK(!extension.was_installed_by_default())
+         << "Update URL should not be overridden for default-installed "
+@@ -669,6 +680,14 @@ ExtensionIdSet ExtensionManagement::GetForcePinnedList() const {
        force_pinned_list.insert(entry.first);
      }
    }

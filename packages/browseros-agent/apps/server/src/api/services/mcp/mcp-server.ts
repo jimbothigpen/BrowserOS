@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import type { AclRule } from '@browseros/shared/types/acl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { Browser } from '../../../browser/browser'
+import type { ToolExecutionObserver } from '../../../monitoring/observer'
 import type { ToolRegistry } from '../../../tools/tool-registry'
 import {
-  type KlavisProxyHandle,
+  type KlavisProxyRef,
   registerKlavisTools,
 } from '../klavis/strata-proxy'
 import { MCP_INSTRUCTIONS } from './mcp-prompt'
@@ -21,7 +23,9 @@ export interface McpServiceDeps {
   browser: Browser
   executionDir: string
   resourcesDir: string
-  klavisProxy?: KlavisProxyHandle | null
+  aclRules?: AclRule[]
+  klavisRef?: KlavisProxyRef
+  observer?: ToolExecutionObserver
 }
 
 export function createMcpServer(deps: McpServiceDeps): McpServer {
@@ -45,11 +49,13 @@ export function createMcpServer(deps: McpServiceDeps): McpServer {
       workingDir: deps.executionDir,
       resourcesDir: deps.resourcesDir,
     },
+    aclRules: deps.aclRules,
+    observer: deps.observer,
   })
 
-  // Register Klavis proxy tools (if connected)
-  if (deps.klavisProxy) {
-    registerKlavisTools(server, deps.klavisProxy)
+  // Register Klavis proxy tools (if connected via background init)
+  if (deps.klavisRef?.handle) {
+    registerKlavisTools(server, deps.klavisRef.handle, deps.observer)
   }
 
   return server

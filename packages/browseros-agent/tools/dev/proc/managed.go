@@ -11,11 +11,12 @@ import (
 )
 
 type ProcConfig struct {
-	Tag     Tag
-	Dir     string
-	Env     []string
-	Restart bool
-	Cmd     []string
+	Tag         Tag
+	Dir         string
+	Env         []string
+	Restart     bool
+	Cmd         []string
+	BeforeStart func() error
 }
 
 type ManagedProc struct {
@@ -47,6 +48,17 @@ func (mp *ManagedProc) run(ctx context.Context) {
 	for {
 		if ctx.Err() != nil {
 			return
+		}
+
+		if mp.Cfg.BeforeStart != nil {
+			if err := mp.Cfg.BeforeStart(); err != nil {
+				LogMsg(mp.Cfg.Tag, ErrorColor.Sprintf("Pre-start failed: %v", err))
+				if !mp.Cfg.Restart || ctx.Err() != nil {
+					return
+				}
+				time.Sleep(time.Second)
+				continue
+			}
 		}
 
 		LogMsgf(mp.Cfg.Tag, "Starting: %s", DimColor.Sprint(strings.Join(mp.Cfg.Cmd, " ")))

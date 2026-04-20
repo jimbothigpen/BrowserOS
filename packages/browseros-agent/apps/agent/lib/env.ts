@@ -2,11 +2,15 @@ import { ZodError, z } from 'zod'
 
 const EnvSchema = z.object({
   VITE_BROWSEROS_SERVER_PORT: z.coerce.number().optional(),
+  VITE_ALPHA_FEATURES: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true'),
   VITE_PUBLIC_POSTHOG_KEY: z.string().optional(),
   VITE_PUBLIC_POSTHOG_HOST: z.string().optional(),
   VITE_PUBLIC_SENTRY_DSN: z.string().optional(),
   VITE_PUBLIC_BROWSEROS_API: z.string().optional(),
-  PROD: z.boolean(),
+  PROD: z.boolean().optional().default(false),
 })
 
 try {

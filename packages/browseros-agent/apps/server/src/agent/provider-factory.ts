@@ -9,6 +9,10 @@ import { LLM_PROVIDERS } from '@browseros/shared/schemas/llm'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import type { LanguageModel } from 'ai'
 import { createBrowserOSFetch } from '../lib/browseros-fetch'
+import {
+  createMockBrowserOSLanguageModel,
+  shouldUseMockBrowserOSLLM,
+} from '../lib/clients/llm/mock-language-model'
 import { createCodexFetch } from '../lib/clients/oauth/codex-fetch'
 import { createCopilotFetch } from '../lib/clients/oauth/copilot-fetch'
 import { logger } from '../lib/logger'
@@ -219,6 +223,9 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
 export function createLanguageModel(
   config: ResolvedAgentConfig,
 ): LanguageModel {
+  if (shouldUseMockBrowserOSLLM(config)) {
+    return createMockBrowserOSLanguageModel()
+  }
   const provider = config.provider as string
   const factory = PROVIDER_FACTORIES[provider]
   if (!factory) throw new Error(`Unknown provider: ${provider}`)

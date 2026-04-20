@@ -13,7 +13,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { EXIT_CODES } from '@browseros/shared/constants/exit-codes'
 import { createHttpServer } from './api/server'
-import { getOpenClawService } from './api/services/openclaw/openclaw-service'
+import {
+  configureOpenClawService,
+  getOpenClawService,
+} from './api/services/openclaw/openclaw-service'
+import { loadPodmanOverrides } from './api/services/openclaw/podman-overrides'
+import { configurePodmanRuntime } from './api/services/openclaw/podman-runtime'
 import { CdpBackend } from './browser/backends/cdp'
 import { Browser } from './browser/browser'
 import type { ServerConfig } from './config'
@@ -21,6 +26,7 @@ import { INLINED_ENV } from './env'
 import {
   cleanOldSessions,
   ensureBrowserosDir,
+  getOpenClawDir,
   removeServerConfigSync,
   writeServerConfig,
 } from './lib/browseros-dir'
@@ -55,6 +61,17 @@ export class Application {
       resourcesDir: path.resolve(this.config.resourcesDir),
     })
 
+    const resourcesDir = path.resolve(this.config.resourcesDir)
+    const podmanOverrides = await loadPodmanOverrides(getOpenClawDir())
+    configurePodmanRuntime({
+      resourcesDir,
+      podmanPath: podmanOverrides.podmanPath ?? undefined,
+    })
+    if (podmanOverrides.podmanPath) {
+      logger.info('Using user-overridden Podman binary', {
+        podmanPath: podmanOverrides.podmanPath,
+      })
+    }
     await this.initCoreServices()
 
     if (!this.config.cdpPort) {
@@ -119,7 +136,10 @@ export class Application {
     this.logStartupSummary()
     startSkillSync()
 
-    getOpenClawService(this.config.serverPort)
+    configureOpenClawService({
+      browserosServerPort: this.config.serverPort,
+      resourcesDir,
+    })
       .tryAutoStart()
       .catch((err) =>
         logger.warn('OpenClaw auto-start failed', {

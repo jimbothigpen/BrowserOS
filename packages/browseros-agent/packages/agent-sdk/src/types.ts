@@ -113,6 +113,10 @@ export interface ProgressEvent {
 export interface NavResult {
   /** Whether navigation succeeded */
   success: boolean
+  /** The tab that was navigated */
+  tabId?: number
+  /** The window containing the navigated tab */
+  windowId?: number
 }
 
 /**

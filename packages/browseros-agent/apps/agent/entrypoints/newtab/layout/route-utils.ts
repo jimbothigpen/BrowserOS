@@ -19,6 +19,11 @@ export function shouldHideFocusGrid(pathname: string): boolean {
   )
 }
 
-export function shouldUseChatSession(pathname: string): boolean {
-  return pathname === '/home/chat'
+export function shouldUseChatSession(
+  pathname: string,
+  useChatSessionOnHome = false,
+): boolean {
+  return (
+    pathname === '/home/chat' || (useChatSessionOnHome && pathname === '/home')
+  )
 }

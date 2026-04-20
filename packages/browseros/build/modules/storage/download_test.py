@@ -22,6 +22,8 @@ class ExtractArtifactZipTest(unittest.TestCase):
             "resources/bin/browseros_server": b"server-binary",
             "resources/bin/third_party/bun": b"bun-binary",
             "resources/bin/third_party/rg": b"rg-binary",
+            "resources/bin/third_party/podman/podman": b"podman-binary",
+            "resources/bin/third_party/podman/gvproxy": b"gvproxy-binary",
         }
 
         with tempfile.TemporaryDirectory() as temp_dir:

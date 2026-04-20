@@ -133,6 +133,29 @@ func KillPort(port int) {
 	exec.Command("sh", "-c", fmt.Sprintf("lsof -ti:%d | xargs kill -9 2>/dev/null || true", port)).Run()
 }
 
+func KillPortAndWait(port int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		KillPort(port)
+		if IsPortAvailable(port) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("port %d is still in use after kill -9 cleanup", port)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func KillPortsAndWait(p Ports, timeout time.Duration) error {
+	for _, port := range []int{p.CDP, p.Server, p.Extension} {
+		if err := KillPortAndWait(port, timeout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func BuildEnv(p Ports, nodeEnv string) []string {
 	env := os.Environ()
 	env = append(env,

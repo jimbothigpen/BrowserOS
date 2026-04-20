@@ -12,6 +12,7 @@ import { URL } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
+import { MOCK_BROWSEROS_RESPONSE_TEXT } from '../src/lib/clients/llm/mock-language-model'
 import {
   cleanupBrowserOS,
   ensureBrowserOS,
@@ -155,7 +156,7 @@ describe('HTTP Server Integration Tests', () => {
 
   describe('Chat endpoint', () => {
     it(
-      'streams a chat response with BrowserOS provider',
+      'streams a mocked chat response for BrowserOS provider requests in test mode',
       async () => {
         const conversationId = crypto.randomUUID()
 
@@ -205,6 +206,10 @@ describe('HTTP Server Integration Tests', () => {
         assert.ok(
           fullResponse.includes('data:'),
           'Should contain SSE data events',
+        )
+        assert.ok(
+          fullResponse.includes(MOCK_BROWSEROS_RESPONSE_TEXT),
+          'Should include the mocked BrowserOS chat response',
         )
 
         const deleteResponse = await fetch(

@@ -7,6 +7,7 @@ from typing import List, Optional
 from ...common.module import CommandModule, ValidationError
 from ...common.context import Context
 from ...common.env import EnvConfig
+from ...common.server_binaries import expected_windows_binary_paths
 from ...common.utils import (
     log_info,
     log_error,
@@ -15,12 +16,6 @@ from ...common.utils import (
     join_paths,
     IS_WINDOWS,
 )
-
-BROWSEROS_SERVER_BINARIES: List[str] = [
-    "browseros_server.exe",
-    "codex.exe",
-    "bun.exe",
-]
 
 
 class WindowsSignModule(CommandModule):
@@ -102,7 +97,7 @@ class WindowsSignModule(CommandModule):
 def get_browseros_server_binary_paths(build_output_dir: Path) -> List[Path]:
     """Return absolute paths to BrowserOS Server binaries for signing."""
     server_dir = build_output_dir / "BrowserOSServer" / "default" / "resources" / "bin"
-    return [server_dir / binary for binary in BROWSEROS_SERVER_BINARIES]
+    return expected_windows_binary_paths(server_dir)
 
 
 def build_mini_installer(ctx: Context) -> bool:

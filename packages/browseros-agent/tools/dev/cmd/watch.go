@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"browseros-dev/browser"
 	"browseros-dev/proc"
@@ -62,7 +63,9 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("creating user-data dir: %w", err)
 		}
 		proc.LogMsg(proc.TagInfo, "Killing processes on preferred ports...")
-		proc.KillPorts(defaultPorts)
+		if err := proc.KillPortsAndWait(defaultPorts, 3*time.Second); err != nil {
+			return err
+		}
 		proc.LogMsg(proc.TagInfo, "Ports cleared")
 
 		p, reservations, err = proc.ResolveWatchPorts(false)
@@ -159,6 +162,9 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		Env:     env,
 		Restart: true,
 		Cmd:     []string{"bun", "--watch", "--env-file=.env.development", "src/index.ts"},
+		BeforeStart: func() error {
+			return proc.KillPortAndWait(p.Server, 3*time.Second)
+		},
 	}))
 
 	<-sigCh

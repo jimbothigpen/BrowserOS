@@ -14,6 +14,19 @@ interface UseCapabilitiesResult {
   serverVersion: string | null
 }
 
+function getInitialSupportedFeatures(): Map<Feature, boolean> {
+  return new Map(
+    Object.values(Feature)
+      .filter((value) => typeof value === 'string')
+      .flatMap((feature) => {
+        const supported = Capabilities.getStaticSupport(feature as Feature)
+        return supported === null
+          ? []
+          : ([[feature as Feature, supported]] as const)
+      }),
+  )
+}
+
 /**
  * React hook for version-gated feature checks.
  * Auto-initializes Capabilities and caches feature support results.
@@ -28,11 +41,11 @@ interface UseCapabilitiesResult {
  */
 export function useCapabilities(): UseCapabilitiesResult {
   const [isLoading, setIsLoading] = useState(true)
-  const [state, setState] = useState<CapabilitiesState>({
+  const [state, setState] = useState<CapabilitiesState>(() => ({
     browserOSVersion: null,
     serverVersion: null,
-    supportedFeatures: new Map(),
-  })
+    supportedFeatures: getInitialSupportedFeatures(),
+  }))
 
   useEffect(() => {
     let cancelled = false
@@ -72,10 +85,9 @@ export function useCapabilities(): UseCapabilitiesResult {
 
   const supports = useCallback(
     (feature: Feature): boolean => {
-      if (isLoading) return false
       return state.supportedFeatures.get(feature) ?? false
     },
-    [isLoading, state.supportedFeatures],
+    [state.supportedFeatures],
   )
 
   return {
