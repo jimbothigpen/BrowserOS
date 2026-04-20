@@ -7,7 +7,12 @@
  * Thin layer delegating to OpenClawService.
  */
 
-import { accessSync, existsSync, constants as fsConstants } from 'node:fs'
+import {
+  accessSync,
+  existsSync,
+  constants as fsConstants,
+  statSync,
+} from 'node:fs'
 import path from 'node:path'
 import { OPENCLAW_GATEWAY_PORT } from '@browseros/shared/constants/openclaw'
 import { Hono } from 'hono'
@@ -23,6 +28,8 @@ import {
 } from '../services/openclaw/errors'
 import { isUnsupportedOpenClawProviderError } from '../services/openclaw/openclaw-provider-map'
 import { getOpenClawService } from '../services/openclaw/openclaw-service'
+
+const activeMonitoredChatStartLocks = new Set<string>()
 
 function getCreateAgentValidationError(body: { name?: string }): string | null {
   if (!body.name?.trim()) {
@@ -43,6 +50,9 @@ function getPodmanOverrideValidationError(body: {
   }
   if (!existsSync(body.podmanPath)) {
     return `File does not exist: ${body.podmanPath}`
+  }
+  if (statSync(body.podmanPath).isDirectory()) {
+    return `Path is a directory: ${body.podmanPath}`
   }
   try {
     accessSync(body.podmanPath, fsConstants.X_OK)
@@ -275,7 +285,7 @@ export function createOpenClawRoutes() {
             ),
           )
         : []
-      if (getMonitoringService().getActiveSessionId(id)) {
+      if (activeMonitoredChatStartLocks.has(id)) {
         return c.json(
           {
             error:
@@ -284,12 +294,30 @@ export function createOpenClawRoutes() {
           409,
         )
       }
-      const monitoringContext = await getMonitoringService().startSession({
-        agentId: id,
-        sessionKey,
-        originalPrompt: body.message.trim(),
-        chatHistory: history,
-      })
+      activeMonitoredChatStartLocks.add(id)
+      let monitoringContext: { monitoringSessionId: string } | undefined
+      try {
+        if (getMonitoringService().getActiveSessionId(id)) {
+          return c.json(
+            {
+              error:
+                'A monitored chat session is already active for this agent. Wait for it to finish before starting another.',
+            },
+            409,
+          )
+        }
+        monitoringContext = await getMonitoringService().startSession({
+          agentId: id,
+          sessionKey,
+          originalPrompt: body.message.trim(),
+          chatHistory: history,
+        })
+      } finally {
+        activeMonitoredChatStartLocks.delete(id)
+      }
+      if (!monitoringContext) {
+        throw new Error('OpenClaw monitored chat session did not start')
+      }
 
       try {
         const eventStream = await getOpenClawService().chatStream(

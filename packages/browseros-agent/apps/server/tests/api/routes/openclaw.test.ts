@@ -169,6 +169,96 @@ describe('createOpenClawRoutes', () => {
     })
   })
 
+  it('rejects a concurrent monitored chat start while the first session is pending', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const actualMonitoringService = await import(
+      '../../../src/monitoring/service'
+    )
+    const chatStream = mock(
+      async () =>
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'done',
+              data: { text: 'Done' },
+            })
+            controller.close()
+          },
+        }),
+    )
+
+    let resolveStartSession: (() => void) | undefined
+    let startSessionCalls = 0
+    const startSession = mock(async () => {
+      startSessionCalls += 1
+      await new Promise<void>((resolve) => {
+        resolveStartSession = resolve
+      })
+      return {
+        monitoringSessionId: 'session-1',
+      }
+    })
+    const finalizeSession = mock(async () => {})
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () =>
+        ({
+          chatStream,
+        }) as never,
+    }))
+
+    mock.module('../../../src/monitoring/service', () => ({
+      ...actualMonitoringService,
+      getMonitoringService: () =>
+        ({
+          getActiveSessionId: () => undefined,
+          startSession,
+          finalizeSession,
+        }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const firstResponsePromise = route.request('/agents/research/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'first',
+        sessionKey: 'session-first',
+      }),
+    })
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+    const secondResponse = await route.request('/agents/research/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'second',
+        sessionKey: 'session-second',
+      }),
+    })
+
+    expect(secondResponse.status).toBe(409)
+    expect(await secondResponse.json()).toEqual({
+      error:
+        'A monitored chat session is already active for this agent. Wait for it to finish before starting another.',
+    })
+    expect(startSessionCalls).toBe(1)
+
+    resolveStartSession?.()
+    const firstResponse = await firstResponsePromise
+    expect(firstResponse.status).toBe(200)
+    expect(await firstResponse.text()).toContain('data: [DONE]')
+    expect(finalizeSession).toHaveBeenCalledTimes(1)
+  })
+
   it('returns 400 for unsupported provider payloads', async () => {
     const actualOpenClawService = await import(
       '../../../src/api/services/openclaw/openclaw-service'
@@ -471,6 +561,28 @@ describe('createOpenClawRoutes', () => {
     expect(await response.json()).toEqual({
       error: 'File does not exist: /does/not/exist/podman',
     })
+  })
+
+  it('rejects a directory podman path on POST', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'openclaw-route-'))
+    try {
+      const { createOpenClawRoutes } = await import(
+        '../../../src/api/routes/openclaw'
+      )
+      const route = createOpenClawRoutes()
+
+      const response = await route.request('/podman-overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ podmanPath: tempDir }),
+      })
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({
+        error: `Path is a directory: ${tempDir}`,
+      })
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 
   it('rejects a non-executable podman path on POST', async () => {

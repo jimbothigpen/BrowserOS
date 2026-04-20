@@ -493,7 +493,8 @@ export const AgentsPage: FC = () => {
   }
 
   const handleCreate = async () => {
-    if (!newName.trim()) return
+    if (!newName.trim() || creating || !canManageAgents) return
+    if (compatibleProviders.length === 0) return
     const provider = compatibleProviders.find(
       (item) => item.id === createProviderId,
     )
