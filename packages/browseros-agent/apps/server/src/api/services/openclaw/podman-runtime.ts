@@ -11,8 +11,8 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-const isLinux = process.platform === 'linux'
 const PODMAN_BUNDLE_PATH = ['bin', 'third_party', 'podman'] as const
+export const BROWSEROS_OPENCLAW_PODMAN_MACHINE_NAME = 'browseros-openclaw'
 
 export type LogFn = (msg: string) => void
 
@@ -37,10 +37,19 @@ export function resolveBundledPodmanPath(
 
 export class PodmanRuntime {
   private podmanPath: string
+  private machineName: string
+  private platform: NodeJS.Platform
   private machineReady = false
 
-  constructor(config?: { podmanPath?: string }) {
+  constructor(config?: {
+    podmanPath?: string
+    machineName?: string
+    platform?: NodeJS.Platform
+  }) {
     this.podmanPath = config?.podmanPath ?? 'podman'
+    this.machineName =
+      config?.machineName ?? BROWSEROS_OPENCLAW_PODMAN_MACHINE_NAME
+    this.platform = config?.platform ?? process.platform
   }
 
   getPodmanPath(): string {
@@ -63,7 +72,7 @@ export class PodmanRuntime {
     initialized: boolean
     running: boolean
   }> {
-    if (isLinux) return { initialized: true, running: true }
+    if (this.platform === 'linux') return { initialized: true, running: true }
 
     try {
       const proc = Bun.spawn(
@@ -74,13 +83,14 @@ export class PodmanRuntime {
       await proc.exited
 
       const machines = JSON.parse(output) as Array<{
+        Name?: string
         Running?: boolean
         LastUp?: string
       }>
 
-      if (!machines.length) return { initialized: false, running: false }
+      const machine = machines.find((entry) => entry.Name === this.machineName)
 
-      const machine = machines[0]
+      if (!machine) return { initialized: false, running: false }
       const running =
         machine.Running === true || machine.LastUp === 'Currently running'
 
@@ -91,7 +101,7 @@ export class PodmanRuntime {
   }
 
   async initMachine(onLog?: LogFn): Promise<void> {
-    if (isLinux) return
+    if (this.platform === 'linux') return
 
     const proc = Bun.spawn(
       [
@@ -104,6 +114,7 @@ export class PodmanRuntime {
         '8096',
         '--disk-size',
         '10',
+        this.machineName,
       ],
       { stdout: 'ignore', stderr: 'pipe' },
     )
@@ -115,12 +126,15 @@ export class PodmanRuntime {
   }
 
   async startMachine(onLog?: LogFn): Promise<void> {
-    if (isLinux) return
+    if (this.platform === 'linux') return
 
-    const proc = Bun.spawn([this.podmanPath, 'machine', 'start'], {
-      stdout: 'ignore',
-      stderr: 'pipe',
-    })
+    const proc = Bun.spawn(
+      [this.podmanPath, 'machine', 'start', this.machineName],
+      {
+        stdout: 'ignore',
+        stderr: 'pipe',
+      },
+    )
 
     await this.drainStderr(proc, onLog)
     const code = await proc.exited
@@ -129,12 +143,15 @@ export class PodmanRuntime {
   }
 
   async stopMachine(): Promise<void> {
-    if (isLinux) return
+    if (this.platform === 'linux') return
 
-    const proc = Bun.spawn([this.podmanPath, 'machine', 'stop'], {
-      stdout: 'ignore',
-      stderr: 'ignore',
-    })
+    const proc = Bun.spawn(
+      [this.podmanPath, 'machine', 'stop', this.machineName],
+      {
+        stdout: 'ignore',
+        stderr: 'ignore',
+      },
+    )
     const code = await proc.exited
     if (code !== 0)
       throw new Error(`podman machine stop failed with code ${code}`)
@@ -269,13 +286,17 @@ let runtime: PodmanRuntime | null = null
 export function configurePodmanRuntime(config: {
   resourcesDir?: string
   podmanPath?: string
+  machineName?: string
 }): PodmanRuntime {
   const podmanPath =
     config.podmanPath ??
     resolveBundledPodmanPath(config.resourcesDir) ??
     'podman'
 
-  runtime = new PodmanRuntime({ podmanPath })
+  runtime = new PodmanRuntime({
+    podmanPath,
+    machineName: config.machineName,
+  })
   return runtime
 }
 
