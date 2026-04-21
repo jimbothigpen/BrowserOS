@@ -13,11 +13,32 @@ import { join } from 'node:path'
 
 const isLinux = process.platform === 'linux'
 const PODMAN_BUNDLE_PATH = ['bin', 'third_party', 'podman'] as const
+const DEFAULT_MACHINE_CPUS = 4
+const DEFAULT_MACHINE_MEMORY_MB = 4096
 
 export type LogFn = (msg: string) => void
 
 function getPodmanBinaryName(platform: NodeJS.Platform): string {
   return platform === 'win32' ? 'podman.exe' : 'podman'
+}
+
+function readPositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback
+  const parsed = parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function readMachineResources(): { cpus: number; memoryMb: number } {
+  return {
+    cpus: readPositiveInt(
+      process.env.BROWSEROS_PODMAN_CPUS,
+      DEFAULT_MACHINE_CPUS,
+    ),
+    memoryMb: readPositiveInt(
+      process.env.BROWSEROS_PODMAN_MEMORY_MB,
+      DEFAULT_MACHINE_MEMORY_MB,
+    ),
+  }
 }
 
 export function resolveBundledPodmanPath(
@@ -92,15 +113,18 @@ export class PodmanRuntime {
   async initMachine(onLog?: LogFn): Promise<void> {
     if (isLinux) return
 
+    const { cpus, memoryMb } = readMachineResources()
+    onLog?.(`Initializing Podman machine (${cpus} CPUs, ${memoryMb} MB RAM)`)
+
     const proc = Bun.spawn(
       [
         this.podmanPath,
         'machine',
         'init',
         '--cpus',
-        '8',
+        String(cpus),
         '--memory',
-        '8096',
+        String(memoryMb),
         '--disk-size',
         '10',
       ],
