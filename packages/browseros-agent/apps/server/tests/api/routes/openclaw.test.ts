@@ -253,6 +253,118 @@ describe('createOpenClawRoutes', () => {
     })
   })
 
+  it('updates an existing agent model through the agent route', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const updateAgent = mock(async () => ({
+      agentId: 'research',
+      name: 'research',
+      workspace: '/home/node/.openclaw/workspace-research',
+      model: 'openai/gpt-5.4-mini',
+    }))
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () =>
+        ({
+          updateAgent,
+        }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/agents/research', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerType: 'openai',
+        apiKey: 'sk-test',
+        modelId: 'gpt-5.4-mini',
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(updateAgent).toHaveBeenCalledWith({
+      agentId: 'research',
+      providerType: 'openai',
+      providerName: undefined,
+      baseUrl: undefined,
+      apiKey: 'sk-test',
+      modelId: 'gpt-5.4-mini',
+    })
+    expect(await response.json()).toEqual({
+      agent: {
+        agentId: 'research',
+        name: 'research',
+        workspace: '/home/node/.openclaw/workspace-research',
+        model: 'openai/gpt-5.4-mini',
+      },
+    })
+  })
+
+  it('rejects agent model updates without a provider type', async () => {
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/agents/research', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        modelId: 'gpt-5.4-mini',
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: 'providerType is required',
+    })
+  })
+
+  it('maps missing agents to 404 on model update', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const actualErrors = await import(
+      '../../../src/api/services/openclaw/errors'
+    )
+    const updateAgent = mock(async () => {
+      throw new actualErrors.OpenClawAgentNotFoundError('missing')
+    })
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () =>
+        ({
+          updateAgent,
+        }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/agents/missing', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerType: 'openai',
+        modelId: 'gpt-5.4-mini',
+      }),
+    })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      error: 'Agent "missing" not found',
+    })
+  })
+
   it('does not expose a roles route', async () => {
     const { createOpenClawRoutes } = await import(
       '../../../src/api/routes/openclaw'

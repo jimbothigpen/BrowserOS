@@ -17,6 +17,7 @@ import type { MonitoringChatTurn } from '../../monitoring/types'
 import {
   OpenClawAgentAlreadyExistsError,
   OpenClawAgentNotFoundError,
+  OpenClawInvalidAgentModelError,
   OpenClawInvalidAgentNameError,
   OpenClawProtectedAgentError,
 } from '../services/openclaw/errors'
@@ -26,6 +27,19 @@ import { getOpenClawService } from '../services/openclaw/openclaw-service'
 function getCreateAgentValidationError(body: { name?: string }): string | null {
   if (!body.name?.trim()) {
     return 'Name is required'
+  }
+  return null
+}
+
+function getUpdateAgentValidationError(body: {
+  providerType?: string
+  modelId?: string
+}): string | null {
+  if (!body.providerType?.trim()) {
+    return 'providerType is required'
+  }
+  if (!body.modelId?.trim()) {
+    return 'modelId is required'
   }
   return null
 }
@@ -196,6 +210,45 @@ export function createOpenClawRoutes() {
           return c.json({ error: err.message }, 409)
         }
         if (err instanceof OpenClawInvalidAgentNameError) {
+          return c.json({ error: err.message }, 400)
+        }
+        if (isUnsupportedOpenClawProviderError(err)) {
+          return c.json({ error: err.message }, 400)
+        }
+        const message = err instanceof Error ? err.message : String(err)
+        return c.json({ error: message }, 500)
+      }
+    })
+
+    .patch('/agents/:id', async (c) => {
+      const { id } = c.req.param()
+      const body = await c.req.json<{
+        providerType?: string
+        providerName?: string
+        baseUrl?: string
+        apiKey?: string
+        modelId?: string
+      }>()
+      const validationError = getUpdateAgentValidationError(body)
+      if (validationError) {
+        return c.json({ error: validationError }, 400)
+      }
+
+      try {
+        const agent = await getOpenClawService().updateAgent({
+          agentId: id,
+          providerType: body.providerType,
+          providerName: body.providerName,
+          baseUrl: body.baseUrl,
+          apiKey: body.apiKey,
+          modelId: body.modelId,
+        })
+        return c.json({ agent })
+      } catch (err) {
+        if (err instanceof OpenClawAgentNotFoundError) {
+          return c.json({ error: err.message }, 404)
+        }
+        if (err instanceof OpenClawInvalidAgentModelError) {
           return c.json({ error: err.message }, 400)
         }
         if (isUnsupportedOpenClawProviderError(err)) {

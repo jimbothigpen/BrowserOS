@@ -24,6 +24,12 @@ interface RawAgentRecord {
   model?: string
 }
 
+interface RawConfiguredAgentRecord {
+  id?: string
+  name?: string
+  model?: string | { primary?: string; fallbacks?: string[] }
+}
+
 export interface OpenClawAgentRecord {
   agentId: string
   name: string
@@ -183,6 +189,40 @@ export class OpenClawCliClient {
     return agent
   }
 
+  async updateAgentModel(input: {
+    agentId: string
+    model: string
+  }): Promise<OpenClawAgentRecord> {
+    const agents = this.extractConfiguredAgents(
+      await this.getConfig('agents.list'),
+    )
+    const agentIndex = agents.findIndex((agent) =>
+      isConfiguredAgentId(agent, input.agentId),
+    )
+
+    if (agentIndex === -1) {
+      throw new Error(`Agent "${input.agentId}" not found in OpenClaw config`)
+    }
+
+    const nextModel = buildUpdatedAgentModel(agents[agentIndex]?.model, {
+      primary: input.model,
+    })
+
+    await this.setConfig(`agents.list[${agentIndex}].model`, nextModel)
+
+    const updatedAgents = await this.listAgents()
+    const updatedAgent = updatedAgents.find(
+      (agent) => agent.agentId === input.agentId,
+    )
+    if (!updatedAgent) {
+      throw new Error(
+        `Updated agent ${input.agentId} was not found in agent list`,
+      )
+    }
+
+    return updatedAgent
+  }
+
   async deleteAgent(agentId: string): Promise<void> {
     await this.runCommand(['agents', 'delete', agentId, '--force', '--json'])
   }
@@ -219,6 +259,35 @@ export class OpenClawCliClient {
   > {
     const output = await this.runCommand(['agents', 'list', '--json'])
     return parseAgentListOutput(output)
+  }
+
+  private extractConfiguredAgents(value: unknown): RawConfiguredAgentRecord[] {
+    if (Array.isArray(value) && value.every(isRawConfiguredAgentRecord)) {
+      return value
+    }
+
+    if (!isPlainObject(value)) {
+      throw new Error('Failed to read OpenClaw configured agents')
+    }
+
+    if (
+      'agents' in value &&
+      isPlainObject(value.agents) &&
+      Array.isArray(value.agents.list) &&
+      value.agents.list.every(isRawConfiguredAgentRecord)
+    ) {
+      return value.agents.list
+    }
+
+    if (
+      'list' in value &&
+      Array.isArray(value.list) &&
+      value.list.every(isRawConfiguredAgentRecord)
+    ) {
+      return value.list
+    }
+
+    throw new Error('Failed to read OpenClaw configured agents')
   }
 }
 
@@ -390,6 +459,52 @@ function isRawAgentRecord(value: unknown): value is RawAgentRecord {
     typeof value.workspace === 'string' &&
     (value.name === undefined || typeof value.name === 'string') &&
     (value.model === undefined || typeof value.model === 'string')
+  )
+}
+
+function isRawConfiguredAgentRecord(
+  value: unknown,
+): value is RawConfiguredAgentRecord {
+  return (
+    isPlainObject(value) &&
+    (value.id === undefined || typeof value.id === 'string') &&
+    (value.name === undefined || typeof value.name === 'string') &&
+    (value.model === undefined ||
+      typeof value.model === 'string' ||
+      isModelConfigObject(value.model))
+  )
+}
+
+function isConfiguredAgentId(
+  value: RawConfiguredAgentRecord,
+  agentId: string,
+): boolean {
+  return value.id === agentId || value.name === agentId
+}
+
+function buildUpdatedAgentModel(
+  current: RawConfiguredAgentRecord['model'],
+  input: { primary: string },
+): string | { primary: string; fallbacks?: string[] } {
+  if (isModelConfigObject(current)) {
+    return {
+      ...current,
+      primary: input.primary,
+    }
+  }
+
+  return input.primary
+}
+
+function isModelConfigObject(
+  value: unknown,
+): value is { primary?: string; fallbacks?: string[] } {
+  return (
+    isPlainObject(value) &&
+    (value.primary === undefined || typeof value.primary === 'string') &&
+    (value.fallbacks === undefined ||
+      (Array.isArray(value.fallbacks) &&
+        value.fallbacks.every((entry) => typeof entry === 'string')))
   )
 }
 

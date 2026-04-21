@@ -21,6 +21,13 @@ export class OpenClawAgentNotFoundError extends Error {
   }
 }
 
+export class OpenClawInvalidAgentModelError extends Error {
+  constructor() {
+    super('A provider-backed model selection is required to update an agent')
+    this.name = 'OpenClawInvalidAgentModelError'
+  }
+}
+
 export class OpenClawProtectedAgentError extends Error {
   constructor(message: string) {
     super(message)

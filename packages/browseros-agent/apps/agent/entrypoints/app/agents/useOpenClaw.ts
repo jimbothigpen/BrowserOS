@@ -51,6 +51,15 @@ export interface OpenClawSetupInput {
   modelId?: string
 }
 
+export interface OpenClawAgentUpdateInput {
+  agentId: string
+  providerType?: string
+  providerName?: string
+  baseUrl?: string
+  apiKey?: string
+  modelId?: string
+}
+
 export function getModelDisplayName(model: unknown): string | undefined {
   if (typeof model === 'string') return model.split('/').pop()
   return undefined
@@ -199,6 +208,26 @@ export function useOpenClawMutations() {
     onSuccess,
   })
 
+  const updateMutation = useMutation({
+    mutationFn: async (input: OpenClawAgentUpdateInput) =>
+      clawFetch<{ agent: AgentEntry }>(
+        ensureBaseUrl(),
+        `/agents/${input.agentId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            providerType: input.providerType,
+            providerName: input.providerName,
+            baseUrl: input.baseUrl,
+            apiKey: input.apiKey,
+            modelId: input.modelId,
+          }),
+        },
+      ),
+    onSuccess,
+  })
+
   const startMutation = useMutation({
     mutationFn: async () =>
       clawFetch<{ status: string }>(ensureBaseUrl(), '/start', {
@@ -242,6 +271,7 @@ export function useOpenClawMutations() {
     setupOpenClaw: setupMutation.mutateAsync,
     createAgent: createMutation.mutateAsync,
     deleteAgent: deleteMutation.mutateAsync,
+    updateAgent: updateMutation.mutateAsync,
     startOpenClaw: startMutation.mutateAsync,
     stopOpenClaw: stopMutation.mutateAsync,
     restartOpenClaw: restartMutation.mutateAsync,
@@ -250,6 +280,7 @@ export function useOpenClawMutations() {
       setupMutation.isPending ||
       createMutation.isPending ||
       deleteMutation.isPending ||
+      updateMutation.isPending ||
       startMutation.isPending ||
       stopMutation.isPending ||
       restartMutation.isPending ||
@@ -257,6 +288,7 @@ export function useOpenClawMutations() {
     settingUp: setupMutation.isPending,
     creating: createMutation.isPending,
     deleting: deleteMutation.isPending,
+    updating: updateMutation.isPending,
     reconnecting: reconnectMutation.isPending,
     pendingGatewayAction,
   }

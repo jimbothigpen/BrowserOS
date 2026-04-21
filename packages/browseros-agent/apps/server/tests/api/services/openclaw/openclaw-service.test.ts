@@ -49,6 +49,7 @@ type MutableOpenClawService = OpenClawService & {
     getConfig?: ReturnType<typeof mock>
     listAgents?: ReturnType<typeof mock>
     setDefaultModel?: ReturnType<typeof mock>
+    updateAgentModel?: ReturnType<typeof mock>
   }
   bootstrapCliClient: {
     runOnboard?: ReturnType<typeof mock>
@@ -106,6 +107,122 @@ describe('OpenClawService', () => {
         join(tempDir, '.openclaw', 'workspace-ops', '.browseros-role.json'),
       ),
     ).toBe(false)
+  })
+
+  it('updates an existing agent model through the cli client', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'openclaw-service-'))
+    const updateAgentModel = mock(async () => ({
+      agentId: 'ops',
+      name: 'ops',
+      workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-ops`,
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    }))
+    const service = new OpenClawService() as MutableOpenClawService
+
+    service.openclawDir = tempDir
+    service.runtime = {
+      isReady: async () => true,
+      waitForReady: mock(async () => true),
+    }
+    service.cliClient = {
+      listAgents: mock(async () => [
+        {
+          agentId: 'ops',
+          name: 'ops',
+          workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-ops`,
+          model: 'openai/gpt-5.4-mini',
+        },
+      ]),
+      updateAgentModel,
+    }
+
+    const agent = await service.updateAgent({
+      agentId: 'ops',
+      providerType: 'openrouter',
+      modelId: 'anthropic/claude-sonnet-4.5',
+    })
+
+    expect(updateAgentModel).toHaveBeenCalledWith({
+      agentId: 'ops',
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    })
+    expect(agent).toEqual({
+      agentId: 'ops',
+      name: 'ops',
+      workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-ops`,
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    })
+  })
+
+  it('restarts before updating an agent model when provider credentials change', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'openclaw-service-'))
+    const restart = mock(async () => {})
+    const updateAgentModel = mock(async () => ({
+      agentId: 'ops',
+      name: 'ops',
+      workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-ops`,
+      model: 'openai/gpt-5.4-mini',
+    }))
+    const service = new OpenClawService() as MutableOpenClawService
+
+    service.openclawDir = tempDir
+    service.restart = restart
+    service.runtime = {
+      isReady: async () => true,
+      waitForReady: mock(async () => true),
+    }
+    service.cliClient = {
+      listAgents: mock(async () => [
+        {
+          agentId: 'ops',
+          name: 'ops',
+          workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-ops`,
+        },
+      ]),
+      updateAgentModel,
+    }
+
+    await service.updateAgent({
+      agentId: 'ops',
+      providerType: 'openai',
+      apiKey: 'sk-openai',
+      modelId: 'gpt-5.4-mini',
+    })
+
+    expect(restart).toHaveBeenCalledTimes(1)
+    expect(updateAgentModel).toHaveBeenCalledWith({
+      agentId: 'ops',
+      model: 'openai/gpt-5.4-mini',
+    })
+  })
+
+  it('rejects updates for unknown agents', async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'openclaw-service-'))
+    const updateAgentModel = mock(async () => ({
+      agentId: 'ops',
+      name: 'ops',
+      workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-ops`,
+    }))
+    const service = new OpenClawService() as MutableOpenClawService
+
+    service.openclawDir = tempDir
+    service.runtime = {
+      isReady: async () => true,
+      waitForReady: mock(async () => true),
+    }
+    service.cliClient = {
+      listAgents: mock(async () => []),
+      updateAgentModel,
+    }
+
+    await expect(
+      service.updateAgent({
+        agentId: 'missing',
+        providerType: 'openai',
+        modelId: 'gpt-5.4-mini',
+      }),
+    ).rejects.toThrow('Agent "missing" not found')
+    expect(updateAgentModel).not.toHaveBeenCalled()
   })
 
   it('lists plain agent entries without role metadata', async () => {

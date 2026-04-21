@@ -5,6 +5,7 @@ import {
   Cpu,
   Loader2,
   MessageSquare,
+  Pencil,
   Plus,
   RefreshCw,
   ShieldAlert,
@@ -40,6 +41,7 @@ import { getOpenClawSupportedProviders } from './openclaw-supported-providers'
 import {
   type AgentEntry,
   type GatewayLifecycleAction,
+  getModelDisplayName,
   type OpenClawStatus,
   useOpenClawAgents,
   useOpenClawMutations,
@@ -179,16 +181,18 @@ function getRecoveryDetail(status: OpenClawStatus): string | null {
 }
 
 interface ProviderSelectorProps {
-  providers: Array<{
-    id: string
-    type: string
-    name: string
-    modelId: string
-    baseUrl?: string
-  }>
+  providers: OpenClawProviderOption[]
   defaultProviderId: string
   selectedId: string
   onSelect: (id: string) => void
+}
+
+interface OpenClawProviderOption {
+  id: string
+  type: string
+  name: string
+  modelId: string
+  baseUrl?: string
 }
 
 const ProviderSelector: FC<ProviderSelectorProps> = ({
@@ -235,6 +239,37 @@ const ProviderSelector: FC<ProviderSelectorProps> = ({
         the container and never leaves your machine.
       </p>
     </div>
+  )
+}
+
+function getDefaultCompatibleProviderId(
+  providers: OpenClawProviderOption[],
+  defaultProviderId: string,
+): string {
+  return (
+    providers.find((provider) => provider.id === defaultProviderId)?.id ??
+    providers[0]?.id ??
+    ''
+  )
+}
+
+function getProviderIdForAgentModel(
+  model: unknown,
+  providers: OpenClawProviderOption[],
+  defaultProviderId: string,
+): string {
+  if (typeof model !== 'string') {
+    return getDefaultCompatibleProviderId(providers, defaultProviderId)
+  }
+
+  const matchingProvider = providers.find((provider) => {
+    const builtInModelRef = `${provider.type}/${provider.modelId}`
+    return model === builtInModelRef || model.endsWith(`/${provider.modelId}`)
+  })
+
+  return (
+    matchingProvider?.id ??
+    getDefaultCompatibleProviderId(providers, defaultProviderId)
   )
 }
 
@@ -372,6 +407,7 @@ export const AgentsPage: FC = () => {
     setupOpenClaw,
     createAgent,
     deleteAgent,
+    updateAgent,
     startOpenClaw,
     stopOpenClaw,
     restartOpenClaw,
@@ -380,6 +416,7 @@ export const AgentsPage: FC = () => {
     settingUp,
     creating,
     deleting,
+    updating,
     reconnecting,
     pendingGatewayAction,
   } = useOpenClawMutations()
@@ -389,6 +426,8 @@ export const AgentsPage: FC = () => {
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [createProviderId, setCreateProviderId] = useState('')
+  const [editAgent, setEditAgent] = useState<AgentEntry | null>(null)
+  const [editProviderId, setEditProviderId] = useState('')
 
   const [chatAgent, setChatAgent] = useState<AgentEntry | null>(null)
   const [showTerminal, setShowTerminal] = useState(false)
@@ -398,9 +437,10 @@ export const AgentsPage: FC = () => {
 
   useEffect(() => {
     if (compatibleProviders.length === 0) return
-    const fallbackId =
-      compatibleProviders.find((provider) => provider.id === defaultProviderId)
-        ?.id ?? compatibleProviders[0].id
+    const fallbackId = getDefaultCompatibleProviderId(
+      compatibleProviders,
+      defaultProviderId,
+    )
 
     if (setupOpen && !setupProviderId) setSetupProviderId(fallbackId)
     if (createOpen && !createProviderId) setCreateProviderId(fallbackId)
@@ -412,6 +452,18 @@ export const AgentsPage: FC = () => {
     compatibleProviders,
     defaultProviderId,
   ])
+
+  useEffect(() => {
+    if (!editAgent || compatibleProviders.length === 0 || editProviderId) return
+
+    setEditProviderId(
+      getProviderIdForAgentModel(
+        editAgent.model,
+        compatibleProviders,
+        defaultProviderId,
+      ),
+    )
+  }, [editAgent, editProviderId, compatibleProviders, defaultProviderId])
 
   useEffect(() => {
     if (!createOpen) return
@@ -512,6 +564,30 @@ export const AgentsPage: FC = () => {
   const handleDelete = async (id: string) => {
     await runWithErrorHandling(async () => {
       await deleteAgent(id)
+    })
+  }
+
+  const closeEditDialog = () => {
+    setEditAgent(null)
+    setEditProviderId('')
+  }
+
+  const handleUpdate = async () => {
+    if (!editAgent) return
+    const provider = compatibleProviders.find(
+      (item) => item.id === editProviderId,
+    )
+
+    await runWithErrorHandling(async () => {
+      await updateAgent({
+        agentId: editAgent.agentId,
+        providerType: provider?.type,
+        providerName: provider?.name,
+        baseUrl: provider?.baseUrl,
+        apiKey: provider?.apiKey,
+        modelId: provider?.modelId,
+      })
+      closeEditDialog()
     })
   }
 
@@ -800,6 +876,10 @@ export const AgentsPage: FC = () => {
                       <p className="font-mono text-muted-foreground text-xs">
                         {agent.workspace}
                       </p>
+                      <p className="text-muted-foreground text-xs">
+                        Model:{' '}
+                        {getModelDisplayName(agent.model) ?? 'Using default'}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -811,6 +891,15 @@ export const AgentsPage: FC = () => {
                     >
                       <MessageSquare className="mr-1 size-4" />
                       Chat
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditAgent(agent)}
+                      disabled={!canManageAgents}
+                    >
+                      <Pencil className="mr-1 size-4" />
+                      Model
                     </Button>
                     {agent.agentId !== 'main' && (
                       <Button
@@ -913,6 +1002,56 @@ export const AgentsPage: FC = () => {
                 </>
               ) : (
                 'Create Agent'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!editAgent}
+        onOpenChange={(open) => {
+          if (!open) closeEditDialog()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Agent Model</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <p className="font-medium text-sm">{editAgent?.name}</p>
+              <p className="text-muted-foreground text-xs">
+                Current model:{' '}
+                {getModelDisplayName(editAgent?.model) ?? 'Using default'}
+              </p>
+            </div>
+
+            <ProviderSelector
+              providers={compatibleProviders}
+              defaultProviderId={defaultProviderId}
+              selectedId={editProviderId}
+              onSelect={setEditProviderId}
+            />
+
+            <Button
+              onClick={handleUpdate}
+              disabled={
+                !editAgent ||
+                !editProviderId ||
+                updating ||
+                !canManageAgents ||
+                compatibleProviders.length === 0
+              }
+              className="w-full"
+            >
+              {updating ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Model'
               )}
             </Button>
           </div>

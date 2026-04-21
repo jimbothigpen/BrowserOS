@@ -157,6 +157,141 @@ describe('OpenClawCliClient', () => {
     })
   })
 
+  it('updates an existing agent model through config set', async () => {
+    let callIndex = 0
+    const execInContainer = mock(
+      async (command: string[], onLog?: (line: string) => void) => {
+        callIndex += 1
+
+        if (callIndex === 1) {
+          expect(command).toEqual([
+            'node',
+            'dist/index.js',
+            'config',
+            'get',
+            'agents.list',
+          ])
+          onLog?.(
+            JSON.stringify({
+              agents: {
+                list: [
+                  {
+                    id: 'main',
+                    workspace: `${OPENCLAW_CONTAINER_HOME}/workspace`,
+                  },
+                  {
+                    id: 'research',
+                    model: 'openai/gpt-5.4-mini',
+                  },
+                ],
+              },
+            }),
+          )
+          return 0
+        }
+
+        if (callIndex === 2) {
+          expect(command).toEqual([
+            'node',
+            'dist/index.js',
+            'config',
+            'set',
+            'agents.list[1].model',
+            'openrouter/anthropic/claude-sonnet-4.5',
+          ])
+          return 0
+        }
+
+        onLog?.(
+          JSON.stringify([
+            {
+              id: 'main',
+              workspace: `${OPENCLAW_CONTAINER_HOME}/workspace`,
+            },
+            {
+              id: 'research',
+              workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
+              model: 'openrouter/anthropic/claude-sonnet-4.5',
+            },
+          ]),
+        )
+        return 0
+      },
+    )
+
+    const client = new OpenClawCliClient({ execInContainer })
+    const agent = await client.updateAgentModel({
+      agentId: 'research',
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    })
+
+    expect(execInContainer).toHaveBeenCalledTimes(3)
+    expect(agent).toEqual({
+      agentId: 'research',
+      name: 'research',
+      workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    })
+  })
+
+  it('preserves existing model fallbacks when updating an agent model', async () => {
+    let callIndex = 0
+    const execInContainer = mock(
+      async (command: string[], onLog?: (line: string) => void) => {
+        callIndex += 1
+
+        if (callIndex === 1) {
+          onLog?.(
+            JSON.stringify({
+              list: [
+                {
+                  id: 'research',
+                  model: {
+                    primary: 'openai/gpt-5.4-mini',
+                    fallbacks: ['openai/gpt-5.4-nano'],
+                  },
+                },
+              ],
+            }),
+          )
+          return 0
+        }
+
+        if (callIndex === 2) {
+          expect(command).toEqual([
+            'node',
+            'dist/index.js',
+            'config',
+            'set',
+            'agents.list[0].model',
+            '{"primary":"openrouter/anthropic/claude-sonnet-4.5","fallbacks":["openai/gpt-5.4-nano"]}',
+          ])
+          return 0
+        }
+
+        onLog?.(
+          JSON.stringify([
+            {
+              id: 'research',
+              workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
+              model: 'openrouter/anthropic/claude-sonnet-4.5',
+            },
+          ]),
+        )
+        return 0
+      },
+    )
+
+    const client = new OpenClawCliClient({ execInContainer })
+
+    await client.updateAgentModel({
+      agentId: 'research',
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    })
+
+    expect(execInContainer).toHaveBeenCalledTimes(3)
+  })
+
   it('parses agent lists from mixed log and JSON output', async () => {
     const execInContainer = mock(
       async (_command: string[], onLog?: (line: string) => void) => {

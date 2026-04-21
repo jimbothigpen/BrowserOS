@@ -25,6 +25,7 @@ import {
 import {
   OpenClawAgentAlreadyExistsError,
   OpenClawAgentNotFoundError,
+  OpenClawInvalidAgentModelError,
   OpenClawInvalidAgentNameError,
   OpenClawProtectedAgentError,
 } from './errors'
@@ -548,6 +549,65 @@ export class OpenClawService {
     return agent
   }
 
+  async updateAgent(input: {
+    agentId: string
+    providerType?: string
+    providerName?: string
+    baseUrl?: string
+    apiKey?: string
+    modelId?: string
+  }): Promise<OpenClawAgentEntry> {
+    logger.debug('Updating OpenClaw agent model', {
+      agentId: input.agentId,
+      providerType: input.providerType,
+      providerName: input.providerName,
+      hasBaseUrl: !!input.baseUrl,
+      hasModel: !!input.modelId,
+      hasApiKey: !!input.apiKey,
+    })
+    await this.assertGatewayReady()
+
+    const existingAgent = await this.runControlPlaneCall(() =>
+      this.cliClient.listAgents(),
+    ).then((agents) => agents.find((agent) => agent.agentId === input.agentId))
+    if (!existingAgent) {
+      throw new OpenClawAgentNotFoundError(input.agentId)
+    }
+
+    const provider = resolveSupportedOpenClawProvider(input)
+    if (!provider.model) {
+      throw new OpenClawInvalidAgentModelError()
+    }
+
+    const configChanged = await this.mergeProviderConfigIfChanged(provider)
+    const keysChanged = await this.writeStateEnv(provider.envValues)
+
+    if (configChanged || keysChanged) {
+      logger.info('OpenClaw provider config changed while updating agent', {
+        agentId: input.agentId,
+        configChanged,
+        keysChanged,
+      })
+      await this.restart()
+    }
+
+    const agent = await this.runControlPlaneCall(() =>
+      this.applyCliMutation(() =>
+        this.cliClient.updateAgentModel({
+          agentId: input.agentId,
+          model: provider.model as string,
+        }),
+      ),
+    )
+
+    logger.info('Agent model updated via CLI', {
+      agentId: agent.agentId,
+      model: provider.model,
+      providerType: input.providerType,
+    })
+    return agent
+  }
+
   async removeAgent(agentId: string): Promise<void> {
     logger.info('Removing OpenClaw agent', { agentId })
     if (agentId === 'main') {
@@ -967,14 +1027,14 @@ export class OpenClawService {
     return entries
   }
 
-  private async applyCliMutation(action: () => Promise<void>): Promise<void> {
+  private async applyCliMutation<T>(action: () => Promise<T>): Promise<T> {
     let retried = false
 
     while (true) {
       try {
-        await action()
+        const result = await action()
         await this.waitForGatewayAfterCliMutation()
-        return
+        return result
       } catch (error) {
         if (!this.isRestartInterruptedCliMutation(error) || retried) {
           throw error
