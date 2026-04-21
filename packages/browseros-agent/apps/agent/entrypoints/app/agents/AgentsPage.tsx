@@ -253,6 +253,28 @@ function getDefaultCompatibleProviderId(
   )
 }
 
+function deriveOpenClawProviderId(
+  provider: Pick<OpenClawProviderOption, 'type' | 'name' | 'baseUrl'>,
+): string {
+  const source =
+    provider.name.trim() || provider.baseUrl?.trim() || provider.type
+  const candidate = source
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+
+  return candidate || 'custom-provider'
+}
+
+function getProviderModelRefs(provider: OpenClawProviderOption): string[] {
+  if (provider.type === 'openai-compatible') {
+    return [`${deriveOpenClawProviderId(provider)}/${provider.modelId}`]
+  }
+
+  return [`${provider.type}/${provider.modelId}`]
+}
+
 function getProviderIdForAgentModel(
   model: unknown,
   providers: OpenClawProviderOption[],
@@ -262,10 +284,9 @@ function getProviderIdForAgentModel(
     return getDefaultCompatibleProviderId(providers, defaultProviderId)
   }
 
-  const matchingProvider = providers.find((provider) => {
-    const builtInModelRef = `${provider.type}/${provider.modelId}`
-    return model === builtInModelRef || model.endsWith(`/${provider.modelId}`)
-  })
+  const matchingProvider = providers.find((provider) =>
+    getProviderModelRefs(provider).includes(model),
+  )
 
   return (
     matchingProvider?.id ??

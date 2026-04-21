@@ -365,6 +365,45 @@ describe('createOpenClawRoutes', () => {
     })
   })
 
+  it('maps invalid agent model updates to 400', async () => {
+    const actualOpenClawService = await import(
+      '../../../src/api/services/openclaw/openclaw-service'
+    )
+    const actualErrors = await import(
+      '../../../src/api/services/openclaw/errors'
+    )
+    const updateAgent = mock(async () => {
+      throw new actualErrors.OpenClawInvalidAgentModelError()
+    })
+
+    mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
+      ...actualOpenClawService,
+      getOpenClawService: () =>
+        ({
+          updateAgent,
+        }) as never,
+    }))
+
+    const { createOpenClawRoutes } = await import(
+      '../../../src/api/routes/openclaw'
+    )
+    const route = createOpenClawRoutes()
+
+    const response = await route.request('/agents/research', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        providerType: 'openai',
+        modelId: 'gpt-5.4-mini',
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: 'A provider-backed model selection is required to update an agent',
+    })
+  })
+
   it('does not expose a roles route', async () => {
     const { createOpenClawRoutes } = await import(
       '../../../src/api/routes/openclaw'

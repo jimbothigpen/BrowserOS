@@ -204,15 +204,20 @@ export class OpenClawCliClient {
       throw new Error(`Agent "${input.agentId}" not found in OpenClaw config`)
     }
 
-    const nextModel = buildUpdatedAgentModel(agents[agentIndex]?.model, {
+    const configuredAgent = agents[agentIndex]
+    const nextModel = buildUpdatedAgentModel(configuredAgent?.model, {
       primary: input.model,
     })
 
     await this.setConfig(`agents.list[${agentIndex}].model`, nextModel)
 
+    const configuredAgentIds = getConfiguredAgentIds(
+      configuredAgent,
+      input.agentId,
+    )
     const updatedAgents = await this.listAgents()
-    const updatedAgent = updatedAgents.find(
-      (agent) => agent.agentId === input.agentId,
+    const updatedAgent = updatedAgents.find((agent) =>
+      hasConfiguredAgentId(agent, configuredAgentIds),
     )
     if (!updatedAgent) {
       throw new Error(
@@ -480,6 +485,21 @@ function isConfiguredAgentId(
   agentId: string,
 ): boolean {
   return value.id === agentId || value.name === agentId
+}
+
+function getConfiguredAgentIds(
+  value: RawConfiguredAgentRecord | undefined,
+  fallback: string,
+): string[] {
+  const ids = [value?.id, value?.name, fallback]
+  return [...new Set(ids.filter((entry): entry is string => !!entry))]
+}
+
+function hasConfiguredAgentId(
+  value: OpenClawAgentRecord,
+  ids: string[],
+): boolean {
+  return ids.includes(value.agentId) || ids.includes(value.name)
 }
 
 function buildUpdatedAgentModel(

@@ -578,6 +578,7 @@ export class OpenClawService {
     if (!provider.model) {
       throw new OpenClawInvalidAgentModelError()
     }
+    const model = provider.model
 
     const configChanged = await this.mergeProviderConfigIfChanged(provider)
     const keysChanged = await this.writeStateEnv(provider.envValues)
@@ -595,14 +596,14 @@ export class OpenClawService {
       this.applyCliMutation(() =>
         this.cliClient.updateAgentModel({
           agentId: input.agentId,
-          model: provider.model as string,
+          model,
         }),
       ),
     )
 
     logger.info('Agent model updated via CLI', {
       agentId: agent.agentId,
-      model: provider.model,
+      model,
       providerType: input.providerType,
     })
     return agent

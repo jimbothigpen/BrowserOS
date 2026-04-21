@@ -292,6 +292,67 @@ describe('OpenClawCliClient', () => {
     expect(execInContainer).toHaveBeenCalledTimes(3)
   })
 
+  it('matches the updated agent by configured name when the config omits id', async () => {
+    let callIndex = 0
+    const execInContainer = mock(
+      async (command: string[], onLog?: (line: string) => void) => {
+        callIndex += 1
+
+        if (callIndex === 1) {
+          onLog?.(
+            JSON.stringify({
+              list: [
+                {
+                  name: 'research',
+                  model: 'openai/gpt-5.4-mini',
+                },
+              ],
+            }),
+          )
+          return 0
+        }
+
+        if (callIndex === 2) {
+          expect(command).toEqual([
+            'node',
+            'dist/index.js',
+            'config',
+            'set',
+            'agents.list[0].model',
+            'openrouter/anthropic/claude-sonnet-4.5',
+          ])
+          return 0
+        }
+
+        onLog?.(
+          JSON.stringify([
+            {
+              id: 'research-1',
+              name: 'research',
+              workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
+              model: 'openrouter/anthropic/claude-sonnet-4.5',
+            },
+          ]),
+        )
+        return 0
+      },
+    )
+
+    const client = new OpenClawCliClient({ execInContainer })
+    const agent = await client.updateAgentModel({
+      agentId: 'research',
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    })
+
+    expect(execInContainer).toHaveBeenCalledTimes(3)
+    expect(agent).toEqual({
+      agentId: 'research-1',
+      name: 'research',
+      workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
+      model: 'openrouter/anthropic/claude-sonnet-4.5',
+    })
+  })
+
   it('parses agent lists from mixed log and JSON output', async () => {
     const execInContainer = mock(
       async (_command: string[], onLog?: (line: string) => void) => {
