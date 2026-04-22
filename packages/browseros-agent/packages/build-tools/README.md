@@ -11,11 +11,11 @@ bun install
 
 ## Build a VM disk
 
-Requires `libguestfs`, `qemu-img`, and `zstd`.
+Requires `libguestfs`, `qemu-img`, and `zstd` in an arm64 Linux environment.
+On Apple Silicon, run this from an arm64 Lima/Debian VM rather than directly on macOS.
 
 ```bash
 bun run --filter @browseros/build-tools build:disk -- --version 2026.04.22 --arch arm64
-bun run --filter @browseros/build-tools build:disk -- --version 2026.04.22 --arch x64
 ```
 
 ## Build an agent tarball
@@ -24,7 +24,6 @@ Requires `podman`.
 
 ```bash
 bun run --filter @browseros/build-tools build:tarball -- --agent openclaw --arch arm64
-bun run --filter @browseros/build-tools build:tarball -- --agent openclaw --arch x64
 ```
 
 ## Smoke test artifacts

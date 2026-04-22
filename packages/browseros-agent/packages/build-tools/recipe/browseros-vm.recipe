@@ -21,5 +21,4 @@ upload {manifest_tmp}:/etc/browseros-vm-manifest.json
 run-command apt-get clean
 run-command rm -rf /var/lib/apt/lists/* /tmp/browseros-vm-resolv.conf /tmp/* /var/tmp/*
 run-command rm -f /etc/ssh/ssh_host_*
-run-command rm -f /etc/machine-id
 truncate /etc/machine-id
