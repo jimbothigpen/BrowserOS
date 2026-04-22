@@ -112,6 +112,7 @@ async function pumpChatEvents(
     while (true) {
       if (signal?.aborted) {
         await reader.cancel()
+        done = true
         controller.close()
         return
       }
@@ -128,6 +129,7 @@ async function pumpChatEvents(
           message: error instanceof Error ? error.message : String(error),
         },
       })
+      done = true
       controller.close()
     }
   } finally {
