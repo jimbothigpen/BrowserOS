@@ -44,15 +44,20 @@ jobs:
       - name: Install libguestfs + qemu-utils + zstd
         run: |
           sudo apt-get update
-          sudo apt-get install -y libguestfs-tools qemu-utils zstd
+          sudo apt-get install -y libguestfs-tools qemu-utils zstd passt
           echo "LIBGUESTFS_BACKEND=direct" >> "$GITHUB_ENV"
           # Ubuntu 24.04 ships /boot/vmlinuz-* as mode 0600, which breaks
           # libguestfs's supermin appliance build when virt-customize runs
           # as a non-root user. Loosen to 0644 so supermin can read them.
-          # This is the well-known CI workaround; it only affects the runner's
-          # own kernel files and is discarded when the runner is torn down.
           sudo chmod 0644 /boot/vmlinuz-* || true
           sudo chmod 0644 /boot/initrd.img-* || true
+          # Give the runner user access to /dev/kvm so libguestfs can use
+          # hardware acceleration. Without this, the appliance VM runs under
+          # TCG emulation which is both slow and trips the passt networking
+          # helper on GHA ubuntu-24.04. Canonical libguestfs-in-CI workaround.
+          if [ -e /dev/kvm ]; then
+            sudo chmod 0666 /dev/kvm
+          fi
       - name: Install deps
         working-directory: packages/browseros-agent
         run: bun install --frozen-lockfile
