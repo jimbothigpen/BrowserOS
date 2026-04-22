@@ -36,8 +36,6 @@ MACOS_SERVER_BINARIES: Dict[str, SignSpec] = {
 
 WINDOWS_SERVER_BINARIES: List[str] = [
     "browseros_server.exe",
-    "third_party/bun.exe",
-    "third_party/rg.exe",
 ]
 
 
