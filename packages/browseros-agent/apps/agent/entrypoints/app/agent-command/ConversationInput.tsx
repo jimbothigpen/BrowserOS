@@ -282,7 +282,7 @@ export const ConversationInput: FC<ConversationInputProps> = ({
     const element = textareaRef.current
     if (!element) return
 
-    const maxHeight = isConversation ? 176 : 224
+    const maxHeight = isConversation ? 176 : 100
     const collapsedHeight = isConversation ? 56 : 72
     element.style.height = '0px'
     const nextHeight = Math.min(element.scrollHeight, maxHeight)
@@ -325,11 +325,7 @@ export const ConversationInput: FC<ConversationInputProps> = ({
         className={cn(
           'flex gap-3',
           variant === 'home' ? 'px-5 py-4' : 'px-4 py-3',
-          variant === 'home'
-            ? 'items-end'
-            : isExpandedDraft
-              ? 'items-end'
-              : 'items-center',
+          isExpandedDraft ? 'items-end' : 'items-center',
         )}
       >
         <BotInputIcon variant={variant} />
@@ -356,7 +352,7 @@ export const ConversationInput: FC<ConversationInputProps> = ({
               'resize-none border-none bg-transparent px-0 text-[15px] shadow-none focus-visible:ring-0',
               '[field-sizing:fixed]',
               variant === 'home'
-                ? 'min-h-[72px] py-0 leading-7'
+                ? 'min-h-[72px] py-2 leading-7'
                 : 'min-h-[40px] py-2 leading-6',
               'placeholder:text-muted-foreground/80',
             )}
