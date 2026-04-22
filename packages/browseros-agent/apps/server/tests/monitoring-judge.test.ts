@@ -150,7 +150,7 @@ describe('LazyMonitoringJudgeService', () => {
         toolName: 'click',
         toolDescription: 'Click an element',
         source: 'browser-tool',
-        args: { page: 2, element: 12 },
+        args: { page: 2, element: 12, button: 'left' },
         startedAt: '2026-04-20T15:59:03.630Z',
       },
     })
@@ -210,7 +210,19 @@ describe('LazyMonitoringJudgeService', () => {
         toolName: 'click',
         toolDescription: 'Click an element',
         source: 'browser-tool',
-        args: { page: 2, element: 12 },
+        args: {
+          page: 2,
+          element: 12,
+          button: 'left',
+          lazyMonitoringContext: {
+            element: {
+              id: 12,
+              lastSnapshotLine: '[12] Product 1',
+              matchedFromToolCallId: 'tool-prev',
+              matchedFromToolName: 'take_snapshot',
+            },
+          },
+        },
       },
     })
   })

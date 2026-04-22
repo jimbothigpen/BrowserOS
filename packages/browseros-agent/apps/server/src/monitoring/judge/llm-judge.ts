@@ -1,3 +1,4 @@
+import type { MonitoringToolCallRecord } from '../types'
 import type {
   LazyMonitoringJudgeInput,
   LazyMonitoringJudgment,
@@ -244,6 +245,145 @@ function getPreviousUserPrompt(input: LazyMonitoringJudgeInput): string | null {
   return null
 }
 
+const SNAPSHOT_ELEMENT_ARG_KEYS = [
+  'element',
+  'sourceElement',
+  'targetElement',
+] as const
+const SNAPSHOT_LINE_PATTERN = /^\[(\d+)\]\s+/
+
+function getTextContent(contentItem: unknown): string | null {
+  if (!contentItem || typeof contentItem !== 'object') {
+    return null
+  }
+
+  const record = contentItem as { type?: unknown; text?: unknown }
+
+  return record.type === 'text' && typeof record.text === 'string'
+    ? record.text
+    : null
+}
+
+function collectSnapshotLines(output: unknown): string[] {
+  if (!output || typeof output !== 'object') {
+    return []
+  }
+
+  const lines: string[] = []
+  const record = output as {
+    content?: unknown
+    structuredContent?: { snapshot?: unknown }
+  }
+
+  const snapshot = record.structuredContent?.snapshot
+  if (typeof snapshot === 'string' && snapshot.trim()) {
+    lines.push(...snapshot.split('\n'))
+  }
+
+  if (Array.isArray(record.content)) {
+    for (const item of record.content) {
+      const text = getTextContent(item)
+      if (text?.trim()) {
+        lines.push(...text.split('\n'))
+      }
+    }
+  }
+
+  return lines
+    .map((line) => line.trim())
+    .filter((line) => SNAPSHOT_LINE_PATTERN.test(line))
+}
+
+function findLatestSnapshotLine(
+  priorToolCalls: LazyMonitoringJudgeInput['priorToolCalls'],
+  elementId: number,
+): {
+  toolCallId: string
+  toolName: string
+  line: string
+} | null {
+  for (
+    let callIndex = priorToolCalls.length - 1;
+    callIndex >= 0;
+    callIndex -= 1
+  ) {
+    const toolCall = priorToolCalls[callIndex]
+    if (!toolCall) {
+      continue
+    }
+
+    const lines = collectSnapshotLines(toolCall.output)
+    for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
+      const line = lines[lineIndex]
+      const match = line?.match(SNAPSHOT_LINE_PATTERN)
+      if (match && Number(match[1]) === elementId) {
+        return {
+          toolCallId: toolCall.toolCallId,
+          toolName: toolCall.toolName,
+          line,
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+function enrichCurrentToolArgsWithSnapshotContext(
+  input: LazyMonitoringJudgeInput,
+): unknown {
+  const args = input.currentToolCall.args
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    return args
+  }
+
+  const argRecord = args as Record<string, unknown>
+  const lazyMonitoringContext: Record<string, unknown> = {}
+
+  for (const key of SNAPSHOT_ELEMENT_ARG_KEYS) {
+    const elementId = argRecord[key]
+    if (typeof elementId !== 'number') {
+      continue
+    }
+
+    const match = findLatestSnapshotLine(input.priorToolCalls, elementId)
+    if (!match) {
+      continue
+    }
+
+    lazyMonitoringContext[key] = {
+      id: elementId,
+      lastSnapshotLine: match.line,
+      matchedFromToolCallId: match.toolCallId,
+      matchedFromToolName: match.toolName,
+    }
+  }
+
+  if (Object.keys(lazyMonitoringContext).length === 0) {
+    return args
+  }
+
+  return {
+    ...argRecord,
+    lazyMonitoringContext,
+  }
+}
+
+function buildToolCallPayload(
+  toolCall: MonitoringToolCallRecord,
+  args = toolCall.args,
+): Record<string, unknown> {
+  return {
+    toolCallId: toolCall.toolCallId,
+    toolName: toolCall.toolName,
+    toolDescription: toolCall.toolDescription,
+    source: toolCall.source,
+    args,
+    output: toolCall.output,
+    error: toolCall.error,
+  }
+}
+
 function buildPayload(
   input: LazyMonitoringJudgeInput,
 ): Record<string, unknown> {
@@ -253,25 +393,14 @@ function buildPayload(
     currentUserPrompt: sanitizeForPrompt(input.run.originalPrompt),
     previousUserPrompt: sanitizeForPrompt(getPreviousUserPrompt(input)),
     previousToolCall: sanitizeForPrompt(
-      previousToolCall
-        ? {
-            toolCallId: previousToolCall.toolCallId,
-            toolName: previousToolCall.toolName,
-            toolDescription: previousToolCall.toolDescription,
-            source: previousToolCall.source,
-            args: previousToolCall.args,
-            output: previousToolCall.output,
-            error: previousToolCall.error,
-          }
-        : null,
+      previousToolCall ? buildToolCallPayload(previousToolCall) : null,
     ),
-    currentToolCall: sanitizeForPrompt({
-      toolCallId: input.currentToolCall.toolCallId,
-      toolName: input.currentToolCall.toolName,
-      toolDescription: input.currentToolCall.toolDescription,
-      source: input.currentToolCall.source,
-      args: input.currentToolCall.args,
-    }),
+    currentToolCall: sanitizeForPrompt(
+      buildToolCallPayload(
+        input.currentToolCall,
+        enrichCurrentToolArgsWithSnapshotContext(input),
+      ),
+    ),
   }
 }
 
