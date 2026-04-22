@@ -242,7 +242,7 @@ function ContextControls({
 
 function HomeShell({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-border/60 bg-card/95 shadow-sm backdrop-blur">
+    <div className="overflow-hidden rounded-[1.55rem] border border-border/60 bg-card/95 shadow-sm">
       {children}
     </div>
   )
@@ -324,7 +324,7 @@ export const ConversationInput: FC<ConversationInputProps> = ({
       <div
         className={cn(
           'flex gap-3',
-          variant === 'home' ? 'px-5 py-4' : 'px-4 py-3',
+          variant === 'home' ? 'px-4 py-3' : 'px-4 py-3',
           isExpandedDraft ? 'items-end' : 'items-center',
         )}
       >
@@ -352,7 +352,7 @@ export const ConversationInput: FC<ConversationInputProps> = ({
               'resize-none border-none bg-transparent px-0 text-[15px] shadow-none focus-visible:ring-0',
               '[field-sizing:fixed]',
               variant === 'home'
-                ? 'min-h-[72px] py-2 leading-7'
+                ? 'min-h-[40px] py-2 leading-6'
                 : 'min-h-[40px] py-2 leading-6',
               'placeholder:text-muted-foreground/80',
             )}
@@ -403,7 +403,7 @@ function BotInputIcon({ variant }: { variant: 'home' | 'conversation' }) {
       className={cn(
         'flex items-center justify-center text-[var(--accent-orange)]',
         variant === 'home'
-          ? 'h-10 w-10 rounded-xl bg-[var(--accent-orange)]/10'
+          ? 'h-8 w-8 rounded-lg bg-[var(--accent-orange)]/10'
           : 'h-8 w-8 rounded-lg bg-[var(--accent-orange)]/10',
       )}
     >
