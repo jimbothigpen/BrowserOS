@@ -10,8 +10,8 @@
       "default": "./src/schema/index.ts"
     },
     "./load": {
-      "types": "./src/load/index.ts",
-      "default": "./src/load/index.ts"
+      "types": "./src/load.ts",
+      "default": "./src/load.ts"
     }
   },
   "scripts": {

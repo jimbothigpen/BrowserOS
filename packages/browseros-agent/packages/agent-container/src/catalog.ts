@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 
 import { z } from 'zod'
 
-import { ARCHES, type ContainerArch } from '../schema/arch'
+import { ARCHES, type ContainerArch } from './schema/arch'
 
 export const agentEntrySchema = z.object({
   name: z.string().regex(/^[a-z0-9-]+$/),

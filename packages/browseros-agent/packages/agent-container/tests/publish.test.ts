@@ -9,8 +9,8 @@ import {
   type S3Client,
 } from '@aws-sdk/client-s3'
 
-import type { BuildResult } from '../src/build/types'
-import { publishAgents } from '../src/upload/publish'
+import type { BuildResult } from '../src/build'
+import { publishAgents } from '../src/publish'
 
 const tempDirs: string[] = []
 
@@ -74,7 +74,7 @@ afterEach(async () => {
   )
 })
 
-describe('upload/publish', () => {
+describe('publish', () => {
   it('uploads version manifests and updates aggregate last', async () => {
     const root = await createTempDir()
     const buildResults = await Promise.all([
@@ -258,6 +258,54 @@ describe('upload/publish', () => {
         manifest_url:
           'https://cdn.example.com/agents/openclaw/2026.4.12/manifest.json',
       },
+    ])
+  })
+
+  it('records distinct podman versions across arches', async () => {
+    const root = await createTempDir()
+    const buildResults = await Promise.all([
+      createBuildResult(root, 'amd64', {
+        podmanVersion: 'podman version 5.8.1',
+      }),
+      createBuildResult(root, 'arm64', {
+        podmanVersion: 'podman version 5.9.0',
+      }),
+    ])
+    const puts: Array<{ key: string; body: unknown }> = []
+
+    const client = {
+      send: async (command: unknown) => {
+        if (command instanceof GetObjectCommand) {
+          throw { name: 'NoSuchKey', $metadata: { httpStatusCode: 404 } }
+        }
+        if (command instanceof PutObjectCommand) {
+          puts.push({
+            key: String(command.input.Key),
+            body: command.input.Body,
+          })
+          return {}
+        }
+        if (command instanceof DeleteObjectCommand) {
+          return {}
+        }
+        throw new Error('unexpected command')
+      },
+      destroy: () => {},
+    } as unknown as S3Client
+
+    await publishAgents({
+      buildResults,
+      updateAggregate: false,
+      bucket: 'test-bucket',
+      client,
+    })
+
+    const versionManifest = JSON.parse(
+      String(puts.find((entry) => entry.key.endsWith('/manifest.json'))?.body),
+    )
+    expect(versionManifest.build.podman_versions).toEqual([
+      'podman version 5.8.1',
+      'podman version 5.9.0',
     ])
   })
 })

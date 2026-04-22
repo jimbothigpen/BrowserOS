@@ -3,7 +3,7 @@ import type {
   AgentManifest,
   AggregateManifest,
   ContainerArch,
-} from '../schema'
+} from './schema'
 
 export async function fetchAggregateManifest(): Promise<AggregateManifest> {
   throw new Error('fetchAggregateManifest: implemented in WS6')

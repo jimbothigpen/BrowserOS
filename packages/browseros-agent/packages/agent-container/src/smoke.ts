@@ -9,7 +9,7 @@ import {
   podmanInspectImage,
   podmanLoadArchive,
   podmanRemoveImage,
-} from '../build/podman'
+} from './build'
 
 export interface RoundTripPodmanLoadOptions {
   tarballPath: string

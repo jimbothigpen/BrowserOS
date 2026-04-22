@@ -2,8 +2,9 @@
 
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
-import { buildTarball } from '../src/build/orchestrator'
-import { readAgentsConfig } from '../src/catalog/load'
+
+import { buildTarball } from '../src/build'
+import { readAgentsConfig } from '../src/catalog'
 import { parseArch } from '../src/schema/arch'
 
 const packageRoot = resolve(import.meta.dir, '..')

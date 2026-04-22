@@ -27,7 +27,7 @@ export const agentManifestSchema = z.object({
     built_at: z.string().datetime(),
     built_by: z.string().min(1),
     config_sha256: sha256HexSchema,
-    podman_version: z.string().min(1),
+    podman_versions: z.array(z.string().min(1)).min(1),
   }),
   source: z.object({
     image: z.string().min(1),

@@ -1,27 +1,29 @@
-import { GetObjectCommand, type S3Client } from '@aws-sdk/client-s3'
+import { createReadStream } from 'node:fs'
+import { stat } from 'node:fs/promises'
 
-import type { BuildResult } from '../build/types'
-import { ARCHES } from '../schema/arch'
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+  type S3ClientConfig,
+} from '@aws-sdk/client-s3'
+
+import type { BuildResult } from './build'
+import { ARCHES } from './schema/arch'
 import {
   type AgentManifest,
   type AggregateEntry,
   type AggregateManifest,
   agentManifestSchema,
   aggregateManifestSchema,
-} from '../schema/manifest'
+} from './schema/manifest'
 import {
   keyForAggregateManifest,
   keyForSha,
   keyForTarball,
   keyForVersionManifest,
-} from '../schema/r2-keys'
-import {
-  createR2Client,
-  deleteObject,
-  getBucket,
-  uploadBody,
-  uploadFile,
-} from './r2-client'
+} from './schema/r2-keys'
 
 const CDN_BASE_URL =
   process.env.R2_PUBLIC_BASE_URL ?? 'https://cdn.browseros.com'
@@ -43,12 +45,87 @@ interface ResultGroup {
   image: string
   version: string
   sourceOciDigest: string
-  podmanVersion: string
+  podmanVersions: string[]
   gitSha: string
   gitDirty: boolean
   configSha256: string
   builtBy: string
   results: BuildResult[]
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim()
+  if (!value) {
+    throw new Error(`missing required env var: ${name}`)
+  }
+
+  return value
+}
+
+function createR2Client(): S3Client {
+  const config: S3ClientConfig = {
+    region: 'auto',
+    endpoint: `https://${requiredEnv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: requiredEnv('R2_ACCESS_KEY_ID'),
+      secretAccessKey: requiredEnv('R2_SECRET_ACCESS_KEY'),
+    },
+  }
+
+  return new S3Client(config)
+}
+
+function getBucket(): string {
+  return requiredEnv('R2_BUCKET')
+}
+
+async function uploadFile(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  path: string,
+  contentType = 'application/gzip',
+): Promise<void> {
+  const { size } = await stat(path)
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: createReadStream(path),
+      ContentLength: size,
+      ContentType: contentType,
+    }),
+  )
+}
+
+async function uploadBody(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  body: string | Uint8Array,
+  contentType = JSON_CONTENT_TYPE,
+): Promise<void> {
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  )
+}
+
+async function deleteObject(
+  client: S3Client,
+  bucket: string,
+  key: string,
+): Promise<void> {
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    }),
+  )
 }
 
 function keyForGroup(name: string, version: string): string {
@@ -77,7 +154,7 @@ function createManifestForGroup(
       built_at: builtAt,
       built_by: group.builtBy,
       config_sha256: group.configSha256,
-      podman_version: group.podmanVersion,
+      podman_versions: group.podmanVersions,
     },
     source: {
       image: group.image,
@@ -169,9 +246,6 @@ function buildGroup(results: BuildResult[]): ResultGroup {
     if (result.sourceOciDigest !== firstResult.sourceOciDigest) {
       throw new Error('mixed source OCI digests in publish group')
     }
-    if (result.podmanVersion !== firstResult.podmanVersion) {
-      throw new Error('mixed podman versions in publish group')
-    }
     if (
       result.gitSha !== firstResult.gitSha ||
       result.gitDirty !== firstResult.gitDirty
@@ -186,13 +260,17 @@ function buildGroup(results: BuildResult[]): ResultGroup {
     }
   }
 
+  const podmanVersions = [
+    ...new Set(results.map((result) => result.podmanVersion)),
+  ].sort()
+
   return {
     name: firstResult.name,
     publishAs: firstResult.publishAs,
     image: firstResult.image,
     version: firstResult.version,
     sourceOciDigest: firstResult.sourceOciDigest,
-    podmanVersion: firstResult.podmanVersion,
+    podmanVersions,
     gitSha: firstResult.gitSha,
     gitDirty: firstResult.gitDirty,
     configSha256: firstResult.configSha256,
@@ -223,24 +301,12 @@ async function readBodyAsString(body: unknown): Promise<string> {
   const withTransform = body as {
     transformToByteArray?: () => Promise<Uint8Array>
   }
-  if (withTransform?.transformToByteArray) {
-    const bytes = await withTransform.transformToByteArray()
-    return new TextDecoder().decode(bytes)
-  }
-
-  const readable = body as AsyncIterable<Uint8Array>
-  if (!readable || typeof readable[Symbol.asyncIterator] !== 'function') {
+  if (!withTransform?.transformToByteArray) {
     throw new Error('R2 response body is not readable')
   }
 
-  const chunks: Uint8Array[] = []
-  for await (const chunk of readable) {
-    chunks.push(chunk)
-  }
-
-  return new TextDecoder().decode(
-    Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))),
-  )
+  const bytes = await withTransform.transformToByteArray()
+  return new TextDecoder().decode(bytes)
 }
 
 async function readExistingAggregateEntries(

@@ -4,8 +4,8 @@ import { readdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
-import { loadBuildResult } from '../src/build/orchestrator'
-import { publishAgents } from '../src/upload/publish'
+import { loadBuildResult } from '../src/build'
+import { publishAgents } from '../src/publish'
 
 async function findBuildResultPaths(root: string): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true })

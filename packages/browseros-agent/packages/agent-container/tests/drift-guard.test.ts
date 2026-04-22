@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-import { readAgentsConfig } from '../src/catalog/load'
+import { readAgentsConfig } from '../src/catalog'
 
 const packageRoot = resolve(import.meta.dir, '..')
 const recipePath = resolve(packageRoot, 'recipe', 'agents.json')

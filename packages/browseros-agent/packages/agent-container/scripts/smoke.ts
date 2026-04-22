@@ -2,7 +2,7 @@
 
 import { parseArgs } from 'node:util'
 
-import { roundTripPodmanLoad } from '../src/smoke/podman-load'
+import { roundTripPodmanLoad } from '../src/smoke'
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),

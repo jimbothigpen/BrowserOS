@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { expandMatrix, readAgentsConfig } from '../src/catalog/load'
+import { expandMatrix, readAgentsConfig } from '../src/catalog'
 
 const tempPaths: string[] = []
 
@@ -23,7 +23,7 @@ afterEach(async () => {
   )
 })
 
-describe('catalog/load', () => {
+describe('catalog', () => {
   it('reads and expands the agent matrix', async () => {
     const path = await writeTempConfig({
       schema: 'v1',

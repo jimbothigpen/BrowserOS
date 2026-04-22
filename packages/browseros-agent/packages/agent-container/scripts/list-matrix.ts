@@ -3,7 +3,7 @@
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
-import { expandMatrix, readAgentsConfig } from '../src/catalog/load'
+import { expandMatrix, readAgentsConfig } from '../src/catalog'
 
 const packageRoot = resolve(import.meta.dir, '..')
 const recipePath = resolve(packageRoot, 'recipe', 'agents.json')

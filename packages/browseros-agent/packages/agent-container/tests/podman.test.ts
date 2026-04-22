@@ -4,8 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { buildTarball } from '../src/build/orchestrator'
-import { registryForImage } from '../src/build/podman'
+import { buildTarball, registryForImage } from '../src/build'
 
 const tempDirs: string[] = []
 
@@ -36,7 +35,7 @@ afterEach(async () => {
   )
 })
 
-describe('build/podman + orchestrator', () => {
+describe('build', () => {
   it('resolves registry hosts correctly', () => {
     expect(registryForImage('ghcr.io/openclaw/openclaw')).toBe('ghcr.io')
     expect(registryForImage('localhost:5000/example/image')).toBe(

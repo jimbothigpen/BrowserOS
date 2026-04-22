@@ -20,7 +20,7 @@ describe('schema/manifest', () => {
         built_at: '2026-04-22T17:30:00.000Z',
         built_by: 'workflow@refs/heads/dev',
         config_sha256: hex('0'),
-        podman_version: 'podman version 5.8.1',
+        podman_versions: ['podman version 5.8.1'],
       },
       source: {
         image: 'ghcr.io/openclaw/openclaw',
@@ -56,7 +56,7 @@ describe('schema/manifest', () => {
           built_at: '2026-04-22T17:30:00.000Z',
           built_by: 'workflow@refs/heads/dev',
           config_sha256: hex('0'),
-          podman_version: 'podman version 5.8.1',
+          podman_versions: ['podman version 5.8.1'],
         },
         source: {
           image: 'ghcr.io/openclaw/openclaw',
