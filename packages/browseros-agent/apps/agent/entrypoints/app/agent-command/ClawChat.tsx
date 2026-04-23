@@ -1,13 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Bot, Loader2, RefreshCw } from 'lucide-react'
+import { type FC, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  type FC,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation'
 import type { AgentEntry } from '@/entrypoints/app/agents/useOpenClaw'
 import { cn } from '@/lib/utils'
 import { ClawChatMessage } from './ClawChatMessage'
@@ -36,21 +34,6 @@ interface ClawChatProps {
   initialMessage?: string | null
   onInitialMessageConsumed?: () => void
   className?: string
-}
-
-function isNearBottom(element: HTMLElement, threshold = 120): boolean {
-  return (
-    element.scrollHeight - element.scrollTop - element.clientHeight <= threshold
-  )
-}
-
-function scrollToLatestMessage(element: HTMLElement, behavior: ScrollBehavior) {
-  requestAnimationFrame(() => {
-    element.scrollTo({
-      top: element.scrollHeight,
-      behavior,
-    })
-  })
 }
 
 function EmptyConversationState({ agentName }: { agentName: string }) {
@@ -116,15 +99,8 @@ export const ClawChat: FC<ClawChatProps> = ({
   className,
 }) => {
   const queryClient = useQueryClient()
-  const scrollRef = useRef<HTMLDivElement>(null)
   const topSentinelRef = useRef<HTMLDivElement>(null)
   const initialMessageSentRef = useRef(false)
-  const didInitialScrollRef = useRef(false)
-  const stickToBottomRef = useRef(true)
-  const prependSnapshotRef = useRef<{
-    scrollHeight: number
-    scrollTop: number
-  } | null>(null)
   const [activeSessionKey, setActiveSessionKey] = useState<string | null>(null)
 
   const sessionQuery = useClawAgentSession(agentId)
@@ -174,8 +150,7 @@ export const ClawChat: FC<ClawChatProps> = ({
 
   useEffect(() => {
     const sentinel = topSentinelRef.current
-    const container = scrollRef.current
-    if (!sentinel || !container) return
+    if (!sentinel) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -188,14 +163,10 @@ export const ClawChat: FC<ClawChatProps> = ({
           return
         }
 
-        prependSnapshotRef.current = {
-          scrollHeight: container.scrollHeight,
-          scrollTop: container.scrollTop,
-        }
         void historyQuery.fetchNextPage()
       },
       {
-        root: container,
+        root: null,
         rootMargin: '160px 0px 0px 0px',
         threshold: 0,
       },
@@ -208,30 +179,6 @@ export const ClawChat: FC<ClawChatProps> = ({
     historyQuery.hasNextPage,
     historyQuery.isFetchingNextPage,
   ])
-
-  useLayoutEffect(() => {
-    const container = scrollRef.current
-    const snapshot = prependSnapshotRef.current
-    if (!container || !snapshot) return
-
-    container.scrollTop =
-      container.scrollHeight - snapshot.scrollHeight + snapshot.scrollTop
-    prependSnapshotRef.current = null
-  })
-
-  useLayoutEffect(() => {
-    const container = scrollRef.current
-    if (!container || didInitialScrollRef.current || isInitialLoading) return
-
-    scrollToLatestMessage(container, 'auto')
-    didInitialScrollRef.current = true
-  })
-
-  useLayoutEffect(() => {
-    const container = scrollRef.current
-    if (!container || !stickToBottomRef.current) return
-    scrollToLatestMessage(container, 'smooth')
-  })
 
   useEffect(() => {
     const query = initialMessage?.trim()
@@ -272,54 +219,53 @@ export const ClawChat: FC<ClawChatProps> = ({
     <div
       className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}
     >
-      <main
-        ref={scrollRef}
-        onScroll={(event) => {
-          stickToBottomRef.current = isNearBottom(event.currentTarget)
-        }}
+      <Conversation
         className={cn(
-          'styled-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-background px-5 py-5',
+          'bg-background',
           '[&_[data-streamdown="code-block"]]:!w-full [&_[data-streamdown="code-block"]]:!max-w-full [&_[data-streamdown="table-wrapper"]]:!w-full [&_[data-streamdown="table-wrapper"]]:!max-w-full [&_[data-streamdown="code-block"]]:overflow-x-auto [&_[data-streamdown="table-wrapper"]]:overflow-x-auto',
         )}
       >
-        {isInitialLoading ? (
-          <LoadingConversationState />
-        ) : error && !hasMessages ? (
-          <ConversationErrorState message={error.message} onRetry={retry} />
-        ) : !hasMessages ? (
-          <EmptyConversationState agentName={agentName} />
-        ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-            <div ref={topSentinelRef} aria-hidden="true" className="h-px" />
-            {historyQuery.isFetchingNextPage ? (
-              <div className="flex justify-center py-2 text-muted-foreground text-xs">
-                <Loader2 className="mr-2 size-3.5 animate-spin" />
-                Loading older messages...
-              </div>
-            ) : null}
-            {!historyQuery.hasNextPage && historyMessages.length > 0 ? (
-              <div className="py-1 text-center text-muted-foreground text-xs">
-                Start of conversation
-              </div>
-            ) : null}
-            {historyMessages.map((message) => (
-              <ClawChatMessage key={message.id} message={message} />
-            ))}
-            {turns.map((turn, index) => (
-              <ConversationMessage
-                key={turn.id}
-                turn={turn}
-                streaming={streaming && index === turns.length - 1}
-              />
-            ))}
-            {error ? (
-              <div className="rounded-xl border border-border/60 bg-card px-4 py-3 text-muted-foreground text-sm">
-                {error.message}
-              </div>
-            ) : null}
-          </div>
-        )}
-      </main>
+        <ConversationContent className="min-h-full px-5 py-5">
+          {isInitialLoading ? (
+            <LoadingConversationState />
+          ) : error && !hasMessages ? (
+            <ConversationErrorState message={error.message} onRetry={retry} />
+          ) : !hasMessages ? (
+            <EmptyConversationState agentName={agentName} />
+          ) : (
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+              <div ref={topSentinelRef} aria-hidden="true" className="h-px" />
+              {historyQuery.isFetchingNextPage ? (
+                <div className="flex justify-center py-2 text-muted-foreground text-xs">
+                  <Loader2 className="mr-2 size-3.5 animate-spin" />
+                  Loading older messages...
+                </div>
+              ) : null}
+              {!historyQuery.hasNextPage && historyMessages.length > 0 ? (
+                <div className="py-1 text-center text-muted-foreground text-xs">
+                  Start of conversation
+                </div>
+              ) : null}
+              {historyMessages.map((message) => (
+                <ClawChatMessage key={message.id} message={message} />
+              ))}
+              {turns.map((turn, index) => (
+                <ConversationMessage
+                  key={turn.id}
+                  turn={turn}
+                  streaming={streaming && index === turns.length - 1}
+                />
+              ))}
+              {error ? (
+                <div className="rounded-xl border border-border/60 bg-card px-4 py-3 text-muted-foreground text-sm">
+                  {error.message}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
 
       <div className="border-border/50 border-t bg-background/88 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto max-w-3xl">
