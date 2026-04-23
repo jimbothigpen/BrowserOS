@@ -24,20 +24,20 @@ limactl start \
   --name browseros-vm-dev \
   packages/browseros-agent/packages/build-tools/template/browseros-vm.yaml
 
-limactl shell browseros-vm-dev podman info
+limactl shell browseros-vm-dev nerdctl info
 
-SOCK="$(limactl list browseros-vm-dev --format '{{.Dir}}')/sock/podman.sock"
-curl --unix-socket "$SOCK" http://d/v5.0.0/libpod/_ping
+SOCK="$(limactl list browseros-vm-dev --format '{{.Dir}}')/sock/containerd.sock"
+test -S "$SOCK"
 
 bun run --filter @browseros/build-tools build:tarball -- --agent openclaw --arch arm64
-limactl shell browseros-vm-dev podman load -i "$(ls dist/images/openclaw-*-arm64.tar.gz | head -1)"
+limactl shell browseros-vm-dev nerdctl load -i "$(ls dist/images/openclaw-*-arm64.tar.gz | head -1)"
 
 limactl delete --force browseros-vm-dev
 ```
 
 ## Build an agent tarball
 
-Requires `podman`.
+The BrowserOS VM uses containerd + nerdctl. This host-side tarball builder still requires `podman` to pull and save OCI archives for release packaging.
 
 ```bash
 bun run --filter @browseros/build-tools build:tarball -- --agent openclaw --arch arm64
