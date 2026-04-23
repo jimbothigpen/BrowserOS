@@ -72,10 +72,10 @@ export class VmRuntime {
 
     const vms = await this.cli.list()
     const existing = vms.find((vm) => vm.name === VM_NAME)
-    const shouldWriteInstalledManifest =
+    let shouldWriteInstalledManifest =
       !existing || versionComparison === 'fresh' || versionComparison === 'same'
 
-    const branch = !existing
+    let branch = !existing
       ? 'provision-fresh'
       : existing.status !== 'Running'
         ? 'start-existing'
@@ -95,7 +95,14 @@ export class VmRuntime {
         onLog?.('Starting BrowserOS VM...')
         await this.cli.start(VM_NAME)
       }
-      if (versionComparison === 'upgrade') {
+      if (
+        !(await this.isReady()) &&
+        (await this.needsContainerdReprovision())
+      ) {
+        branch = 'recreate-legacy-runtime'
+        shouldWriteInstalledManifest = true
+        await this.recreateForContainerd(onLog)
+      } else if (versionComparison === 'upgrade') {
         logger.warn(VM_TELEMETRY_EVENTS.upgradeDetected, {
           from: installed?.updatedAt ?? null,
           to: cached.updatedAt,
@@ -207,6 +214,7 @@ export class VmRuntime {
   }
 
   private async provisionFresh(onLog?: LogFn): Promise<void> {
+    this.defaultGateway = null
     const yaml = await this.buildLimaYaml()
     const yamlPath = join(this.deps.limaHome, `${VM_NAME}.yaml`)
     await mkdir(dirname(yamlPath), { recursive: true })
@@ -232,6 +240,40 @@ export class VmRuntime {
     logger.info(VM_TELEMETRY_EVENTS.provisionStartOk, {
       durationMs: Date.now() - startStarted,
     })
+  }
+
+  private async recreateForContainerd(onLog?: LogFn): Promise<void> {
+    onLog?.('Recreating BrowserOS VM for containerd runtime...')
+    try {
+      await this.cli.stop(VM_NAME)
+    } catch (error) {
+      if (
+        !(error instanceof LimaCommandError) ||
+        !isAlreadyStopped(error.stderr)
+      ) {
+        throw error
+      }
+    }
+    await this.cli.delete(VM_NAME)
+    await this.provisionFresh(onLog)
+  }
+
+  private async needsContainerdReprovision(): Promise<boolean> {
+    const lines: string[] = []
+    try {
+      const exitCode = await this.runCommand(
+        ['sh', '-lc', 'cat /etc/browseros-vm-version 2>/dev/null || true'],
+        { onOutput: (line) => lines.push(line) },
+      )
+      if (exitCode !== 0) return false
+    } catch (error) {
+      logger.warn('Failed to inspect BrowserOS VM runtime marker', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return false
+    }
+
+    return !lines.some((line) => line.trim() === 'runtime:containerd')
   }
 
   private async buildLimaYaml(): Promise<string> {

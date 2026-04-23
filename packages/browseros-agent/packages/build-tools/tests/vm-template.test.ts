@@ -17,6 +17,7 @@ describe('browseros-vm Lima template', () => {
     expect(yaml).toContain('system: true')
     expect(yaml).toContain('user: false')
     expect(yaml).toContain('until nerdctl info >/dev/null 2>&1')
+    expect(yaml).toContain('runtime:containerd')
     expect(yaml).toContain('guestSocket: "/var/run/containerd/containerd.sock"')
     expect(yaml).toContain('hostSocket: "{{.Dir}}/sock/containerd.sock"')
     expect(yaml).not.toContain('podman')

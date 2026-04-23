@@ -147,6 +147,47 @@ describe('VmRuntime', () => {
     expect(log).not.toContain('ARGS:create')
   })
 
+  it('recreates an existing VM that does not have the containerd runtime marker', async () => {
+    await writeInstalledManifest(root)
+    const limactlPath = await fakeLimactl(
+      {
+        list: {
+          stdout: JSON.stringify([
+            { name: VM_NAME, status: 'Running', dir: limaHome },
+          ]),
+        },
+        stop: {},
+        delete: {},
+        create: {},
+        start: {},
+      },
+      logPath,
+    )
+    const sshPath = await fakeSsh({ stdout: 'provisioned:old\n' }, logPath)
+    await mkdir(join(limaHome, VM_NAME), { recursive: true })
+    await writeFile(join(limaHome, VM_NAME, 'ssh.config'), '')
+    setTimeout(() => {
+      void createSocket(getContainerdSocketPath(root)).then((server) => {
+        socketServer = server
+      })
+    }, 10)
+    const runtime = new VmRuntime({
+      limactlPath,
+      limaHome,
+      sshPath,
+      templatePath,
+      browserosRoot: root,
+    })
+
+    await runtime.ensureReady()
+
+    const log = await readFile(logPath, 'utf8')
+    expect(log).toContain(`ARGS:stop ${VM_NAME}`)
+    expect(log).toContain(`ARGS:delete --force ${VM_NAME}`)
+    expect(log).toContain(`ARGS:create --tty=false --name=${VM_NAME}`)
+    expect(log).toContain(`ARGS:start --tty=false ${VM_NAME}`)
+  })
+
   it('treats stopVm as idempotent when the VM is already stopped', async () => {
     const limactlPath = await fakeLimactl(
       { stop: { stderr: 'instance is not running', exit: 1 } },
