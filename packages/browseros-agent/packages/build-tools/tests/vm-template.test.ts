@@ -18,6 +18,10 @@ describe('browseros-vm Lima template', () => {
     expect(yaml).toContain('user: true')
     expect(yaml).toContain('until nerdctl info >/dev/null 2>&1')
     expect(yaml).toContain('runtime:containerd-rootless')
+    expect(yaml).toContain(
+      'guestSocket: "/run/user/{{.UID}}/containerd-rootless/containerd.sock"',
+    )
+    expect(yaml).toContain('hostSocket: "{{.Dir}}/sock/containerd.sock"')
     expect(yaml).not.toContain('sudo nerdctl')
     expect(yaml).not.toContain('/var/run/containerd/containerd.sock')
     expect(yaml).not.toContain('podman')

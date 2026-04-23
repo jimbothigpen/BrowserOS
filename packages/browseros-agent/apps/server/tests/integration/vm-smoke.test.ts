@@ -5,11 +5,15 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { ContainerCli } from '../../src/lib/container'
 import { LimaCli, type VmManifest, VmRuntime } from '../../src/lib/vm'
-import { getCachedManifestPath, VM_NAME } from '../../src/lib/vm/paths'
+import {
+  getCachedManifestPath,
+  getContainerdSocketPath,
+  VM_NAME,
+} from '../../src/lib/vm/paths'
 
 const LIVE_VM_SMOKE_TIMEOUT_MS = 10 * 60 * 1000
 const liveIt = process.env.LIVE_VM_SMOKE === '1' ? it : it.skip
@@ -62,6 +66,7 @@ describe('BrowserOS VM live smoke', () => {
       })
 
       await runtime.ensureReady()
+      expect((await stat(getContainerdSocketPath(root))).isSocket()).toBe(true)
       const nerdctlInfoOutput: string[] = []
       const nerdctlInfo = await cli.runCommand(['info'], (line) =>
         nerdctlInfoOutput.push(line),

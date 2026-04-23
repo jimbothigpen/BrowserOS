@@ -14,6 +14,7 @@ export interface LimaConfigInput {
   disk: string
   vmStateDir: string
   imageCacheDir: string
+  socketHostPath: string
 }
 
 export function generateLimaYaml(cfg: LimaConfigInput): string {
@@ -39,6 +40,9 @@ export function generateLimaYaml(cfg: LimaConfigInput): string {
     'containerd:',
     '  system: false',
     '  user: true',
+    'portForwards:',
+    '  - guestSocket: "/run/user/{{.UID}}/containerd-rootless/containerd.sock"',
+    `    hostSocket: "${cfg.socketHostPath}"`,
     'user:',
     '  name: "browseros"',
     '',

@@ -48,3 +48,7 @@ probes:
       exit 1
     fi
   hint: See /var/log/cloud-init-output.log inside the guest
+
+portForwards:
+- guestSocket: "/run/user/{{.UID}}/containerd-rootless/containerd.sock"
+  hostSocket: "{{.Dir}}/sock/containerd.sock"

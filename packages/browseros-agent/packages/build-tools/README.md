@@ -26,6 +26,9 @@ limactl start \
 
 limactl shell browseros-vm-dev nerdctl info
 
+SOCK="$(limactl list browseros-vm-dev --format '{{.Dir}}')/sock/containerd.sock"
+test -S "$SOCK"
+
 bun run --filter @browseros/build-tools build:tarball -- --agent openclaw --arch arm64
 limactl shell browseros-vm-dev nerdctl load -i "$(ls dist/images/openclaw-*-arm64.tar.gz | head -1)"
 
