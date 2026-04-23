@@ -46,7 +46,6 @@ type MutableOpenClawService = OpenClawService & {
     probe?: ReturnType<typeof mock>
     listAgents?: ReturnType<typeof mock>
     getSessionHistory?: ReturnType<typeof mock>
-    streamSessionHistory?: ReturnType<typeof mock>
   }
   cliClient: {
     probe?: ReturnType<typeof mock>

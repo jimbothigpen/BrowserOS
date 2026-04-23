@@ -467,6 +467,7 @@ describe('createOpenClawRoutes', () => {
     expect(getSessionHistory).toHaveBeenCalledWith('agent:main:main', {
       limit: 50,
       cursor: 'cursor-1',
+      signal: expect.any(AbortSignal),
     })
     expect(await response.json()).toEqual({
       sessionKey: 'agent:main:main',
@@ -508,39 +509,22 @@ describe('createOpenClawRoutes', () => {
     })
   })
 
-  it('streams session history as named sse frames', async () => {
+  it('returns json session history even when event-stream is requested', async () => {
     const actualOpenClawService = await import(
       '../../../src/api/services/openclaw/openclaw-service'
     )
-    const streamSessionHistory = mock(
-      async () =>
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue({
-              type: 'history',
-              data: {
-                sessionKey: 'session-1',
-                messages: [{ role: 'assistant', content: 'Ready' }],
-              },
-            })
-            controller.enqueue({
-              type: 'message',
-              data: {
-                sessionKey: 'session-1',
-                message: { role: 'user', content: 'Hi' },
-                messageSeq: 2,
-              },
-            })
-            controller.close()
-          },
-        }),
-    )
+    const getSessionHistory = mock(async () => ({
+      sessionKey: 'session-1',
+      messages: [{ role: 'assistant', content: 'Ready' }],
+      cursor: 'cursor-2',
+      hasMore: true,
+    }))
 
     mock.module('../../../src/api/services/openclaw/openclaw-service', () => ({
       ...actualOpenClawService,
       getOpenClawService: () =>
         ({
-          streamSessionHistory,
+          getSessionHistory,
         }) as never,
     }))
 
@@ -557,19 +541,17 @@ describe('createOpenClawRoutes', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toContain('text/event-stream')
-    expect(response.headers.get('Cache-Control')).toBe('no-cache')
-    expect(response.headers.get('Connection')).toBe('keep-alive')
-    expect(streamSessionHistory).toHaveBeenCalledWith('session-1', {
+    expect(response.headers.get('Content-Type')).toContain('application/json')
+    expect(getSessionHistory).toHaveBeenCalledWith('session-1', {
       limit: 10,
       cursor: undefined,
       signal: expect.any(AbortSignal),
     })
-    expect(await response.text()).toBe(
-      'event: history\n' +
-        'data: {"sessionKey":"session-1","messages":[{"role":"assistant","content":"Ready"}]}\n\n' +
-        'event: message\n' +
-        'data: {"sessionKey":"session-1","message":{"role":"user","content":"Hi"},"messageSeq":2}\n\n',
-    )
+    expect(await response.json()).toEqual({
+      sessionKey: 'session-1',
+      messages: [{ role: 'assistant', content: 'Ready' }],
+      cursor: 'cursor-2',
+      hasMore: true,
+    })
   })
 })

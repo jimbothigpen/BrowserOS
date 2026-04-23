@@ -104,43 +104,22 @@ describe('OpenClawCliClient', () => {
   })
 
   it('derives the workspace when creating an agent', async () => {
-    let callIndex = 0
-    const execInContainer = mock(
-      async (command: string[], onLog?: (line: string) => void) => {
-        callIndex += 1
-        if (callIndex === 1) {
-          expect(command).toEqual([
-            'node',
-            'dist/index.js',
-            'agents',
-            'add',
-            'research',
-            '--workspace',
-            `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
-            '--model',
-            'openai/gpt-5.4-mini',
-            '--non-interactive',
-            '--json',
-          ])
-          return 0
-        }
-
-        onLog?.(
-          JSON.stringify([
-            {
-              id: 'main',
-              workspace: `${OPENCLAW_CONTAINER_HOME}/workspace`,
-            },
-            {
-              id: 'research',
-              workspace: `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
-              model: 'openai/gpt-5.4-mini',
-            },
-          ]),
-        )
-        return 0
-      },
-    )
+    const execInContainer = mock(async (command: string[]) => {
+      expect(command).toEqual([
+        'node',
+        'dist/index.js',
+        'agents',
+        'add',
+        'research',
+        '--workspace',
+        `${OPENCLAW_CONTAINER_HOME}/workspace-research`,
+        '--model',
+        'openai/gpt-5.4-mini',
+        '--non-interactive',
+        '--json',
+      ])
+      return 0
+    })
 
     const client = new OpenClawCliClient({ execInContainer })
     const agent = await client.createAgent({
@@ -148,7 +127,7 @@ describe('OpenClawCliClient', () => {
       model: 'openai/gpt-5.4-mini',
     })
 
-    expect(execInContainer).toHaveBeenCalledTimes(2)
+    expect(execInContainer).toHaveBeenCalledTimes(1)
     expect(agent).toEqual({
       agentId: 'research',
       name: 'research',

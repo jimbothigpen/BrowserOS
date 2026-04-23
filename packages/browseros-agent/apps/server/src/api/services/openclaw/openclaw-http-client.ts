@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { createParser, type EventSourceMessage } from 'eventsource-parser'
 import type { OpenClawAgentRecord } from './openclaw-cli-client'
 
 export interface OpenClawSessionSummary {
@@ -39,24 +38,6 @@ export interface OpenClawSessionHistory {
   hasMore?: boolean
   truncated?: boolean
 }
-
-export type OpenClawSessionHistoryEvent =
-  | { type: 'history'; data: OpenClawSessionHistory }
-  | {
-      type: 'message'
-      data: {
-        sessionKey: string
-        message: OpenClawSessionHistoryMessage
-        messageId?: string
-        messageSeq: number
-      }
-    }
-  | { type: 'error'; data: { message: string } }
-
-type OpenClawSessionHistoryMessageEvent = Extract<
-  OpenClawSessionHistoryEvent,
-  { type: 'message' }
->
 
 export class OpenClawSessionNotFoundError extends Error {
   constructor(readonly sessionKey: string) {
@@ -153,33 +134,6 @@ export class OpenClawHttpClient {
     return (await response.json()) as OpenClawSessionHistory
   }
 
-  async streamSessionHistory(
-    sessionKey: string,
-    input: {
-      limit?: number
-      cursor?: string
-      signal?: AbortSignal
-    } = {},
-  ): Promise<ReadableStream<OpenClawSessionHistoryEvent>> {
-    const response = await this.request(
-      this.buildHistoryPath(sessionKey, input),
-      {
-        method: 'GET',
-        headers: { Accept: 'text/event-stream' },
-        signal: input.signal,
-      },
-    )
-
-    if (response.status === 404) {
-      throw new OpenClawSessionNotFoundError(sessionKey)
-    }
-    if (!response.ok || !response.body) {
-      throw await toError(response, 'OpenClaw session history stream failed')
-    }
-
-    return createHistoryEventStream(response.body, input.signal)
-  }
-
   protected request(path: string, init: RequestInit): Promise<Response> {
     return fetch(`http://127.0.0.1:${this.hostPort}${path}`, init)
   }
@@ -228,118 +182,6 @@ export class OpenClawHttpClient {
 async function toError(response: Response, fallback: string): Promise<Error> {
   const detail = await readErrorDetail(response)
   return new Error(detail || `${fallback} (HTTP ${response.status})`)
-}
-
-function createHistoryEventStream(
-  body: ReadableStream<Uint8Array>,
-  signal?: AbortSignal,
-): ReadableStream<OpenClawSessionHistoryEvent> {
-  return new ReadableStream<OpenClawSessionHistoryEvent>({
-    start(controller) {
-      void pumpHistoryEvents(body, controller, signal)
-    },
-  })
-}
-
-async function pumpHistoryEvents(
-  body: ReadableStream<Uint8Array>,
-  controller: ReadableStreamDefaultController<OpenClawSessionHistoryEvent>,
-  signal?: AbortSignal,
-): Promise<void> {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let closed = false
-
-  const close = () => {
-    if (closed) return
-    closed = true
-    controller.close()
-  }
-
-  const abort = () => {
-    void reader
-      .cancel()
-      .catch(() => undefined)
-      .finally(close)
-  }
-
-  signal?.addEventListener('abort', abort, { once: true })
-
-  const parser = createParser({
-    onEvent(message) {
-      if (closed) return
-
-      try {
-        const event = parseHistoryEvent(message)
-        if (event) {
-          controller.enqueue(event)
-        }
-      } catch (error) {
-        controller.enqueue({
-          type: 'error',
-          data: {
-            message: error instanceof Error ? error.message : String(error),
-          },
-        })
-        close()
-      }
-    },
-  })
-
-  try {
-    while (!closed) {
-      if (signal?.aborted) {
-        await reader.cancel().catch(() => undefined)
-        close()
-        return
-      }
-
-      const { done, value } = await reader.read()
-      if (done) break
-      parser.feed(decoder.decode(value, { stream: true }))
-    }
-
-    close()
-  } catch (error) {
-    if (!closed && !signal?.aborted) {
-      controller.enqueue({
-        type: 'error',
-        data: {
-          message: error instanceof Error ? error.message : String(error),
-        },
-      })
-      close()
-    }
-  } finally {
-    signal?.removeEventListener('abort', abort)
-    reader.releaseLock()
-  }
-}
-
-function parseHistoryEvent(
-  message: EventSourceMessage,
-): OpenClawSessionHistoryEvent | null {
-  switch (message.event) {
-    case 'history':
-      return {
-        type: 'history',
-        data: JSON.parse(message.data) as OpenClawSessionHistory,
-      }
-    case 'message':
-      return {
-        type: 'message',
-        data: JSON.parse(
-          message.data,
-        ) as OpenClawSessionHistoryMessageEvent['data'],
-      }
-    case 'error':
-      return {
-        type: 'error',
-        data: JSON.parse(message.data) as { message: string },
-      }
-    default:
-      return null
-  }
 }
 
 async function readErrorDetail(response: Response): Promise<string> {
