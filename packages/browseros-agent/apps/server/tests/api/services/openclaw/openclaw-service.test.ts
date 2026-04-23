@@ -14,7 +14,10 @@ import {
   resolveSupportedOpenClawProvider,
   UnsupportedOpenClawProviderError,
 } from '../../../../src/api/services/openclaw/openclaw-provider-map'
-import { OpenClawService } from '../../../../src/api/services/openclaw/openclaw-service'
+import {
+  normalizeBrowserOSChatSessionKey,
+  OpenClawService,
+} from '../../../../src/api/services/openclaw/openclaw-service'
 
 type MutableOpenClawService = OpenClawService & {
   openclawDir: string
@@ -51,6 +54,9 @@ type MutableOpenClawService = OpenClawService & {
     listAgents?: ReturnType<typeof mock>
     listSessions?: ReturnType<typeof mock>
     setDefaultModel?: ReturnType<typeof mock>
+  }
+  chatClient: {
+    streamChat?: ReturnType<typeof mock>
   }
   bootstrapCliClient: {
     runOnboard?: ReturnType<typeof mock>
@@ -186,6 +192,150 @@ describe('OpenClawService', () => {
     })
   })
 
+  it('normalizes recursive OpenClaw BrowserOS session keys to the raw chat session id', () => {
+    expect(
+      normalizeBrowserOSChatSessionKey(
+        'main',
+        'agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+      ),
+    ).toBe('e1ee8e17-4fdb-4072-99ce-8f680853ec00')
+    expect(
+      normalizeBrowserOSChatSessionKey(
+        'main',
+        'agent:main:openai-user:browseros:main:agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+      ),
+    ).toBe('e1ee8e17-4fdb-4072-99ce-8f680853ec00')
+  })
+
+  it('returns the raw BrowserOS session id while retaining the OpenClaw key for diagnostics', async () => {
+    const service = new OpenClawService() as MutableOpenClawService
+
+    service.cliClient = {
+      listSessions: mock(async () => [
+        {
+          key: 'agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+          updatedAt: 20,
+          sessionId: 'chat-session',
+          agentId: 'main',
+          kind: 'chat',
+        },
+      ]),
+    }
+
+    await expect(service.resolveAgentSession('main')).resolves.toEqual({
+      agentId: 'main',
+      exists: true,
+      sessionKey: 'e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+      session: {
+        key: 'agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+        updatedAt: 20,
+        sessionId: 'chat-session',
+        agentId: 'main',
+        kind: 'chat',
+        source: 'user-chat',
+      },
+    })
+  })
+
+  it('resolves recursive active sessions back to the canonical OpenClaw transcript key', async () => {
+    const service = new OpenClawService() as MutableOpenClawService
+
+    service.cliClient = {
+      listSessions: mock(async () => [
+        {
+          key: 'agent:main:openai-user:browseros:main:agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+          updatedAt: 30,
+          sessionId: 'nested-session',
+          agentId: 'main',
+          kind: 'chat',
+        },
+        {
+          key: 'agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+          updatedAt: 20,
+          sessionId: 'canonical-session',
+          agentId: 'main',
+          kind: 'chat',
+        },
+      ]),
+    }
+
+    await expect(service.resolveAgentSession('main')).resolves.toEqual({
+      agentId: 'main',
+      exists: true,
+      sessionKey: 'e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+      session: {
+        key: 'agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+        updatedAt: 20,
+        sessionId: 'canonical-session',
+        agentId: 'main',
+        kind: 'chat',
+        source: 'user-chat',
+      },
+    })
+  })
+
+  it('uses the canonical OpenClaw key when history is requested with a recursive session key', async () => {
+    const service = new OpenClawService() as MutableOpenClawService
+    const getChatHistory = mock(async () => [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'Old question' }],
+        timestamp: 1,
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Old answer' }],
+        timestamp: 2,
+      },
+    ])
+
+    service.runtime = {
+      isReady: async () => true,
+    }
+    service.cliClient = {
+      listSessions: mock(async () => [
+        {
+          key: 'agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+          updatedAt: 20,
+          sessionId: 'chat-session',
+          agentId: 'main',
+          kind: 'chat',
+        },
+      ]),
+      getChatHistory,
+    }
+
+    const page = await service.getAgentHistoryPage('main', {
+      sessionKey:
+        'agent:main:openai-user:browseros:main:agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+    })
+
+    expect(getChatHistory).toHaveBeenCalledWith(
+      'agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+    )
+    expect(page.sessionKey).toBe('e1ee8e17-4fdb-4072-99ce-8f680853ec00')
+    expect(page.items).toEqual([
+      {
+        id: 'e1ee8e17-4fdb-4072-99ce-8f680853ec00:0',
+        role: 'user',
+        text: 'Old question',
+        timestamp: 1,
+        messageSeq: 0,
+        sessionKey: 'e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+        source: 'user-chat',
+      },
+      {
+        id: 'e1ee8e17-4fdb-4072-99ce-8f680853ec00:1',
+        role: 'assistant',
+        text: 'Old answer',
+        timestamp: 2,
+        messageSeq: 1,
+        sessionKey: 'e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+        source: 'user-chat',
+      },
+    ])
+  })
+
   it('returns normalized paginated chat history for an agent session', async () => {
     const service = new OpenClawService() as MutableOpenClawService
 
@@ -259,6 +409,33 @@ describe('OpenClawService', () => {
     ])
     expect(page.page.hasMore).toBe(true)
     expect(typeof page.page.cursor).toBe('string')
+  })
+
+  it('normalizes recursive session keys before streaming chat', async () => {
+    const service = new OpenClawService() as MutableOpenClawService
+    const stream = new ReadableStream()
+    const streamChat = mock(async () => stream)
+
+    service.runtime = {
+      isReady: async () => true,
+    }
+    service.chatClient = {
+      streamChat,
+    }
+
+    await expect(
+      service.chatStream(
+        'main',
+        'agent:main:openai-user:browseros:main:agent:main:openai-user:browseros:main:e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+        'hello',
+      ),
+    ).resolves.toBe(stream)
+    expect(streamChat).toHaveBeenCalledWith({
+      agentId: 'main',
+      sessionKey: 'e1ee8e17-4fdb-4072-99ce-8f680853ec00',
+      message: 'hello',
+      history: [],
+    })
   })
 
   it('maps successful cli client probes into connected status', async () => {

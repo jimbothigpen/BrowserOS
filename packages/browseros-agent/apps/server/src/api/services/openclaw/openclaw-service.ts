@@ -54,6 +54,8 @@ import { allocateGatewayPort, readPersistedGatewayPort } from './runtime-state'
 
 const READY_TIMEOUT_MS = 30_000
 const AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*$/
+const OPENCLAW_BROWSEROS_USER_SESSION_PATTERN =
+  /^agent:[^:]+:openai-user:browseros:[^:]+:(.+)$/
 
 export type OpenClawControlPlaneStatus =
   | 'disconnected'
@@ -170,6 +172,43 @@ interface HistoryPageInput {
   sessionKey?: string
   cursor?: string
   limit?: number
+}
+
+export function normalizeBrowserOSChatSessionKey(
+  agentId: string,
+  sessionKey: string,
+): string {
+  const trimmed = sessionKey.trim()
+  if (!trimmed) return trimmed
+
+  let normalized = trimmed
+  const agentSpecificPrefix = getOpenClawBrowserOSSessionPrefix(agentId)
+
+  while (normalized.startsWith(agentSpecificPrefix)) {
+    normalized = normalized.slice(agentSpecificPrefix.length)
+  }
+
+  while (true) {
+    const match = normalized.match(OPENCLAW_BROWSEROS_USER_SESSION_PATTERN)
+    if (!match?.[1]) break
+    normalized = match[1]
+  }
+
+  return normalized.trim() || trimmed
+}
+
+function getOpenClawBrowserOSSessionPrefix(agentId: string): string {
+  return `agent:${agentId}:openai-user:browseros:${agentId}:`
+}
+
+function toOpenClawBrowserOSSessionKey(
+  agentId: string,
+  sessionKey: string,
+): string {
+  return `${getOpenClawBrowserOSSessionPrefix(agentId)}${normalizeBrowserOSChatSessionKey(
+    agentId,
+    sessionKey,
+  )}`
 }
 
 function normalizeHistoryLimit(limit?: number): number {
@@ -775,11 +814,15 @@ export class OpenClawService {
       sessions[0] ??
       null
 
+    if (session) {
+      return this.resolveSpecificAgentSession(agentId, session.key)
+    }
+
     return {
       agentId,
-      exists: !!session,
-      sessionKey: session?.key ?? null,
-      session,
+      exists: false,
+      sessionKey: null,
+      session: null,
     }
   }
 
@@ -797,9 +840,11 @@ export class OpenClawService {
   ): Promise<BrowserOSOpenClawHistoryPageResponse> {
     const limit = normalizeHistoryLimit(input.limit)
     const cursor = decodeHistoryCursor(input.cursor)
-    const resolved = input.sessionKey
-      ? await this.resolveSpecificAgentSession(agentId, input.sessionKey)
-      : await this.resolveAgentSession(agentId)
+    const resolved = cursor?.sessionKey
+      ? await this.resolveSpecificAgentSession(agentId, cursor.sessionKey)
+      : input.sessionKey
+        ? await this.resolveSpecificAgentSession(agentId, input.sessionKey)
+        : await this.resolveAgentSession(agentId)
 
     const session = resolved.session
     if (!session) {
@@ -812,8 +857,10 @@ export class OpenClawService {
       }
     }
 
-    const sessionKey = cursor?.sessionKey ?? session.key
-    const rawMessages = await this.getChatHistory(sessionKey)
+    const sessionKey =
+      resolved.sessionKey ??
+      normalizeBrowserOSChatSessionKey(agentId, session.key)
+    const rawMessages = await this.getChatHistory(session.key)
     const items = normalizeChatHistoryMessages({
       sessionKey,
       source: session.source,
@@ -847,16 +894,20 @@ export class OpenClawService {
     history: MonitoringChatTurn[] = [],
   ): Promise<ReadableStream<OpenClawStreamEvent>> {
     await this.assertGatewayReady()
-    logger.info('Starting OpenClaw chat stream', {
+    const normalizedSessionKey = normalizeBrowserOSChatSessionKey(
       agentId,
       sessionKey,
+    )
+    logger.info('Starting OpenClaw chat stream', {
+      agentId,
+      sessionKey: normalizedSessionKey,
       messageLength: message.length,
       historyLength: history.length,
     })
     return this.runControlPlaneCall(() =>
       this.chatClient.streamChat({
         agentId,
-        sessionKey,
+        sessionKey: normalizedSessionKey,
         message,
         history,
       }),
@@ -867,21 +918,35 @@ export class OpenClawService {
     agentId: string,
     sessionKey: string,
   ): Promise<BrowserOSOpenClawAgentSessionResponse> {
+    const normalizedSessionKey = normalizeBrowserOSChatSessionKey(
+      agentId,
+      sessionKey,
+    )
+    const canonicalSessionKey = toOpenClawBrowserOSSessionKey(
+      agentId,
+      normalizedSessionKey,
+    )
     const sessions = await this.listSessions(agentId)
     const session =
+      sessions.find((entry) => entry.key === canonicalSessionKey) ??
       sessions.find((entry) => entry.key === sessionKey) ??
+      sessions.find(
+        (entry) =>
+          normalizeBrowserOSChatSessionKey(agentId, entry.key) ===
+          normalizedSessionKey,
+      ) ??
       toBrowserOSSession({
-        key: sessionKey,
+        key: canonicalSessionKey,
         updatedAt: 0,
         sessionId: '',
         agentId,
-        kind: '',
+        kind: 'chat',
       })
 
     return {
       agentId,
       exists: true,
-      sessionKey,
+      sessionKey: normalizedSessionKey,
       session,
     }
   }

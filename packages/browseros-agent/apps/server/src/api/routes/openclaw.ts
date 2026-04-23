@@ -21,7 +21,10 @@ import {
   OpenClawProtectedAgentError,
 } from '../services/openclaw/errors'
 import { isUnsupportedOpenClawProviderError } from '../services/openclaw/openclaw-provider-map'
-import { getOpenClawService } from '../services/openclaw/openclaw-service'
+import {
+  getOpenClawService,
+  normalizeBrowserOSChatSessionKey,
+} from '../services/openclaw/openclaw-service'
 
 function getCreateAgentValidationError(body: { name?: string }): string | null {
   if (!body.name?.trim()) {
@@ -291,7 +294,10 @@ export function createOpenClawRoutes() {
         return c.json({ error: 'Message is required' }, 400)
       }
 
-      const sessionKey = body.sessionKey ?? crypto.randomUUID()
+      const sessionKey = normalizeBrowserOSChatSessionKey(
+        id,
+        body.sessionKey ?? crypto.randomUUID(),
+      )
       const history = Array.isArray(body.history)
         ? body.history.filter((entry): entry is MonitoringChatTurn =>
             Boolean(

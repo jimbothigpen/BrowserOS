@@ -14,7 +14,7 @@ describe('createOpenClawRoutes', () => {
     mock.restore()
   })
 
-  it('preserves BrowserOS SSE framing, session headers, and defaults chat history for chat', async () => {
+  it('preserves BrowserOS SSE framing and normalizes recursive session keys for chat', async () => {
     const actualOpenClawService = await import(
       '../../../src/api/services/openclaw/openclaw-service'
     )
@@ -53,7 +53,8 @@ describe('createOpenClawRoutes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: 'hi',
-        sessionKey: 'session-123',
+        sessionKey:
+          'agent:research:openai-user:browseros:research:agent:research:openai-user:browseros:research:session-123',
       }),
     })
 
