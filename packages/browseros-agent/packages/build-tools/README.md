@@ -67,4 +67,13 @@ bun run --filter @browseros/build-tools emit-manifest -- --slice agents:openclaw
 NODE_ENV=development bun run --filter @browseros/build-tools cache:sync
 ```
 
-Development cache files land under `~/.browseros-dev/cache/vm/images/`. Production-mode cache files land under `~/.browseros/cache/vm/images/`.
+Pulls the published manifest and tarballs from R2 (`cdn.browseros.com/vm/`). Development cache files land under `~/.browseros-dev/cache/vm/images/`. Production-mode cache files land under `~/.browseros/cache/vm/images/`.
+
+## Seed the dev cache from a local build
+
+```bash
+bun run --filter @browseros/build-tools build:tarball -- --agent openclaw --arch arm64
+NODE_ENV=development bun run --filter @browseros/build-tools cache:sync:dev
+```
+
+`cache:sync:dev` hardcodes `arm64` (all devs are on Apple Silicon), skips R2 entirely, and writes an arm64-only manifest + tarball into `~/.browseros-dev/cache/vm/` from `./dist/`. It refuses to run unless `NODE_ENV=development`. Use this when you want to test the server against a local tarball without publishing.
