@@ -48,7 +48,8 @@ provision:
 
     # Keep Docker config out of the image pull path (spec D7).
     mkdir -p /etc/containers
-    printf '{}\n' > /etc/containers/auth.json
+    containers_auth=/etc/containers/auth
+    printf '{}\n' > "${containers_auth}.json"
 
     # Single-tenant appliance user (spec D7).
     id browseros >/dev/null 2>&1 || useradd --create-home --uid 1000 --shell /bin/bash browseros
