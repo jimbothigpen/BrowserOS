@@ -1,0 +1,125 @@
+import type { OpenClawChatHistoryMessage } from '@/entrypoints/app/agents/useOpenClaw'
+
+export type ClawChatRole = 'user' | 'assistant'
+
+export type ClawChatSource = 'user-chat' | 'cron' | 'hook' | 'channel' | 'other'
+
+export interface BrowserOSOpenClawSession {
+  key: string
+  updatedAt: number
+  sessionId: string
+  agentId: string
+  kind: string
+  source: ClawChatSource
+  status?: string
+  totalTokens?: number
+  model?: string
+  modelProvider?: string
+}
+
+export interface AgentSessionResponse {
+  agentId: string
+  exists: boolean
+  sessionKey: string | null
+  session: BrowserOSOpenClawSession | null
+}
+
+export interface BrowserOSChatHistoryItem {
+  id: string
+  role: ClawChatRole
+  text: string
+  timestamp?: number
+  messageSeq: number
+  sessionKey: string
+  source: ClawChatSource
+}
+
+export interface AgentHistoryPageResponse {
+  agentId: string
+  sessionKey: string | null
+  session: BrowserOSOpenClawSession | null
+  items: BrowserOSChatHistoryItem[]
+  page: {
+    cursor?: string
+    hasMore: boolean
+    limit: number
+  }
+}
+
+export type ClawChatMessageStatus =
+  | 'historical'
+  | 'sending'
+  | 'streaming'
+  | 'error'
+
+export type ClawChatMessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string; duration?: number }
+  | {
+      type: 'tool-call'
+      name: string
+      status: 'pending' | 'running' | 'completed' | 'failed'
+      input?: unknown
+      output?: unknown
+      error?: string
+    }
+  | { type: 'meta'; label: string; value: string }
+
+export interface ClawChatMessage {
+  id: string
+  role: ClawChatRole
+  sessionKey: string
+  timestamp?: number
+  source?: ClawChatSource
+  messageSeq?: number
+  status?: ClawChatMessageStatus
+  parts: ClawChatMessagePart[]
+}
+
+export function mapHistoryItemToClawMessage(
+  item: BrowserOSChatHistoryItem,
+): ClawChatMessage {
+  return {
+    id: item.id,
+    role: item.role,
+    sessionKey: item.sessionKey,
+    timestamp: item.timestamp,
+    source: item.source,
+    messageSeq: item.messageSeq,
+    status: 'historical',
+    parts: [{ type: 'text', text: item.text }],
+  }
+}
+
+export function flattenHistoryPages(
+  pages: AgentHistoryPageResponse[],
+): ClawChatMessage[] {
+  return pages
+    .flatMap((page) => page.items)
+    .sort((a, b) => {
+      if (a.timestamp != null && b.timestamp != null) {
+        return a.timestamp - b.timestamp
+      }
+      return a.messageSeq - b.messageSeq
+    })
+    .map(mapHistoryItemToClawMessage)
+}
+
+export function buildChatHistoryFromClawMessages(
+  messages: ClawChatMessage[],
+): OpenClawChatHistoryMessage[] {
+  return messages
+    .map((message) => {
+      const content = message.parts
+        .filter((part): part is { type: 'text'; text: string } => {
+          return part.type === 'text' && part.text.trim().length > 0
+        })
+        .map((part) => part.text.trim())
+        .join('\n\n')
+
+      return content ? { role: message.role, content } : null
+    })
+    .filter((message): message is OpenClawChatHistoryMessage =>
+      Boolean(message),
+    )
+}

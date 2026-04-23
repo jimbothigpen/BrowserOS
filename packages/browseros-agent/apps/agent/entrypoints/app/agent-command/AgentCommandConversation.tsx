@@ -1,5 +1,5 @@
 import { ArrowLeft, Bot } from 'lucide-react'
-import { type FC, useEffect, useRef } from 'react'
+import type { FC } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import {
@@ -8,9 +8,7 @@ import {
 } from '@/entrypoints/app/agents/useOpenClaw'
 import { cn } from '@/lib/utils'
 import { useAgentCommandData } from './agent-command-layout'
-import { ConversationInput } from './ConversationInput'
-import { ConversationMessage } from './ConversationMessage'
-import { useAgentConversation } from './useAgentConversation'
+import { ClawChat } from './ClawChat'
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -155,27 +153,7 @@ function AgentRailList({
   )
 }
 
-function EmptyConversationState({ agentName }: { agentName: string }) {
-  return (
-    <div className="flex h-full items-center justify-center px-6 py-12">
-      <div className="max-w-md text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-3xl bg-muted text-muted-foreground">
-          <Bot className="size-6" />
-        </div>
-        <h2 className="mt-5 font-semibold text-xl">{agentName}</h2>
-        <p className="mt-2 text-muted-foreground text-sm leading-6">
-          Start a new conversation when you are ready.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function getConversationStatusCopy(
-  status: string | undefined,
-  streaming: boolean,
-): string {
-  if (streaming) return 'Working'
+function getConversationStatusCopy(status: string | undefined): string {
   if (status === 'running') return 'Ready'
   if (status === 'starting') return 'Connecting'
   if (status === 'error') return 'Attention'
@@ -187,45 +165,13 @@ export const AgentCommandConversation: FC = () => {
   const { agentId } = useParams<{ agentId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const initialQuerySent = useRef(false)
   const { status, agents } = useAgentCommandData()
   const shouldRedirectHome = !agentId
   const resolvedAgentId = agentId ?? ''
   const agent = agents.find((entry) => entry.agentId === resolvedAgentId)
   const agentName = agent?.name || resolvedAgentId || 'Agent'
   const agentMeta = getModelDisplayName(agent?.model) ?? 'OpenClaw agent'
-  const { turns, streaming, loading, send } = useAgentConversation(
-    resolvedAgentId,
-    agentName,
-  )
-  const lastTurn = turns[turns.length - 1]
-  const lastTurnPartCount = lastTurn?.parts.length ?? 0
-
-  useEffect(() => {
-    if (shouldRedirectHome) return
-
-    const query = searchParams.get('q')
-    if (query && !initialQuerySent.current && !loading) {
-      initialQuerySent.current = true
-      setSearchParams({}, { replace: true })
-      void send(query)
-    }
-  }, [loading, searchParams, send, setSearchParams, shouldRedirectHome])
-
-  useEffect(() => {
-    if (
-      shouldRedirectHome ||
-      (turns.length === 0 && lastTurnPartCount === 0 && !streaming)
-    ) {
-      return
-    }
-
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: 'smooth',
-    })
-  }, [lastTurnPartCount, shouldRedirectHome, streaming, turns.length])
+  const initialMessage = searchParams.get('q')
 
   if (shouldRedirectHome) {
     return <Navigate to="/home" replace />
@@ -235,7 +181,7 @@ export const AgentCommandConversation: FC = () => {
     navigate(`/home/agents/${entry.agentId}`)
   }
 
-  const statusCopy = getConversationStatusCopy(status?.status, streaming)
+  const statusCopy = getConversationStatusCopy(status?.status)
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-background md:pl-[theme(spacing.14)]">
@@ -255,52 +201,21 @@ export const AgentCommandConversation: FC = () => {
           onSelectAgent={handleSelectAgent}
         />
 
-        <div className="flex min-h-0 flex-col overflow-hidden">
-          <main
-            ref={scrollRef}
-            className={cn(
-              'styled-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-background px-5 py-5',
-              '[&_[data-streamdown="code-block"]]:!max-w-full [&_[data-streamdown="table-wrapper"]]:!max-w-full [&_[data-streamdown="code-block"]]:overflow-x-auto [&_[data-streamdown="table-wrapper"]]:overflow-x-auto',
-            )}
-          >
-            {loading ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-                Loading conversation...
-              </div>
-            ) : turns.length === 0 ? (
-              <EmptyConversationState agentName={agentName} />
-            ) : (
-              <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-                {turns.map((turn, index) => (
-                  <ConversationMessage
-                    key={turn.id}
-                    turn={turn}
-                    streaming={streaming && index === turns.length - 1}
-                  />
-                ))}
-              </div>
-            )}
-          </main>
-
-          <div className="border-border/50 border-t bg-background/88 px-4 py-3 backdrop-blur-md">
-            <div className="mx-auto max-w-3xl">
-              <ConversationInput
-                variant="conversation"
-                agents={agents}
-                selectedAgentId={resolvedAgentId}
-                onSelectAgent={handleSelectAgent}
-                onSend={(text) => {
-                  void send(text)
-                }}
-                onCreateAgent={() => navigate('/agents')}
-                streaming={streaming}
-                disabled={status?.status !== 'running'}
-                status={status?.status}
-                placeholder={`Message ${agentName}...`}
-              />
-            </div>
-          </div>
-        </div>
+        <ClawChat
+          key={resolvedAgentId}
+          agentId={resolvedAgentId}
+          agentName={agentName}
+          agents={agents}
+          selectedAgentId={resolvedAgentId}
+          onSelectAgent={handleSelectAgent}
+          onCreateAgent={() => navigate('/agents')}
+          disabled={status?.status !== 'running'}
+          status={status?.status}
+          initialMessage={initialMessage}
+          onInitialMessageConsumed={() =>
+            setSearchParams({}, { replace: true })
+          }
+        />
       </div>
     </div>
   )

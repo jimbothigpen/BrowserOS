@@ -1,70 +1,54 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  buildChatHistoryFromTurns,
   chatWithAgent,
+  type OpenClawChatHistoryMessage,
   type OpenClawStreamEvent,
 } from '@/entrypoints/app/agents/useOpenClaw'
-import {
-  getLatestConversation,
-  saveConversation,
-} from '@/lib/agent-conversations/storage'
 import type {
-  AgentConversation,
   AgentConversationTurn,
   AssistantPart,
 } from '@/lib/agent-conversations/types'
 import { consumeSSEStream } from '@/lib/sse'
 
-export function useAgentConversation(agentId: string, agentName: string) {
+interface UseAgentConversationOptions {
+  sessionKey?: string | null
+  history?: OpenClawChatHistoryMessage[]
+  onSessionKeyChange?: (sessionKey: string) => void
+  onStreamComplete?: () => Promise<void> | void
+}
+
+export function useAgentConversation(
+  agentId: string,
+  options: UseAgentConversationOptions = {},
+) {
   const [turns, setTurns] = useState<AgentConversationTurn[]>([])
   const [streaming, setStreaming] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const sessionKeyRef = useRef('')
+  const sessionKeyRef = useRef(options.sessionKey ?? '')
+  const historyRef = useRef<OpenClawChatHistoryMessage[]>(options.history ?? [])
   const textAccRef = useRef('')
   const thinkAccRef = useRef('')
   const streamAbortRef = useRef<AbortController | null>(null)
+  const onSessionKeyChangeRef = useRef(options.onSessionKeyChange)
+  const onStreamCompleteRef = useRef(options.onStreamComplete)
 
   useEffect(() => {
-    let active = true
-    getLatestConversation(agentId)
-      .then((conv) => {
-        if (!active) return
-        if (conv) {
-          setTurns(conv.turns)
-          sessionKeyRef.current = conv.sessionKey
-        } else {
-          sessionKeyRef.current = crypto.randomUUID()
-        }
-        setLoading(false)
-      })
-      .catch(() => {
-        if (active) {
-          sessionKeyRef.current = crypto.randomUUID()
-          setLoading(false)
-        }
-      })
-    return () => {
-      active = false
-    }
-  }, [agentId])
+    sessionKeyRef.current = options.sessionKey ?? ''
+  }, [options.sessionKey])
+
+  useEffect(() => {
+    historyRef.current = options.history ?? []
+  }, [options.history])
+
+  useEffect(() => {
+    onSessionKeyChangeRef.current = options.onSessionKeyChange
+    onStreamCompleteRef.current = options.onStreamComplete
+  }, [options.onSessionKeyChange, options.onStreamComplete])
 
   useEffect(() => {
     return () => {
       streamAbortRef.current?.abort()
     }
   }, [])
-
-  const persistTurns = (updatedTurns: AgentConversationTurn[]) => {
-    const conv: AgentConversation = {
-      agentId,
-      agentName,
-      sessionKey: sessionKeyRef.current,
-      turns: updatedTurns,
-      createdAt: updatedTurns[0]?.timestamp ?? Date.now(),
-      updatedAt: Date.now(),
-    }
-    saveConversation(conv).catch(() => {})
-  }
 
   const updateCurrentTurnParts = (
     updater: (parts: AssistantPart[]) => AssistantPart[],
@@ -165,9 +149,7 @@ export function useAgentConversation(agentId: string, agentName: string) {
         setTurns((prev) => {
           const last = prev[prev.length - 1]
           if (!last) return prev
-          const updated = [...prev.slice(0, -1), { ...last, done: true }]
-          persistTurns(updated)
-          return updated
+          return [...prev.slice(0, -1), { ...last, done: true }]
         })
         break
       }
@@ -188,7 +170,6 @@ export function useAgentConversation(agentId: string, agentName: string) {
 
   const send = async (text: string) => {
     if (!text.trim() || streaming) return
-    const history = buildChatHistoryFromTurns(turns)
 
     const turn: AgentConversationTurn = {
       id: crypto.randomUUID(),
@@ -203,15 +184,21 @@ export function useAgentConversation(agentId: string, agentName: string) {
     thinkAccRef.current = ''
     const abortController = new AbortController()
     streamAbortRef.current = abortController
+    let completedStream = false
 
     try {
       const response = await chatWithAgent(
         agentId,
         text.trim(),
-        sessionKeyRef.current,
-        history,
+        sessionKeyRef.current || undefined,
+        historyRef.current,
         abortController.signal,
       )
+      const responseSessionKey = response.headers.get('X-Session-Key')
+      if (responseSessionKey) {
+        sessionKeyRef.current = responseSessionKey
+        onSessionKeyChangeRef.current?.(responseSessionKey)
+      }
       if (!response.ok) {
         const err = await response.text()
         updateCurrentTurnParts((parts) => [
@@ -225,6 +212,7 @@ export function useAgentConversation(agentId: string, agentName: string) {
         processStreamEvent,
         abortController.signal,
       )
+      completedStream = true
     } catch (err) {
       if (abortController.signal.aborted) return
       const msg = err instanceof Error ? err.message : String(err)
@@ -236,6 +224,10 @@ export function useAgentConversation(agentId: string, agentName: string) {
       if (streamAbortRef.current === abortController) {
         streamAbortRef.current = null
       }
+      if (completedStream) {
+        await onStreamCompleteRef.current?.()
+        setTurns([])
+      }
       setStreaming(false)
     }
   }
@@ -245,13 +237,11 @@ export function useAgentConversation(agentId: string, agentName: string) {
     streamAbortRef.current = null
     setTurns([])
     setStreaming(false)
-    sessionKeyRef.current = crypto.randomUUID()
   }
 
   return {
     turns,
     streaming,
-    loading,
     sessionKey: sessionKeyRef.current,
     send,
     resetConversation,
