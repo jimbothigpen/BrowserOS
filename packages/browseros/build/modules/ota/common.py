@@ -239,7 +239,7 @@ def create_server_bundle_zip(resources_dir: Path, output_zip: Path) -> bool:
     """Zip an extracted ``resources/`` tree into a Sparkle payload.
 
     Produces entries like ``resources/bin/browseros_server``,
-    ``resources/bin/third_party/podman/podman`` — mirroring what the agent
+    ``resources/bin/third_party/lima/limactl`` — mirroring what the agent
     build staged and what the Chromium build bakes into the installed app.
     File modes are preserved by ``ZipFile.write`` so executable bits survive.
     """

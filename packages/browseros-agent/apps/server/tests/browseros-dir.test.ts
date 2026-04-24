@@ -8,7 +8,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { PATHS } from '@browseros/shared/constants/paths'
 import {
+  getAgentCacheDir,
   getBrowserosDir,
+  getCacheDir,
+  getVmCacheDir,
   logDevelopmentBrowserosDir,
 } from '../src/lib/browseros-dir'
 import { logger } from '../src/lib/logger'
@@ -71,5 +74,35 @@ describe('getBrowserosDir', () => {
     } finally {
       logger.info = originalInfo
     }
+  })
+
+  it('uses the development cache directory in development', () => {
+    process.env.NODE_ENV = 'development'
+
+    expect(getCacheDir()).toBe(join(homedir(), '.browseros-dev', 'cache'))
+  })
+
+  it('uses the standard cache directory outside development', () => {
+    process.env.NODE_ENV = 'test'
+
+    expect(getCacheDir()).toBe(
+      join(homedir(), PATHS.BROWSEROS_DIR_NAME, 'cache'),
+    )
+  })
+
+  it('uses a vm cache directory below cache', () => {
+    process.env.NODE_ENV = 'development'
+
+    expect(getVmCacheDir()).toBe(
+      join(homedir(), '.browseros-dev', 'cache', 'vm'),
+    )
+  })
+
+  it('uses an agent image cache directory below vm cache', () => {
+    process.env.NODE_ENV = 'development'
+
+    expect(getAgentCacheDir()).toBe(
+      join(homedir(), '.browseros-dev', 'cache', 'vm', 'images'),
+    )
   })
 })

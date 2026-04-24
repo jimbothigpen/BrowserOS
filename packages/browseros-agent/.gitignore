@@ -14,6 +14,7 @@ lerna-debug.log*
 # Ignore all .env files except .env.example
 **/.env.*
 !**/.env.example
+!**/.env.sample
 !**/.env.production.example
 
 

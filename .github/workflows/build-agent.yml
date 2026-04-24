@@ -1,0 +1,157 @@
+name: build-agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Agent name from bundle.json"
+        required: true
+        type: string
+        default: openclaw
+      publish:
+        description: "Upload to R2 and merge manifest slice"
+        required: false
+        default: false
+        type: boolean
+  pull_request:
+    paths:
+      - "packages/browseros-agent/packages/build-tools/**"
+      - ".github/workflows/build-agent.yml"
+
+env:
+  BUN_VERSION: "1.3.6"
+  PKG_DIR: packages/browseros-agent/packages/build-tools
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - working-directory: packages/browseros-agent
+        run: bun install --frozen-lockfile
+      - working-directory: packages/browseros-agent
+        run: bun run --filter @browseros/build-tools typecheck
+      - working-directory: packages/browseros-agent
+        run: bun run --filter @browseros/build-tools test
+
+  build:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Install podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+      - working-directory: packages/browseros-agent
+        run: bun install --frozen-lockfile
+      - name: Build tarball
+        working-directory: ${{ env.PKG_DIR }}
+        env:
+          AGENT: ${{ inputs.agent || 'openclaw' }}
+          OUT: ${{ github.workspace }}/dist/images
+        run: bun run build:tarball -- --agent "$AGENT" --arch "${{ matrix.arch }}" --output-dir "$OUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ inputs.agent || 'openclaw' }}-${{ matrix.arch }}
+          path: dist/images/
+          retention-days: 7
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball-${{ inputs.agent || 'openclaw' }}-arm64
+          path: dist/images
+      - name: Install podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+      - working-directory: packages/browseros-agent
+        run: bun install --frozen-lockfile
+      - name: Smoke test tarball
+        working-directory: ${{ env.PKG_DIR }}
+        env:
+          AGENT: ${{ inputs.agent || 'openclaw' }}
+        run: |
+          set -euo pipefail
+          tarball="$(find "$GITHUB_WORKSPACE/dist/images" -name "${AGENT}-*-arm64.tar.gz" -print -quit)"
+          if [ -z "$tarball" ]; then
+            echo "missing arm64 tarball artifact for ${AGENT}" >&2
+            exit 1
+          fi
+          bun run smoke:tarball -- --agent "$AGENT" --arch arm64 --tarball "$tarball"
+
+  publish:
+    needs: [build, smoke]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true }}
+    runs-on: ubuntu-24.04
+    environment: release
+    concurrency:
+      group: r2-manifest-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tarball-*
+          path: dist/images
+          merge-multiple: true
+      - working-directory: packages/browseros-agent
+        run: bun install --frozen-lockfile
+      - name: Upload tarballs to R2
+        working-directory: ${{ env.PKG_DIR }}
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          for file in "$GITHUB_WORKSPACE"/dist/images/*.tar.gz; do
+            base="$(basename "$file")"
+            bun run upload -- --file "$file" --key "vm/images/$base" --content-type "application/gzip" --sidecar-sha
+          done
+      - name: Merge agent slice into manifest
+        working-directory: ${{ env.PKG_DIR }}
+        env:
+          AGENT: ${{ inputs.agent || 'openclaw' }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/images
+          cp -R "$GITHUB_WORKSPACE"/dist/images/* dist/images/
+          bun run download -- --key vm/manifest.json --out dist/baseline-manifest.json
+          bun run emit-manifest -- \
+            --slice "agents:${AGENT}" \
+            --dist-dir dist \
+            --merge-from dist/baseline-manifest.json \
+            --out dist/manifest.json
+          bun run upload -- --file dist/manifest.json --key vm/manifest.json --content-type "application/json"

@@ -44,6 +44,10 @@ app.add_typer(release.app, name="release", help="Release automation")
 from .cli import ota
 app.add_typer(ota.app, name="ota", help="OTA update automation")
 
+# Third-party resource uploads (Lima, future VM disk + agent tarballs)
+from .cli import storage
+app.add_typer(storage.app, name="upload", help="Upload third-party resources to R2")
+
 
 if __name__ == "__main__":
     app()

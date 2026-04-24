@@ -30,26 +30,17 @@ MACOS_SERVER_BINARIES: Dict[str, SignSpec] = {
     ),
     "bun": SignSpec("bun", "runtime", "browseros-executable-entitlements.plist"),
     "rg": SignSpec("rg", "runtime"),
-    "podman": SignSpec("podman", "runtime"),
-    "gvproxy": SignSpec("gvproxy", "runtime"),
-    "vfkit": SignSpec("vfkit", "runtime", "podman-vfkit-entitlements.plist"),
-    "krunkit": SignSpec("krunkit", "runtime", "podman-krunkit-entitlements.plist"),
-    "podman-mac-helper": SignSpec("podman_mac_helper", "runtime"),
+    "limactl": SignSpec("limactl", "runtime"),
 }
 
 
 WINDOWS_SERVER_BINARIES: List[str] = [
     "browseros_server.exe",
-    "third_party/bun.exe",
-    "third_party/rg.exe",
-    "third_party/podman/podman.exe",
-    "third_party/podman/gvproxy.exe",
-    "third_party/podman/win-sshproxy.exe",
 ]
 
 
 def macos_sign_spec_for(binary_path: Path) -> Optional[SignSpec]:
-    """Look up sign metadata by file stem (e.g., ``podman-mac-helper``)."""
+    """Look up sign metadata by file stem (e.g., ``limactl``)."""
     return MACOS_SERVER_BINARIES.get(binary_path.stem)
 
 

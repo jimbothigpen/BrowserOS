@@ -28,14 +28,17 @@ class MacosServerBinariesTest(unittest.TestCase):
             self.assertTrue(plist.exists(), f"{stem}: entitlements {plist} missing")
 
     def test_macos_sign_spec_for_resolves_by_stem(self):
-        spec = macos_sign_spec_for(Path("/x/podman-mac-helper"))
+        spec = macos_sign_spec_for(Path("/x/limactl"))
         assert spec is not None
-        self.assertEqual(spec.identifier_suffix, "podman_mac_helper")
+        self.assertEqual(spec.identifier_suffix, "limactl")
         self.assertIsNone(macos_sign_spec_for(Path("/x/not_a_known_binary")))
 
-    def test_matches_podman_bundle_layout(self):
-        required = {"podman", "gvproxy", "vfkit", "krunkit", "podman-mac-helper"}
-        self.assertTrue(required.issubset(MACOS_SERVER_BINARIES.keys()))
+    def test_matches_lima_bundle_layout(self):
+        keys = set(MACOS_SERVER_BINARIES.keys())
+        self.assertIn("limactl", keys)
+        forbidden = {"podman", "gvproxy", "vfkit", "krunkit", "podman-mac-helper"}
+        leftover = forbidden & keys
+        self.assertFalse(leftover, f"podman-era entries still present: {leftover}")
 
 
 class WindowsServerBinariesTest(unittest.TestCase):
@@ -57,6 +60,17 @@ class WindowsServerBinariesTest(unittest.TestCase):
         self.assertEqual(len(resolved), len(WINDOWS_SERVER_BINARIES))
         for rel, abs_path in zip(WINDOWS_SERVER_BINARIES, resolved):
             self.assertEqual(abs_path, root / rel)
+
+    def test_windows_has_no_stale_third_party(self):
+        forbidden = {
+            "third_party/podman/podman.exe",
+            "third_party/podman/gvproxy.exe",
+            "third_party/podman/win-sshproxy.exe",
+            "third_party/bun.exe",
+            "third_party/rg.exe",
+        }
+        leftover = forbidden & set(WINDOWS_SERVER_BINARIES)
+        self.assertFalse(leftover, f"stale entries still present: {leftover}")
 
 
 if __name__ == "__main__":

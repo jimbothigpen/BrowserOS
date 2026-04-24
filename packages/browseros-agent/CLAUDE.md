@@ -218,3 +218,9 @@ This uses the same element resolution as the server's MCP tools — no coordinat
 The `<target>` argument can be:
 - An **index** from the `targets` output (e.g., `3`)
 - A **URL substring** (e.g., `sidepanel`, `newtab`, `chrome-extension://`)
+
+## Release gating — bundled-VM runtime migration (2026-Q2)
+
+Between the Lima server-prod-resources cutover (WS3) and the ContainerRuntime migration (WS6) landing, `resources/bin/third_party/` ships `limactl` instead of `podman`. The current OpenClaw runtime (`apps/server/src/api/services/openclaw/podman-runtime.ts`, `container-runtime.ts`) still invokes `podman`; it will fail to find the binary on builds cut from `dev`.
+
+Do **not** cut a release branch off `dev` during this window. Track WS6 progress before any release cut. See `specs/bundled-vm-runtime-spec.md` + `specs/workstreams.md` for context.
