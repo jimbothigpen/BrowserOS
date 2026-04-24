@@ -3,9 +3,9 @@
 minimumLimaVersion: 2.0.0
 
 vmType: vz
-cpus: 2
-memory: 2GiB
-disk: 30GiB
+cpus: 4
+memory: 4GiB
+disk: 20GiB
 
 images:
 - location: "https://cloud-images.ubuntu.com/minimal/releases/noble/release-20260415/ubuntu-24.04-minimal-cloudimg-arm64.img"
