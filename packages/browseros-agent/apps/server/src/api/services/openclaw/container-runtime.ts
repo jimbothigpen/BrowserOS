@@ -23,7 +23,7 @@ const GATEWAY_NPM_PREFIX = `${GATEWAY_CONTAINER_HOME}/.npm-global`
 // Prepend user-installed bin so tools like `claude` / `gemini` CLI that
 // are installed via npm into the mounted home are discoverable by
 // OpenClaw's child-process spawns (no login shell is involved).
-export const GATEWAY_PATH = [
+const GATEWAY_PATH = [
   `${GATEWAY_NPM_PREFIX}/bin`,
   '/usr/local/sbin',
   '/usr/local/bin',

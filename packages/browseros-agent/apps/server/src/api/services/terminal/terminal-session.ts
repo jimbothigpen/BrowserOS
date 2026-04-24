@@ -4,7 +4,6 @@ import {
 } from '@browseros/shared/constants/openclaw'
 import { buildNerdctlCommand } from '../../../lib/container'
 import { logger } from '../../../lib/logger'
-import { GATEWAY_PATH } from '../openclaw/container-runtime'
 
 export const TERMINAL_HOME_DIR = OPENCLAW_CONTAINER_HOME
 const DEFAULT_COLS = 80
