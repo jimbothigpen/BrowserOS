@@ -27,6 +27,7 @@ local = [
   "torchvision>=0.21.0",
   "transformers>=4.57.1,<5.0.0",
   "WePOINTS @ git+https://github.com/WePOINTS/WePOINTS.git",
+  "tiktoken>=0.7.0",
 ]
 
 [project.scripts]

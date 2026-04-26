@@ -110,23 +110,23 @@
       "name": "holo2-4b-local",
       "provider": "local_hf",
       "model": "Hcompany/Holo2-4B",
-      "adapter": "qwen3_vl",
+      "adapter": "holo2",
       "dtype": "fp16",
       "allow_cpu_offload": true,
       "estimated_vram_gb": 12,
       "max_pixels": 1310720,
-      "max_new_tokens": 512
+      "max_new_tokens": 64
     },
     {
       "name": "holo2-8b-local",
       "provider": "local_hf",
       "model": "Hcompany/Holo2-8B",
-      "adapter": "qwen3_vl",
+      "adapter": "holo2",
       "dtype": "fp16",
       "allow_cpu_offload": true,
       "estimated_vram_gb": 24,
       "max_pixels": 1310720,
-      "max_new_tokens": 512
+      "max_new_tokens": 64
     },
     {
       "name": "gta1-7b-local",

@@ -98,10 +98,13 @@ uv sync --extra local
 
 This installs `torch`, `torchvision`, `transformers`, `accelerate`, `einops`,
 `qwen-vl-utils`, `safetensors`, `timm`, `sentencepiece`, `protobuf`,
-`requests`, and `WePOINTS`. `torch>=2.6` is required for models that still ship
-PyTorch `.bin` weights because older PyTorch releases are blocked by the
-CVE-2025-32434 `torch.load` guard. MolmoPoint also expects `einops`, and the
-Qwen-derived GUI models use `qwen-vl-utils` for image preprocessing.
+`requests`, `tiktoken`, and `WePOINTS`. `torch>=2.6` is required for models
+that still ship PyTorch `.bin` weights because older PyTorch releases are
+blocked by the CVE-2025-32434 `torch.load` guard. MolmoPoint also expects
+`einops`, and the Qwen-derived GUI models use `qwen-vl-utils` for image
+preprocessing. POINTS-GUI-G requires FlashAttention 2 at runtime, but it is not
+installed by the local extra because its native build must match the active
+Python, PyTorch, and CUDA environment.
 
 The local provider is intentionally conservative: it only runs when PyTorch can
 use CUDA, and it skips non-offloaded models whose estimated VRAM exceeds the

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import json
+import re
 import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -78,6 +79,8 @@ class LocalHFClient:
                 )
             if adapter == "points_gui_g":
                 return self._predict_points_gui_g(model, image_path, instruction)
+            if adapter == "holo2":
+                return self._predict_holo2(model, image_path, instruction)
             if adapter == "uground":
                 return self._predict_qwen2_relative_1000(
                     model,
@@ -280,18 +283,14 @@ class LocalHFClient:
     def _predict_qwen25_absolute(
         self, model: ModelSpec, image_path: Path, instruction: str, mode: str
     ) -> ModelReply:
-        torch, processor, hf_model = self._load_processor_model(
-            model,
-            class_names=("Qwen2_5_VLForConditionalGeneration",),
-            processor_kwargs=_pixel_kwargs(model),
+        torch, processor, tokenizer, hf_model = self._load_processor_tokenizer_model(
+            model, class_names=("Qwen2_5_VLForConditionalGeneration",)
         )
         image = _open_rgb_image(image_path)
         original_width, original_height = image.size
         image, (width, height) = _smart_resize_image(image, model)
         messages = _qwen25_absolute_messages(instruction, image, width, height, mode)
-        input_text = processor.apply_chat_template(
-            messages, add_generation_prompt=True, tokenize=False
-        )
+        input_text = _qwen25_absolute_prompt_text(tokenizer, messages, mode)
         inputs = processor(
             text=[input_text],
             images=[image],
@@ -308,6 +307,53 @@ class LocalHFClient:
             width,
             height,
             adapter=mode,
+        )
+
+    def _predict_holo2(
+        self, model: ModelSpec, image_path: Path, instruction: str
+    ) -> ModelReply:
+        torch, processor, hf_model = self._load_processor_model(
+            model,
+            class_names=(
+                "AutoModelForImageTextToText",
+                "Qwen3VLForConditionalGeneration",
+            ),
+        )
+        image = _open_rgb_image(image_path)
+        width, height = image.size
+        processed_image, _resized_size = _smart_resize_image_for_processor(
+            image, processor, model
+        )
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": processed_image},
+                    {"type": "text", "text": _holo2_localization_prompt(instruction)},
+                ],
+            }
+        ]
+        apply_chat_template = getattr(processor, "apply_chat_template")
+        try:
+            input_text = apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                thinking=False,
+            )
+        except TypeError:
+            input_text = apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        inputs = processor(
+            text=[input_text],
+            images=[processed_image],
+            padding=True,
+            return_tensors="pt",
+        )
+        text = self._generate_text(torch, processor, hf_model, inputs, model)
+        return self._scaled_reply(
+            model, text, width, height, coordinate_max=1000, adapter="holo2"
         )
 
     def _predict_opencua(
@@ -567,6 +613,7 @@ class LocalHFClient:
             return self._loaded[key]  # type: ignore[return-value]
 
         torch, transformers = _import_local_hf_dependencies()
+        _require_points_gui_g_flash_attn(model)
         image_processor_cls = getattr(transformers, "Qwen2VLImageProcessor", None)
         if image_processor_cls is None:
             raise ModelSkipped(
@@ -596,6 +643,7 @@ class LocalHFClient:
             return self._loaded[key]  # type: ignore[return-value]
 
         torch, transformers = _import_local_hf_dependencies()
+        _patch_dynamic_cache_compat()
         config = _load_os_atlas_4b_config(transformers, model)
         self._log(f"{model.name}: loading OS-Atlas tokenizer")
         tokenizer = _call_hf_loader(
@@ -815,6 +863,57 @@ def _import_local_hf_dependencies():
     return torch, transformers
 
 
+def _require_points_gui_g_flash_attn(model: ModelSpec) -> None:
+    try:
+        from flash_attn import flash_attn_func
+    except Exception as exc:
+        raise ModelSkipped(_flash_attn_skip_message(model.name, str(exc))) from exc
+
+    if not callable(flash_attn_func):
+        raise ModelSkipped(
+            _flash_attn_skip_message(
+                model.name, "flash_attn did not expose flash_attn_func"
+            )
+        )
+
+
+def _flash_attn_skip_message(model_name: str, detail: str) -> str:
+    detail_text = f": {detail}" if detail else ""
+    return (
+        f"skipped - {model_name} requires FlashAttention 2, but flash-attn is "
+        "missing or incompatible with this PyTorch/CUDA environment"
+        f"{detail_text}. Install a matching flash-attn build for this "
+        "environment, for example `pip install flash-attn --no-build-isolation`."
+    )
+
+
+def _looks_like_flash_attn_import_failure(exc: Exception) -> bool:
+    if _looks_like_flash_attn_abi_failure(exc):
+        return True
+
+    message = str(exc).lower()
+    return any(
+        marker in message
+        for marker in (
+            "flash_attn",
+            "flash-attn",
+            "flash attention",
+            "flashattention",
+            "flash_attention_2",
+        )
+    ) and any(
+        marker in message
+        for marker in (
+            "undefined symbol",
+            "cannot import",
+            "failed to import",
+            "no module named",
+            "not found",
+            "requires the following packages",
+        )
+    )
+
+
 def _call_hf_loader(loader, model: ModelSpec, **kwargs):
     if model.revision:
         kwargs.setdefault("revision", model.revision)
@@ -822,6 +921,8 @@ def _call_hf_loader(loader, model: ModelSpec, **kwargs):
         return loader(model.model_id, **kwargs)
     except Exception as exc:
         message = str(exc)
+        if _looks_like_flash_attn_import_failure(exc):
+            raise ModelSkipped(_flash_attn_skip_message(model.name, message)) from exc
         if "requires the following packages" in message or isinstance(
             exc, ImportError
         ):
@@ -1043,6 +1144,34 @@ def _smart_resize_image(image, model: ModelSpec):
     )
 
 
+def _smart_resize_image_for_processor(image, processor, model: ModelSpec):
+    image_processor = getattr(processor, "image_processor", None)
+    patch_size = getattr(image_processor, "patch_size", 14)
+    merge_size = getattr(image_processor, "merge_size", 2)
+    size = getattr(image_processor, "size", {}) or {}
+    min_pixels = model.min_pixels or size.get("shortest_edge") or 78_400
+    max_pixels = model.max_pixels or size.get("longest_edge") or 6_000_000
+    try:
+        from qwen_vl_utils.vision_process import smart_resize
+    except ImportError as exc:
+        raise ModelSkipped(
+            "skipped - qwen-vl-utils missing; run `uv sync --extra local`"
+        ) from exc
+
+    width, height = image.size
+    resized_height, resized_width = smart_resize(
+        height,
+        width,
+        factor=patch_size * merge_size,
+        min_pixels=min_pixels,
+        max_pixels=max_pixels,
+    )
+    return image.resize((resized_width, resized_height)), (
+        resized_width,
+        resized_height,
+    )
+
+
 def _pixel_kwargs(model: ModelSpec) -> dict[str, int]:
     kwargs: dict[str, int] = {}
     if model.min_pixels is not None:
@@ -1139,6 +1268,45 @@ def _qwen25_absolute_messages(
             ],
         },
     ]
+
+
+def _qwen25_absolute_prompt_text(
+    tokenizer, messages: list[dict[str, Any]], mode: str
+) -> str:
+    input_text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    if mode != "gta1":
+        return input_text
+
+    converted_text, replacements = re.subn(
+        r"<\|media_begin\|>.*?<\|media_end\|>",
+        "<|vision_start|><|image_pad|><|vision_end|>",
+        input_text,
+        flags=re.DOTALL,
+    )
+    if replacements > 0:
+        return converted_text
+    if "<|vision_start|><|image_pad|><|vision_end|>" in input_text:
+        return input_text
+    raise RuntimeError("GTA1 chat template did not contain an image placeholder")
+
+
+def _holo2_localization_prompt(instruction: str) -> str:
+    schema = (
+        '{"properties":{"x":{"description":"The x coordinate, normalized between '
+        '0 and 1000.","minimum":0,"maximum":1000,"type":"integer"},"y":'
+        '{"description":"The y coordinate, normalized between 0 and 1000.",'
+        '"minimum":0,"maximum":1000,"type":"integer"}},"required":["x","y"],'
+        '"type":"object"}'
+    )
+    return (
+        "Localize an element on the GUI image according to the provided target "
+        "and output a click position.\n"
+        f" * You must output a valid JSON following the format: {schema}\n"
+        " Your target is:\n"
+        f"{instruction}"
+    )
 
 
 def _pyautogui_system_prompt() -> str:
@@ -1320,6 +1488,38 @@ def _patch_generation_mixin(hf_model) -> None:
                 candidate.generation_config = GenerationConfig.from_model_config(config)
 
 
+def _patch_dynamic_cache_compat() -> None:
+    try:
+        from transformers.cache_utils import DynamicCache
+    except ImportError:
+        return
+
+    def seen_tokens(self):
+        return self.get_seq_length()
+
+    def get_max_length(self):
+        if not hasattr(self, "get_max_cache_shape"):
+            return None
+        max_length = self.get_max_cache_shape()
+        if max_length == -1:
+            return None
+        return max_length
+
+    def get_usable_length(self, new_seq_length: int, layer_idx: int = 0) -> int:
+        max_length = self.get_max_length()
+        previous_seq_length = self.get_seq_length(layer_idx)
+        if max_length is not None and previous_seq_length + new_seq_length > max_length:
+            return max_length - new_seq_length
+        return previous_seq_length
+
+    if not hasattr(DynamicCache, "seen_tokens"):
+        DynamicCache.seen_tokens = property(seen_tokens)  # type: ignore[attr-defined]
+    if not hasattr(DynamicCache, "get_max_length"):
+        DynamicCache.get_max_length = get_max_length  # type: ignore[attr-defined]
+    if not hasattr(DynamicCache, "get_usable_length"):
+        DynamicCache.get_usable_length = get_usable_length  # type: ignore[attr-defined]
+
+
 @contextmanager
 def _ignore_optional_flash_attn_import_for_os_atlas():
     try:
@@ -1365,6 +1565,8 @@ def _adapter_for(model: ModelSpec) -> str:
             return "os_atlas_4b"
         if "os-atlas-base-7b" in model_id:
             return "os_atlas_7b"
+    if model.adapter == "qwen3_vl" and "holo2" in model_id:
+        return "holo2"
     if model.adapter:
         return model.adapter
     if "molmopoint" in model_id:
@@ -1381,6 +1583,8 @@ def _adapter_for(model: ModelSpec) -> str:
         return "infigui"
     if "points-gui-g" in model_id:
         return "points_gui_g"
+    if "holo2" in model_id:
+        return "holo2"
     if "uground" in model_id:
         return "uground"
     if "os-atlas-base-4b" in model_id:
@@ -1412,3 +1616,11 @@ def _looks_like_cuda_fit_failure(exc: Exception) -> bool:
 def _looks_like_cve_torch_load_guard(exc: Exception) -> bool:
     message = str(exc).lower()
     return "torch.load" in message and "vulnerability" in message
+
+
+def _looks_like_flash_attn_abi_failure(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "flash_attn" in message
+        and ("undefined symbol" in message or "version mismatch" in message)
+    )
