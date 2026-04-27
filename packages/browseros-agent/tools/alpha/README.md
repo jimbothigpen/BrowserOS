@@ -24,7 +24,7 @@ balpha start
 ```
 
 `start` uses the currently checked-out repo state. It does not pull.
-Each start runs `bun install --frozen-lockfile`, `bun run codegen:agent`, and the WXT extension build. Bun/WXT caches keep repeated starts fast.
+Each start runs the existing `tools/dev/setup.sh` setup flow and the WXT extension build. Bun/WXT caches keep repeated starts fast.
 
 To refresh the repo explicitly:
 

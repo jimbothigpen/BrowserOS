@@ -9,8 +9,7 @@ func TestBuildRunsExpectedCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"bun install --frozen-lockfile",
-		"bun run codegen:agent",
+		"./tools/dev/setup.sh",
 		"bun --cwd apps/agent --env-file=.env.development wxt build --mode development",
 	}
 	for i := range want {
