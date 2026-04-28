@@ -5,17 +5,13 @@ export function mapAgentHarnessToolStatus(
 ): ToolEntry['status'] {
   if (!status) return 'running'
   const normalized = status.toLowerCase()
-  if (
-    normalized.includes('error') ||
-    normalized.includes('fail') ||
-    normalized.includes('denied')
-  ) {
+  if (['error', 'failed', 'failure', 'denied'].includes(normalized)) {
     return 'error'
   }
   if (
-    normalized.includes('complete') ||
-    normalized.includes('done') ||
-    normalized.includes('success')
+    ['complete', 'completed', 'done', 'success', 'succeeded'].includes(
+      normalized,
+    )
   ) {
     return 'completed'
   }

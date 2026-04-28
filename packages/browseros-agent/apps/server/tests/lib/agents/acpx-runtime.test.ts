@@ -151,6 +151,59 @@ describe('AcpxRuntime', () => {
       text: expect.stringContaining('Could not apply effort=medium'),
     })
   })
+
+  it('reuses cached runtime instances across per-turn timeouts', async () => {
+    const calls: Array<{ method: string; input: unknown }> = []
+    const runtime = new AcpxRuntime({
+      cwd: '/tmp/browseros-acpx-runtime',
+      stateDir: '/tmp/browseros-acpx-state',
+      runtimeFactory: (options) => {
+        calls.push({ method: 'createRuntime', input: options })
+        return createFakeAcpRuntime(calls)
+      },
+    })
+    const agent: AgentDefinition = {
+      id: 'agent-1',
+      name: 'Codex bot',
+      adapter: 'codex',
+      modelId: 'gpt-5.5',
+      reasoningEffort: 'medium',
+      permissionMode: 'approve-all',
+      sessionKey: 'agent:agent-1:main',
+      createdAt: 1000,
+      updatedAt: 1000,
+    }
+
+    await collectStream(
+      await runtime.send({
+        agent,
+        sessionId: 'main',
+        sessionKey: agent.sessionKey,
+        message: 'first',
+        permissionMode: 'approve-all',
+        timeoutMs: 1_000,
+      }),
+    )
+    await collectStream(
+      await runtime.send({
+        agent,
+        sessionId: 'main',
+        sessionKey: agent.sessionKey,
+        message: 'second',
+        permissionMode: 'approve-all',
+        timeoutMs: 2_000,
+      }),
+    )
+
+    expect(
+      calls.filter((call) => call.method === 'createRuntime'),
+    ).toHaveLength(1)
+    expect(
+      calls
+        .filter((call) => call.method === 'startTurn')
+        .map((call) => (call.input as { timeoutMs?: number }).timeoutMs),
+    ).toEqual([1_000, 2_000])
+  })
 })
 
 function createFakeAcpRuntime(

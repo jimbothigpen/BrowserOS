@@ -45,4 +45,23 @@ describe('FileAgentStore', () => {
     await store.delete(agent.id)
     expect(await store.list()).toEqual([])
   })
+
+  it('serializes concurrent creates without dropping agents', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'browseros-agents-'))
+    tempDirs.push(dir)
+    const store = new FileAgentStore({ filePath: join(dir, 'agents.json') })
+
+    const created = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        store.create({
+          name: `Agent ${index}`,
+          adapter: index % 2 === 0 ? 'codex' : 'claude',
+        }),
+      ),
+    )
+
+    const listed = await store.list()
+    expect(listed).toHaveLength(created.length)
+    expect(new Set(listed.map((agent) => agent.id)).size).toBe(created.length)
+  })
 })

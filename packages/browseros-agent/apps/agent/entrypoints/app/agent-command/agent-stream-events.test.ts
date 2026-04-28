@@ -6,6 +6,7 @@ describe('mapAgentHarnessToolStatus', () => {
     expect(mapAgentHarnessToolStatus('running')).toBe('running')
     expect(mapAgentHarnessToolStatus('completed')).toBe('completed')
     expect(mapAgentHarnessToolStatus('failed')).toBe('error')
+    expect(mapAgentHarnessToolStatus('incomplete')).toBe('running')
     expect(mapAgentHarnessToolStatus(undefined)).toBe('running')
   })
 })

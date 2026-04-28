@@ -343,7 +343,6 @@ export function useAgentConversation(
           abortController.signal,
         )
       }
-      onCompleteRef.current?.()
     } catch (err) {
       if (abortController.signal.aborted) return
       const msg = err instanceof Error ? err.message : String(err)
@@ -355,6 +354,7 @@ export function useAgentConversation(
       if (streamAbortRef.current === abortController) {
         streamAbortRef.current = null
       }
+      onCompleteRef.current?.()
       setStreaming(false)
     }
   }

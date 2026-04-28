@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { AGENT_HARNESS_LIMITS } from '@browseros/shared/constants/limits'
 import { type Context, Hono } from 'hono'
 import { stream } from 'hono/streaming'
 import {
@@ -108,6 +109,7 @@ export function createAgentRoutes(deps: AgentRouteDeps = {}) {
       return stream(c, async (s) => {
         const reader = eventStream.getReader()
         const encoder = new TextEncoder()
+        let completed = false
         try {
           while (true) {
             const { done, value } = await reader.read()
@@ -115,8 +117,13 @@ export function createAgentRoutes(deps: AgentRouteDeps = {}) {
             await s.write(encoder.encode(`data: ${JSON.stringify(value)}\n\n`))
           }
           await s.write(encoder.encode('data: [DONE]\n\n'))
+          completed = true
         } finally {
-          reader.releaseLock()
+          if (completed) {
+            reader.releaseLock()
+          } else {
+            await reader.cancel('BrowserOS HTTP stream ended').catch(() => {})
+          }
         }
       })
     })
@@ -136,6 +143,11 @@ async function parseCreateAgentBody(c: Context<Env>): Promise<
   const record = body.value
   const name = typeof record.name === 'string' ? record.name.trim() : ''
   if (!name) return { error: 'Name is required' }
+  if (name.length > AGENT_HARNESS_LIMITS.AGENT_NAME_MAX_CHARS) {
+    return {
+      error: `Name must be ${AGENT_HARNESS_LIMITS.AGENT_NAME_MAX_CHARS} characters or fewer`,
+    }
+  }
   if (!isAgentAdapter(record.adapter)) {
     return { error: 'Invalid adapter' }
   }

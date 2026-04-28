@@ -1,4 +1,9 @@
 import type { NavigateFunction } from 'react-router'
+import {
+  AGENT_CREATED_EVENT,
+  AGENT_DELETED_EVENT,
+} from '@/lib/constants/analyticsEvents'
+import { track } from '@/lib/metrics/track'
 import type { HarnessAgent, HarnessAgentAdapter } from './agent-harness-types'
 import type {
   AgentListItem,
@@ -15,7 +20,6 @@ import type {
 export interface AgentPageActionInput {
   createProviderId: string
   createRuntime: CreateAgentRuntime
-  harnessAdapterId: HarnessAgentAdapter
   harnessModelId: string
   harnessReasoningEffort: string
   navigate: NavigateFunction
@@ -97,6 +101,10 @@ export function createAgentPageActions(input: AgentPageActionInput) {
       })
       input.setCreateOpen(false)
       input.setNewName('')
+      track(AGENT_CREATED_EVENT, {
+        runtime: 'openclaw',
+        provider_type: option?.type,
+      })
       input.navigate(`/agents/${result.agent.agentId}`)
     } catch (err) {
       input.setCreateError(err instanceof Error ? err.message : String(err))
@@ -110,15 +118,17 @@ export function createAgentPageActions(input: AgentPageActionInput) {
     try {
       const agent = await input.createHarnessAgent({
         name: input.newName.trim(),
-        adapter:
-          input.createRuntime === 'openclaw'
-            ? input.harnessAdapterId
-            : input.createRuntime,
+        adapter: input.createRuntime as HarnessAgentAdapter,
         modelId: input.harnessModelId || undefined,
         reasoningEffort: input.harnessReasoningEffort || undefined,
       })
       input.setCreateOpen(false)
       input.setNewName('')
+      track(AGENT_CREATED_EVENT, {
+        runtime: input.createRuntime,
+        model_id: input.harnessModelId || undefined,
+        reasoning_effort: input.harnessReasoningEffort || undefined,
+      })
       input.navigate(`/agents/${agent.id}`)
     } catch (err) {
       input.setCreateError(err instanceof Error ? err.message : String(err))
@@ -145,6 +155,10 @@ export function createAgentPageActions(input: AgentPageActionInput) {
         'agent-harness': (agentId) => input.deleteHarnessAgent(agentId),
       }
       await deleteBySource[agent.source](agent.agentId)
+      track(AGENT_DELETED_EVENT, {
+        runtime: agent.source,
+        agent_id: agent.agentId,
+      })
     })
     input.setDeletingAgentKey(null)
   }

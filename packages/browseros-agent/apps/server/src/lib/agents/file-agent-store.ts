@@ -29,6 +29,7 @@ export interface CreateAgentInput {
 
 export class FileAgentStore {
   private readonly filePath: string
+  private writeQueue: Promise<unknown> = Promise.resolve()
 
   constructor(options: { filePath?: string } = {}) {
     this.filePath =
@@ -59,44 +60,48 @@ export class FileAgentStore {
   }
 
   async create(input: CreateAgentInput): Promise<AgentDefinition> {
-    const now = Date.now()
-    const id = randomUUID()
-    const agent: AgentDefinition = {
-      id,
-      name: input.name.trim(),
-      adapter: input.adapter,
-      modelId: input.modelId ?? resolveDefaultModelId(input.adapter),
-      reasoningEffort:
-        input.reasoningEffort ?? resolveDefaultReasoningEffort(input.adapter),
-      permissionMode: 'approve-all',
-      sessionKey: `agent:${id}:main`,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const file = await this.read()
-    await this.write({ ...file, agents: [...file.agents, agent] })
-    logger.info('Agent harness store created agent', {
-      agentId: agent.id,
-      name: agent.name,
-      adapter: agent.adapter,
-      modelId: agent.modelId,
-      reasoningEffort: agent.reasoningEffort,
-      sessionKey: agent.sessionKey,
-      filePath: this.filePath,
+    return this.withWriteLock(async () => {
+      const now = Date.now()
+      const id = randomUUID()
+      const agent: AgentDefinition = {
+        id,
+        name: input.name.trim(),
+        adapter: input.adapter,
+        modelId: input.modelId ?? resolveDefaultModelId(input.adapter),
+        reasoningEffort:
+          input.reasoningEffort ?? resolveDefaultReasoningEffort(input.adapter),
+        permissionMode: 'approve-all',
+        sessionKey: `agent:${id}:main`,
+        createdAt: now,
+        updatedAt: now,
+      }
+      const file = await this.read()
+      await this.write({ ...file, agents: [...file.agents, agent] })
+      logger.info('Agent harness store created agent', {
+        agentId: agent.id,
+        name: agent.name,
+        adapter: agent.adapter,
+        modelId: agent.modelId,
+        reasoningEffort: agent.reasoningEffort,
+        sessionKey: agent.sessionKey,
+        filePath: this.filePath,
+      })
+      return agent
     })
-    return agent
   }
 
   async delete(id: string): Promise<boolean> {
-    const file = await this.read()
-    const agents = file.agents.filter((agent) => agent.id !== id)
-    if (agents.length === file.agents.length) return false
-    await this.write({ ...file, agents })
-    logger.info('Agent harness store deleted agent', {
-      agentId: id,
-      filePath: this.filePath,
+    return this.withWriteLock(async () => {
+      const file = await this.read()
+      const agents = file.agents.filter((agent) => agent.id !== id)
+      if (agents.length === file.agents.length) return false
+      await this.write({ ...file, agents })
+      logger.info('Agent harness store deleted agent', {
+        agentId: id,
+        filePath: this.filePath,
+      })
+      return true
     })
-    return true
   }
 
   private async read(): Promise<AgentStoreFile> {
@@ -118,6 +123,15 @@ export class FileAgentStore {
     const tmpPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`
     await writeFile(tmpPath, `${JSON.stringify(file, null, 2)}\n`, 'utf8')
     await rename(tmpPath, this.filePath)
+  }
+
+  private withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
+    const result = this.writeQueue.then(fn, fn)
+    this.writeQueue = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
   }
 }
 

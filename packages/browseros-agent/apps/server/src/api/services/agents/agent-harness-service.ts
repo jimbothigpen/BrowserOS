@@ -99,6 +99,18 @@ export class AgentHarnessService {
   ): ReadableStream<AgentStreamEvent> {
     let reader: ReadableStreamDefaultReader<AgentStreamEvent> | null = null
     let assistantText = ''
+    let transcriptFlushed = false
+
+    const flushAssistantTranscript = async () => {
+      if (transcriptFlushed || !assistantText.trim()) return
+      transcriptFlushed = true
+      await this.transcriptStore.append({
+        agentId: agent.id,
+        sessionId: 'main',
+        role: 'assistant',
+        text: assistantText,
+      })
+    }
 
     return new ReadableStream<AgentStreamEvent>({
       start: async (controller) => {
@@ -114,14 +126,7 @@ export class AgentHarnessService {
             }
             controller.enqueue(value)
           }
-          if (assistantText.trim()) {
-            await this.transcriptStore.append({
-              agentId: agent.id,
-              sessionId: 'main',
-              role: 'assistant',
-              text: assistantText,
-            })
-          }
+          await flushAssistantTranscript()
           controller.close()
         } catch (err) {
           controller.error(err)
@@ -130,6 +135,7 @@ export class AgentHarnessService {
         }
       },
       cancel: async () => {
+        await flushAssistantTranscript()
         await reader?.cancel('BrowserOS stream cancelled')
       },
     })
@@ -141,11 +147,4 @@ export class UnknownAgentError extends Error {
     super(`Unknown agent: ${agentId}`)
     this.name = 'UnknownAgentError'
   }
-}
-
-let singleton: AgentHarnessService | null = null
-
-export function getAgentHarnessService(): AgentHarnessService {
-  singleton ??= new AgentHarnessService()
-  return singleton
 }

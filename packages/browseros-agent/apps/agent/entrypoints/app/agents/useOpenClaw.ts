@@ -42,6 +42,7 @@ export interface OpenClawAgentMutationInput {
   baseUrl?: string
   apiKey?: string
   modelId?: string
+  supportsImages?: boolean
 }
 
 export interface OpenClawSetupInput {
@@ -50,6 +51,10 @@ export interface OpenClawSetupInput {
   baseUrl?: string
   apiKey?: string
   modelId?: string
+  // Mirrors LlmProviderConfig.supportsImages — pass-through so the gateway
+  // can declare the model's input modalities correctly when persisting the
+  // custom-provider config.
+  supportsImages?: boolean
 }
 
 export function getModelDisplayName(model: unknown): string | undefined {

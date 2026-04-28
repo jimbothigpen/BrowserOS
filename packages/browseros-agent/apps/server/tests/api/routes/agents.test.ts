@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import { AGENT_HARNESS_LIMITS } from '@browseros/shared/constants/limits'
 import { Hono } from 'hono'
 import { createAgentRoutes } from '../../../src/api/routes/agents'
 import type { AgentDefinition } from '../../../src/lib/agents/agent-types'
@@ -59,6 +60,23 @@ describe('createAgentRoutes', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('X-Session-Id')).toBe('main')
     expect(await response.text()).toContain('data: [DONE]')
+  })
+
+  it('rejects overlong agent names', async () => {
+    const route = createMountedRoutes([])
+    const response = await route.request('/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'a'.repeat(AGENT_HARNESS_LIMITS.AGENT_NAME_MAX_CHARS + 1),
+        adapter: 'codex',
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: `Name must be ${AGENT_HARNESS_LIMITS.AGENT_NAME_MAX_CHARS} characters or fewer`,
+    })
   })
 })
 

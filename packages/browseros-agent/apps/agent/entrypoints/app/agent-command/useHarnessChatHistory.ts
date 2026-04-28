@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { HarnessAgentHistoryPage } from '@/entrypoints/app/agents/agent-harness-types'
+import { fetchHarnessAgentHistory } from '@/entrypoints/app/agents/useAgents'
 import { useAgentServerUrl } from '@/lib/browseros/useBrowserOSProviders'
 import type {
   AgentHistoryPageResponse,
@@ -18,14 +19,7 @@ export function useHarnessChatHistory(agentId: string, enabled = true) {
   const query = useQuery<AgentHistoryPageResponse, Error>({
     queryKey: [HISTORY_QUERY_KEY, baseUrl, agentId, 'main'],
     queryFn: async () => {
-      const response = await fetch(
-        `${baseUrl}/agents/${encodeURIComponent(agentId)}/sessions/main/history`,
-      )
-      if (!response.ok) {
-        throw new Error(await response.text())
-      }
-      const page = (await response.json()) as HarnessAgentHistoryPage
-      return mapHarnessHistoryPage(page)
+      return mapHarnessHistoryPage(await fetchHarnessAgentHistory(agentId))
     },
     enabled: Boolean(baseUrl) && !urlLoading && enabled && Boolean(agentId),
   })

@@ -60,7 +60,8 @@ export class FileTranscriptStore {
       const entries = raw
         .split('\n')
         .filter(Boolean)
-        .map((line) => JSON.parse(line) as AgentTranscriptEntry)
+        .map((line) => this.parseLine(line, input))
+        .filter((entry): entry is AgentTranscriptEntry => entry !== null)
         .sort((a, b) => a.createdAt - b.createdAt)
       logger.debug('Agent harness transcript listed entries', {
         agentId: input.agentId,
@@ -84,6 +85,23 @@ export class FileTranscriptStore {
 
   private pathFor(input: TranscriptListInput): string {
     return join(this.rootDir, input.agentId, `${input.sessionId}.jsonl`)
+  }
+
+  private parseLine(
+    line: string,
+    input: TranscriptListInput,
+  ): AgentTranscriptEntry | null {
+    try {
+      return JSON.parse(line) as AgentTranscriptEntry
+    } catch (err) {
+      logger.warn('Agent harness transcript skipped malformed line', {
+        agentId: input.agentId,
+        sessionId: input.sessionId,
+        filePath: this.pathFor(input),
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    }
   }
 }
 

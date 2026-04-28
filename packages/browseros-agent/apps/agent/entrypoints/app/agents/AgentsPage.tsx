@@ -163,9 +163,7 @@ export const AgentsPage: FC = () => {
       ...visibleOpenClawAgents.map((agent) =>
         toOpenClawListItem(agent, openClawManageable),
       ),
-      ...[...harnessAgents]
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .map(toHarnessListItem),
+      ...harnessAgents.map(toHarnessListItem),
     ],
     [harnessAgents, openClawManageable, visibleOpenClawAgents],
   )
@@ -207,7 +205,6 @@ export const AgentsPage: FC = () => {
     createAgentPageActions({
       createProviderId,
       createRuntime,
-      harnessAdapterId,
       harnessModelId,
       harnessReasoningEffort,
       navigate,

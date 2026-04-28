@@ -86,7 +86,6 @@ export class AcpxRuntime implements AgentRuntime {
       cwd: this.cwd,
       permissionMode: input.permissionMode,
       nonInteractivePermissions: 'fail',
-      timeoutMs: input.timeoutMs,
     })
 
     return createAcpxEventStream(runtime, input, this.cwd)
@@ -96,7 +95,6 @@ export class AcpxRuntime implements AgentRuntime {
     cwd: string
     permissionMode: AcpRuntimeOptions['permissionMode']
     nonInteractivePermissions: AcpRuntimeOptions['nonInteractivePermissions']
-    timeoutMs?: number
   }): AcpxCoreRuntime {
     const key = JSON.stringify(input)
     const existing = this.runtimes.get(key)
@@ -108,7 +106,6 @@ export class AcpxRuntime implements AgentRuntime {
       agentRegistry: createAgentRegistry(),
       permissionMode: input.permissionMode,
       nonInteractivePermissions: input.nonInteractivePermissions,
-      timeoutMs: input.timeoutMs,
     })
     this.runtimes.set(key, runtime)
     logger.debug('Agent harness acpx runtime created', {
@@ -116,7 +113,6 @@ export class AcpxRuntime implements AgentRuntime {
       stateDir: this.stateDir,
       permissionMode: input.permissionMode,
       nonInteractivePermissions: input.nonInteractivePermissions,
-      timeoutMs: input.timeoutMs,
     })
     return runtime
   }
