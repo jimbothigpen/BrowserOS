@@ -44,7 +44,9 @@ jobs:
         run: bun install --ignore-scripts && bun run build:agent-sdk
 
       - name: Install Python eval dependencies
-        run: pip install agisdk requests
+        # agisdk pinned so silent upstream releases can't shift task definitions
+        # or grader behavior. Bump intentionally with a documented re-baseline.
+        run: pip install agisdk==0.3.5 requests
 
       - name: Clone WebArena-Infinity
         run: git clone --depth 1 https://github.com/web-arena-x/webarena-infinity.git /tmp/webarena-infinity
