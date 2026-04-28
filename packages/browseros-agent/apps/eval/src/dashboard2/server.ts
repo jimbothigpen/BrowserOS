@@ -463,7 +463,7 @@ async function handleStop(): Promise<Response> {
   return json({ status: 'stopped' })
 }
 
-Bun.serve({
+const server = Bun.serve({
   port: 9901,
   hostname: '127.0.0.1',
   routes: {
@@ -495,4 +495,6 @@ Bun.serve({
   development: true,
 })
 
-console.log('Dashboard2 listening at http://localhost:9901')
+console.log(`Dashboard2 listening at http://${server.hostname}:${server.port}`)
+
+setInterval(() => void Date.now(), 1000)
