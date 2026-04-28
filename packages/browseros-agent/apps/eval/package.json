@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "eval": "bun --env-file=.env.development run src/index.ts",
+    "dashboard2": "bun --env-file=.env.development run src/dashboard2/server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,12 +19,17 @@
     "ai": "^6.0.94",
     "hono": "^4.6.0",
     "openai": "^4.0.0",
+    "react": "^19",
+    "react-dom": "^19",
     "sharp": "^0.34.5",
     "uuid": "^9.0.0",
+    "zustand": "^5",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "@types/uuid": "^9.0.0",
     "typescript": "^5.0.0"
   }
