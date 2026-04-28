@@ -205,18 +205,23 @@ export const fill = defineTool({
     clear: z.boolean(),
   }),
   handler: async (args, ctx, response) => {
-    const coords = await ctx.browser.fill(
+    const result = await ctx.browser.fill(
       args.page,
       args.element,
       args.text,
       args.clear,
     )
-    const coordText = coords
-      ? ` at (${Math.round(coords.x)}, ${Math.round(coords.y)})`
+    const coordText = result
+      ? ` at (${Math.round(result.x)}, ${Math.round(result.y)})`
       : ''
-    response.text(
-      `Typed ${args.text.length} characters into [${args.element}]${coordText}`,
-    )
+    let text = `Typed ${args.text.length} characters into [${args.element}]${coordText}`
+    // Surface a warning when the typed value didn't persist in the input —
+    // common with React-controlled comboboxes/date-pickers that ignore
+    // native input events. Tells the model to try a click-the-option flow.
+    if (result && !result.persisted) {
+      text += `. WARNING: value did not persist — element may be a controlled component (e.g. combobox / date-picker) that ignores typed input. Try clicking the picker and selecting the option directly.`
+    }
+    response.text(text)
     response.data({
       action: 'fill',
       page: args.page,

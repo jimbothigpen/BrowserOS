@@ -463,6 +463,19 @@ export class Browser {
       // cursor detection is best-effort; AX tree results are still returned
     }
 
+    // Surface horizontally-scrollable carousel hints so the model knows
+    // offscreen content exists. Helps tasks like "find the most X among
+    // all restaurants/products" where the visible 3-4 items aren't the full set.
+    try {
+      const hints = await snapshot.findScrollHints(session)
+      if (hints.length > 0) {
+        lines.push('')
+        for (const h of hints) lines.push(`[scroll-hint] ${h}`)
+      }
+    } catch {
+      // best-effort
+    }
+
     return lines.join('\n')
   }
 
@@ -748,6 +761,16 @@ export class Browser {
 
     await elements.scrollIntoView(session, element)
 
+    // Two-phase click for React-controlled buttons:
+    //   Phase 1: CDP mouse-down/move/up. This is the realistic path —
+    //            triggers hover, focus, and most native event handlers.
+    //   Phase 2: element.click() via JS. Some React-controlled <button>s
+    //            (e.g. staynb's "Confirm and pay") have an onClick that
+    //            is silently swallowed when only native mouse events fire.
+    //            JS click() is idempotent for most apps because React's
+    //            event delegation already saw the native click; for the
+    //            cases where it didn't, this guarantees the handler runs.
+    let coords: { x: number; y: number } | undefined
     try {
       const { x, y } = await elements.getElementCenter(session, element)
       await mouse.dispatchClick(
@@ -758,14 +781,24 @@ export class Browser {
         opts?.clickCount ?? 1,
         0,
       )
-      return { x, y }
+      coords = { x, y }
     } catch {
       logger.debug(
-        `CDP click failed for element=${element}, falling back to JS click`,
+        `CDP click failed for element=${element}, falling back to JS click only`,
       )
-      await elements.jsClick(session, element)
-      return undefined
     }
+
+    // JS click follow-up. Skip for non-left or multi-click (those are
+    // explicitly mouse-semantic — right-click context menu, double-click).
+    if ((opts?.button ?? 'left') === 'left' && (opts?.clickCount ?? 1) === 1) {
+      try {
+        await elements.jsClick(session, element)
+      } catch {
+        // Non-fatal: the mouse click in phase 1 may have already worked.
+      }
+    }
+
+    return coords
   }
 
   async clickAt(
@@ -829,7 +862,7 @@ export class Browser {
     element: number,
     text: string,
     clear = true,
-  ): Promise<{ x: number; y: number } | undefined> {
+  ): Promise<{ x: number; y: number; persisted: boolean } | undefined> {
     const session = await this.resolveSession(page)
 
     await elements.scrollIntoView(session, element)
@@ -865,7 +898,23 @@ export class Browser {
     }
 
     await keyboard.typeText(session, text)
-    return coords
+
+    // Post-validate: read the element's current value. For React-controlled
+    // inputs that ignore native input events, the value won't reflect what
+    // we typed. Caller can use this signal to surface a warning to the model
+    // (e.g. "field still shows old value — try opening the picker / clicking
+    // the option directly").
+    let persisted = true
+    try {
+      const after = await elements.getInputValue(session, element)
+      if (text && !after.includes(text)) {
+        persisted = false
+      }
+    } catch {
+      // If we can't read the value, assume it took.
+    }
+
+    return coords ? { ...coords, persisted } : undefined
   }
 
   async pressKey(page: number, key: string): Promise<void> {

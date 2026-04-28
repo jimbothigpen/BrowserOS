@@ -227,6 +227,69 @@ export interface CursorInteractiveElement {
   reasons: string[]
 }
 
+/**
+ * Detect horizontally-scrollable carousel/region containers that have items
+ * scrolled out of view. Returns short hint strings for inclusion in the
+ * snapshot so the model knows offscreen content exists and can scroll.
+ *
+ * Without this hint, models routinely judge "all restaurants" / "all
+ * products" against only the first 3-4 visible items and pick wrong
+ * (e.g. opendining-10 missed "The Vegan Table" because it never scrolled
+ * the homepage carousel horizontally).
+ */
+const SCROLL_HINTS_JS = `
+(() => {
+  const hints = [];
+  const isCarouselish = el => {
+    if (el.getAttribute('aria-roledescription') === 'carousel') return true;
+    const cls = (typeof el.className === 'string' ? el.className : '').toLowerCase();
+    if (/carousel|swiper|slick|slider/.test(cls)) return true;
+    return false;
+  };
+  // Limit traversal — full document scan can be slow on huge pages.
+  const candidates = Array.from(document.querySelectorAll(
+    '[aria-roledescription="carousel"],[role="region"],[role="list"],[class*="carousel" i],[class*="swiper" i],[class*="slick" i]'
+  )).slice(0, 50);
+  for (const el of candidates) {
+    if (!(el instanceof HTMLElement)) continue;
+    const sw = el.scrollWidth, cw = el.clientWidth;
+    if (sw <= cw + 50) continue;
+    const childCount = el.children.length;
+    if (childCount < 2) continue;
+    // Count children whose center is within the container's visible x-range.
+    const rect = el.getBoundingClientRect();
+    let visible = 0;
+    for (const c of Array.from(el.children)) {
+      if (!(c instanceof HTMLElement)) continue;
+      const r = c.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      if (cx >= rect.left && cx <= rect.right) visible++;
+    }
+    if (visible >= childCount) continue;
+    const label =
+      el.getAttribute('aria-label') ||
+      el.getAttribute('aria-roledescription') ||
+      el.id ||
+      el.tagName.toLowerCase();
+    hints.push(\`carousel "\${label}": \${childCount} items, ~\${visible} visible — scroll right to reveal more\`);
+  }
+  return hints;
+})()
+`
+
+export async function findScrollHints(session: ProtocolApi): Promise<string[]> {
+  try {
+    const result = await session.Runtime.evaluate({
+      expression: SCROLL_HINTS_JS,
+      returnByValue: true,
+    })
+    const arr = result.result?.value as string[] | undefined
+    return arr ?? []
+  } catch {
+    return []
+  }
+}
+
 export async function findCursorInteractiveElements(
   session: ProtocolApi,
 ): Promise<CursorInteractiveElement[]> {
