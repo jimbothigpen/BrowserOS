@@ -7,6 +7,7 @@ export interface AgentEntry {
   name: string
   workspace: string
   model?: unknown
+  source?: 'openclaw' | 'agent-harness'
 }
 
 export interface OpenClawStatus {
