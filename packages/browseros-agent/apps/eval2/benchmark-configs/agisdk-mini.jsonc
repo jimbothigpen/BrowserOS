@@ -1,0 +1,35 @@
+{
+  // Two-task subset for quick end-to-end Laminar smoke tests.
+  "name": "agisdk-mini",
+
+  // Path to the JSONL dataset, relative to this config file.
+  "dataset": "../datasets/agisdk-real-mini.jsonl",
+
+  // eval2 supports OpenAI only in v1.
+  "provider": "openai",
+
+  // OpenAI model id. Examples: gpt-4o, gpt-4o-mini, gpt-4-turbo.
+  "model": "gpt-4o",
+
+  // Name of the env var that holds the OpenAI API key.
+  "apiKeyEnv": "OPENAI_API_KEY",
+
+  // Path to the BrowserOS binary that spawns Chrome with CDP enabled.
+  "browserosBinary": "/Applications/BrowserOS.app/Contents/MacOS/BrowserOS",
+
+  // Port allocation for the single worker. Fixed in v1.
+  "ports": {
+    "cdp": 9010,
+    "server": 9110,
+    "extension": 9310
+  },
+
+  // Maximum wall-clock time per task, in milliseconds.
+  "timeoutMs": 600000,
+
+  // Laminar API key comes from process.env.LMNR_PROJECT_API_KEY.
+  "laminar": {
+    "enabled": true,
+    "sessionPrefix": "agisdk"
+  }
+}
