@@ -1,0 +1,289 @@
+{
+  "url": "https://www.bustracker.ie/?q=208",
+  "screenshot": "prototypes/click_eval/examples/screenshots/bustracker_208_cork_city_centre.png",
+  "image_size": {
+    "width": 1920,
+    "height": 1152
+  },
+  "device_scale_factor": 1,
+  "target": {
+    "label": "Route 208 bus closest to Cork city centre",
+    "selector": ".leaflet-marker-icon.route-rectangle",
+    "center": {
+      "x": 1068,
+      "y": 511
+    },
+    "rect": {
+      "x": 1038.0191650390625,
+      "y": 490.70770263671875,
+      "width": 59.961669921875,
+      "height": 40.5845947265625,
+      "top": 490.70770263671875,
+      "left": 1038.0191650390625,
+      "right": 1097.9808349609375,
+      "bottom": 531.2922973632812
+    },
+    "text": "208",
+    "latLon": {
+      "lat": 51.89778723113112,
+      "lon": -8.476724624633789
+    },
+    "distanceToCorkCentreM": 110.6165039682958,
+    "markerIndex": 4
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1152,
+    "dpr": 1,
+    "scrollX": 0,
+    "scrollY": 0,
+    "url": "https://www.bustracker.ie/?q=208",
+    "title": "bustracker"
+  },
+  "mapRect": {
+    "x": 0,
+    "y": 64,
+    "width": 1920,
+    "height": 1088,
+    "top": 64,
+    "left": 0,
+    "right": 1920,
+    "bottom": 1152
+  },
+  "updated": "Updated 31 seconds ago",
+  "corkCityCentre": {
+    "lat": 51.8985,
+    "lon": -8.4756
+  },
+  "tileRef": {
+    "src": "https://a.tile.openstreetmap.org/14/7805/5419.png",
+    "z": 14,
+    "xTile": 7805,
+    "yTile": 5419,
+    "rect": {
+      "x": 757,
+      "y": 401,
+      "width": 256,
+      "height": 256,
+      "top": 401,
+      "left": 757,
+      "right": 1013,
+      "bottom": 657
+    }
+  },
+  "rankedMarkers": [
+    {
+      "index": 4,
+      "center": {
+        "x": 1068,
+        "y": 511
+      },
+      "rect": {
+        "x": 1038.0191650390625,
+        "y": 490.70770263671875,
+        "width": 59.961669921875,
+        "height": 40.5845947265625,
+        "top": 490.70770263671875,
+        "left": 1038.0191650390625,
+        "right": 1097.9808349609375,
+        "bottom": 531.2922973632812
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.89778723113112,
+        "lon": -8.476724624633789
+      },
+      "distanceToCorkCentreM": 110.6165039682958
+    },
+    {
+      "index": 2,
+      "center": {
+        "x": 1199,
+        "y": 547
+      },
+      "rect": {
+        "x": 1171.151611328125,
+        "y": 531.351318359375,
+        "width": 55.69677734375,
+        "height": 31.29736328125,
+        "top": 531.351318359375,
+        "left": 1171.151611328125,
+        "right": 1226.848388671875,
+        "bottom": 562.648681640625
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.895880514665095,
+        "lon": -8.46548080444336
+      },
+      "distanceToCorkCentreM": 752.9542979626465
+    },
+    {
+      "index": 5,
+      "center": {
+        "x": 1316,
+        "y": 304.99998474121094
+      },
+      "rect": {
+        "x": 1290.1763916015625,
+        "y": 273.68878173828125,
+        "width": 51.647216796875,
+        "height": 62.622406005859375,
+        "top": 273.68878173828125,
+        "left": 1290.1763916015625,
+        "right": 1341.8236083984375,
+        "bottom": 336.3111877441406
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.9086963310864,
+        "lon": -8.455438613891602
+      },
+      "distanceToCorkCentreM": 1788.4811355104382
+    },
+    {
+      "index": 7,
+      "center": {
+        "x": 719,
+        "y": 690
+      },
+      "rect": {
+        "x": 703.7605590820312,
+        "y": 662.3701171875,
+        "width": 30.4788818359375,
+        "height": 55.259765625,
+        "top": 662.3701171875,
+        "left": 703.7605590820312,
+        "right": 734.2394409179688,
+        "bottom": 717.6298828125
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.88830581406175,
+        "lon": -8.50667953491211
+      },
+      "distanceToCorkCentreM": 2415.2448491301698
+    },
+    {
+      "index": 3,
+      "center": {
+        "x": 720,
+        "y": 697
+      },
+      "rect": {
+        "x": 704.7605590820312,
+        "y": 669.3701171875,
+        "width": 30.4788818359375,
+        "height": 55.259765625,
+        "top": 669.3701171875,
+        "left": 704.7605590820312,
+        "right": 735.2394409179688,
+        "bottom": 724.6298828125
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.88793499174197,
+        "lon": -8.506593704223633
+      },
+      "distanceToCorkCentreM": 2429.719568050658
+    },
+    {
+      "index": 1,
+      "center": {
+        "x": 1623,
+        "y": 201.00000762939453
+      },
+      "rect": {
+        "x": 1607.5078125,
+        "y": 173.23468017578125,
+        "width": 30.984375,
+        "height": 55.53065490722656,
+        "top": 173.23468017578125,
+        "left": 1607.5078125,
+        "right": 1638.4921875,
+        "bottom": 228.7653350830078
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.91420282988519,
+        "lon": -8.429088592529297
+      },
+      "distanceToCorkCentreM": 3637.2647634017035
+    },
+    {
+      "index": 8,
+      "center": {
+        "x": 1623,
+        "y": 200.00000762939453
+      },
+      "rect": {
+        "x": 1607.5078125,
+        "y": 172.23468017578125,
+        "width": 30.984375,
+        "height": 55.53065490722656,
+        "top": 172.23468017578125,
+        "left": 1607.5078125,
+        "right": 1638.4921875,
+        "bottom": 227.7653350830078
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.91425577372331,
+        "lon": -8.429088592529297
+      },
+      "distanceToCorkCentreM": 3640.0928836883722
+    },
+    {
+      "index": 6,
+      "center": {
+        "x": 386,
+        "y": 985
+      },
+      "rect": {
+        "x": 354.7040710449219,
+        "y": 957.9580078125,
+        "width": 62.59185791015625,
+        "height": 54.083984375,
+        "top": 957.9580078125,
+        "left": 354.7040710449219,
+        "right": 417.2959289550781,
+        "bottom": 1012.0419921875
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.872675649487675,
+        "lon": -8.535261154174805
+      },
+      "distanceToCorkCentreM": 5001.261433750701
+    },
+    {
+      "index": 0,
+      "center": {
+        "x": 297,
+        "y": 1016
+      },
+      "rect": {
+        "x": 268.0628662109375,
+        "y": 998.1650390625,
+        "width": 57.874267578125,
+        "height": 35.669921875,
+        "top": 998.1650390625,
+        "left": 268.0628662109375,
+        "right": 325.9371337890625,
+        "bottom": 1033.8349609375
+      },
+      "text": "208",
+      "latLon": {
+        "lat": 51.87103284208375,
+        "lon": -8.542900085449219
+      },
+      "distanceToCorkCentreM": 5537.540585075056
+    }
+  ],
+  "captured_at_utc": "2026-04-29T15:11:01.299Z",
+  "caveats": [
+    "BusTracker is live data; bus marker positions and closest vehicle can change between captures.",
+    "Closest marker was selected by projecting visible Leaflet marker centers to OSM tile lat/lon and comparing to Cork city centre lat/lon.",
+    "The GT point is the center of the selected route-rectangle marker in viewport/screenshot coordinates."
+  ]
+}

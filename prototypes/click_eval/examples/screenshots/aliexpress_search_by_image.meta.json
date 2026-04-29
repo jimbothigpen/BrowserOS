@@ -1,0 +1,49 @@
+{
+  "url": "https://www.aliexpress.com/",
+  "screenshot": "prototypes/click_eval/examples/screenshots/aliexpress_search_by_image.png",
+  "image_size": {
+    "width": 1920,
+    "height": 1152
+  },
+  "device_scale_factor": 1,
+  "target": {
+    "label": "Search by image",
+    "selector": "img[alt=\"Search by image\"]",
+    "rect": {
+      "x": 1189.171875,
+      "y": 25.5,
+      "width": 24,
+      "height": 29
+    },
+    "image_rect": {
+      "x": 1189.171875,
+      "y": 25.5,
+      "width": 24,
+      "height": 24
+    },
+    "center": {
+      "x": 1201.171875,
+      "y": 40
+    }
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1152,
+    "dpr": 1,
+    "scrollX": 0,
+    "scrollY": 0,
+    "url": "https://www.aliexpress.com/",
+    "title": "AliExpress - Affordable Chinese Stores & Free Shipping - Online Shopping"
+  },
+  "captured_at_utc": "2026-04-29T15:07:12.753Z",
+  "dismissed_overlays": [
+    "Free gift modal",
+    "Cookie banner",
+    "Notification prompt"
+  ],
+  "caveats": [
+    "Live AliExpress homepage; products, placeholder text, and layout can change upstream.",
+    "Popups were dismissed before capture so the search by image button is unobstructed.",
+    "Animations/transitions were reduced before capture for determinism."
+  ]
+}

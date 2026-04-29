@@ -5,3 +5,7 @@
 {"task_id":"f1_2026_drivers_fia_logo","image_path":"screenshots/f1_2026_drivers_fia_logo.png","instruction":"Click the FIA logo on the top right.","gt_point":[1729.914,80.0]}
 {"task_id":"reddit_pics_leave_button","image_path":"screenshots/reddit_pics_leave_permalink.png","instruction":"Click the leave button near the top of the right sidebar.","gt_point":[1626.9,316.0]}
 {"task_id":"reddit_pics_6th_comment_permalink","image_path":"screenshots/reddit_pics_leave_permalink.png","instruction":"Click the permalink button for the 6th comment.","gt_point":[195.3,1131.3]}
+{"task_id":"izz_table_booking_footer_mastercard","image_path":"screenshots/izz_table_booking_footer.png","instruction":"Click the Mastercard logo at the very bottom of the page.","gt_point":[1362.0,973.2]}
+{"task_id":"izz_table_booking_footer_tiktok","image_path":"screenshots/izz_table_booking_footer.png","instruction":"Click the TikTok logo in the footer social row.","gt_point":[1435.0,1074.5]}
+{"task_id":"aliexpress_search_by_image","image_path":"screenshots/aliexpress_search_by_image.png","instruction":"Click the search by image button.","gt_point":[1201.171875,40]}
+{"task_id":"bustracker_208_cork_city_centre_bus","image_path":"screenshots/bustracker_208_cork_city_centre.png","instruction":"Click the bus closest to Cork city centre.","gt_point":[1068.0,511.0]}
