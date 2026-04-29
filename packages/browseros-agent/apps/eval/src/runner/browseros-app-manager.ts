@@ -14,7 +14,9 @@
  */
 
 import {
+  closeSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
@@ -64,6 +66,7 @@ export class BrowserOSAppManager {
   private ports: EvalPorts
   private chromeProc: Subprocess | null = null
   private serverProc: Subprocess | null = null
+  private serverLogFd: number | null = null
   private tempDir: string | null = null
   private readonly workerIndex: number
   private readonly loadExtensions: boolean
@@ -199,12 +202,18 @@ export class BrowserOSAppManager {
     // stdout by default — capturing stderr alone misses everything. The
     // eval-weekly workflow uploads /tmp/browseros-server-logs/ as a workflow
     // artifact on failure.
+    // Open the per-worker log file under SERVER_LOG_DIR. If the directory
+    // can't be created or the file can't be opened (e.g. unwritable custom
+    // BROWSEROS_SERVER_LOG_DIR), fall back to /dev/null so spawn still works.
     const logPath = join(SERVER_LOG_DIR, `server-W${this.workerIndex}.log`)
+    let logFd: number
     try {
-      const { mkdirSync } = await import('node:fs')
       mkdirSync(SERVER_LOG_DIR, { recursive: true })
-    } catch {}
-    const logFd = openSync(logPath, 'a')
+      logFd = openSync(logPath, 'a')
+    } catch {
+      logFd = openSync('/dev/null', 'w')
+    }
+    this.serverLogFd = logFd
 
     // `start:ci` skips `--watch` (no file-watcher overhead in CI). Falls back
     // to the regular `start` script outside CI for the dev-watch experience.
@@ -269,6 +278,18 @@ export class BrowserOSAppManager {
     // Kill server first (graceful → force)
     await this.killProcess(this.serverProc)
     this.serverProc = null
+
+    // Close the parent's copy of the server log fd. Child kept its own dup
+    // until it exited above, so closing here doesn't truncate any output.
+    // Without this we'd leak one fd per restart attempt across all workers.
+    if (this.serverLogFd !== null) {
+      try {
+        closeSync(this.serverLogFd)
+      } catch {
+        // already closed or invalid — ignore
+      }
+      this.serverLogFd = null
+    }
 
     // Kill Chrome (graceful → force)
     await this.killProcess(this.chromeProc)
