@@ -1,4 +1,12 @@
 import { join, resolve } from 'node:path'
+import {
+  writeGraderJsonArtifact,
+  writeGraderTextArtifact,
+} from '../../grading/artifacts'
+import {
+  type PythonEvaluatorResult,
+  runPythonJsonEvaluator,
+} from '../../grading/python-evaluator'
 import type { GraderResult } from '../../types'
 import type { Grader, GraderInput } from '../types'
 
@@ -66,7 +74,32 @@ export class InfinityStateGrader implements Grader {
     }
 
     try {
-      const result = await this.runPythonEvaluator(evalInput)
+      await writeGraderJsonArtifact(input, this.name, 'verifier.json', {
+        appName: parsed.appName,
+        taskId: parsed.taskId,
+        verifierPath,
+        appServerUrl,
+      })
+      await writeGraderJsonArtifact(
+        input,
+        this.name,
+        'evaluator-input.json',
+        evalInput,
+      )
+      const evaluation = await this.runPythonEvaluator(evalInput)
+      const result = evaluation.output
+      await writeGraderJsonArtifact(
+        input,
+        this.name,
+        'evaluator-output.json',
+        result,
+      )
+      await writeGraderTextArtifact(
+        input,
+        this.name,
+        'stderr.txt',
+        evaluation.stderr,
+      )
       return {
         score: result.pass ? 1 : 0,
         pass: result.pass,
@@ -108,27 +141,11 @@ export class InfinityStateGrader implements Grader {
 
   private async runPythonEvaluator(
     evalInput: InfinityEvalInput,
-  ): Promise<InfinityEvalOutput> {
-    const proc = Bun.spawn(['python3', EVAL_SCRIPT], {
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
+  ): Promise<PythonEvaluatorResult<InfinityEvalOutput>> {
+    return runPythonJsonEvaluator<InfinityEvalOutput>({
+      scriptPath: EVAL_SCRIPT,
+      input: evalInput,
+      timeoutMs: 300_000,
     })
-
-    const inputJson = JSON.stringify(evalInput)
-    proc.stdin.write(inputJson)
-    proc.stdin.end()
-
-    const stdout = await new Response(proc.stdout).text()
-    const stderr = await new Response(proc.stderr).text()
-    const exitCode = await proc.exited
-
-    if (exitCode !== 0) {
-      throw new Error(
-        `Python evaluator exited with code ${exitCode}: ${stderr || stdout}`,
-      )
-    }
-
-    return JSON.parse(stdout.trim()) as InfinityEvalOutput
   }
 }
