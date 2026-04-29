@@ -147,9 +147,8 @@ def main():
                 if c["passed"]:
                     lines.append(f"{icon} {desc}{soft}")
                 else:
-                    # Truncate noisy long values so the line stays readable
-                    exp_s = repr(c["expected_value"])[:60]
-                    act_s = repr(c["actual_value"])[:60]
+                    exp_s = repr(c["expected_value"])
+                    act_s = repr(c["actual_value"])
                     lines.append(
                         f"{icon} {desc}: expected {exp_s}, got {act_s}"
                     )
