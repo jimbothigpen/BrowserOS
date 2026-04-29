@@ -162,6 +162,8 @@ def _point_prompt(
         "Choose the center of the target UI element. If your natural output is "
         "a bounding box, convert it to its center point. Always estimate a point; "
         "do not answer with a label, description, placeholder, or bounding box.\n\n"
+        "The requested target is present in the screenshot. Never answer that no "
+        "target exists; choose the closest matching visible UI element if uncertain.\n\n"
         "Return only this JSON shape with numeric pixel coordinates, no markdown:\n"
         '{"x": 123, "y": 456, "reason": "short reason"}'
     )

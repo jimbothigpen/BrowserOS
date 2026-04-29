@@ -161,6 +161,7 @@ def _point_from_text_fragment(text: str) -> Point | None:
     for parser in (
         _point_from_keyed_text,
         _point_from_action_context,
+        _point_from_coordinate_context,
         _point_from_standalone_numeric_text,
     ):
         point = parser(text)
@@ -212,8 +213,8 @@ def _point_from_keyed_text(text: str) -> Point | None:
 
     malformed_x_pair = re.search(
         rf"(?<![A-Za-z0-9_])['\"]?x['\"]?(?![A-Za-z0-9_])"
-        rf"\s*(?::|=)\s*({_NUMBER_PATTERN})\s*,\s*({_NUMBER_PATTERN})"
-        rf"(?=\s*(?:,|\}}|\]|\)|$))",
+        rf"\s*(?::|=)\s*({_NUMBER_PATTERN})\s*,\s*['\"]?\s*({_NUMBER_PATTERN})"
+        rf"(?=\s*(?:['\"]?\s*,|\}}|\]|\)|$))",
         text,
         flags=re.IGNORECASE,
     )
@@ -263,6 +264,9 @@ def _point_from_action_windows(text: str) -> Point | None:
             point = _point_from_bracketed_pairs(window)
             if point is not None:
                 return point
+            point = _point_from_colon_numeric_pair(window)
+            if point is not None:
+                return point
             point = _point_from_xy_text(window)
             if point is not None:
                 return point
@@ -293,6 +297,43 @@ def _point_from_bracketed_pairs(text: str) -> Point | None:
         point = parse_point_value(re.findall(_NUMBER_PATTERN, match.group(1))[:4])
         if point is not None:
             return point
+    return None
+
+
+def _point_from_colon_numeric_pair(text: str) -> Point | None:
+    for match in re.finditer(
+        rf"(?::|[\[(])\s*({_NUMBER_PATTERN})\s*,\s*({_NUMBER_PATTERN})"
+        rf"(?=\s*(?:[\]}}\)]|,|$))",
+        text,
+    ):
+        point = _point_from_numbers(match.group(1), match.group(2))
+        if point is not None:
+            return point
+    return None
+
+
+def _point_from_coordinate_context(text: str) -> Point | None:
+    context = (
+        r"(?:coordinates?|coords?|point|position|center|centre|location|"
+        r"target|click(?:\s+(?:point|position|coordinate|location))?)"
+    )
+    relation = (
+        r"(?:(?:is|are|at|to|around|approximately|approx\.?|about|near|"
+        r"would\s+be|should\s+be)\b|=|:)"
+    )
+    patterns = (
+        rf"\b{context}\b[^\n\r.;]{{0,120}}\b{relation}\s*"
+        rf"[\[(]?\s*(?:x\s*(?:=|:)\s*)?({_NUMBER_PATTERN})\s*,\s*"
+        rf"(?:y\s*(?:=|:)\s*)?({_NUMBER_PATTERN})",
+        rf"\b(?:at|around|approximately|approx\.?|about|near)\b"
+        rf"[^\n\r.;]{{0,40}}[\[(]\s*({_NUMBER_PATTERN})\s*,\s*"
+        rf"({_NUMBER_PATTERN})",
+    )
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            point = _point_from_numbers(match.group(1), match.group(2))
+            if point is not None:
+                return point
     return None
 
 

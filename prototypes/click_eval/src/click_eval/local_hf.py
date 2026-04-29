@@ -1298,6 +1298,10 @@ def _relative_1000_prompt(instruction: str) -> str:
         "Return only one JSON object, no markdown:\n"
         '{"point_2d":[500,500],"label":"click"}\n\n'
         "Replace 500,500 with the target point; do not copy the example.\n"
+        "The target is present in the image. Never answer that there are none; "
+        "if uncertain, choose the closest matching visible UI element.\n"
+        "Do not explain, enumerate, or reason in prose. Your entire response "
+        "must be the JSON object.\n"
         "Use relative image coordinates: x and y are integers from 0 to 1000, "
         "where [0,0] is top-left and [1000,1000] is bottom-right."
     )
@@ -1364,6 +1368,9 @@ def _qwen25_absolute_messages(
                             "JSON shape:\n"
                             '[{"point_2d": [500, 500], "label": "target"}]\n'
                             "Replace 500,500 with the target point.\n"
+                            "The target is present in the image. Never answer "
+                            "that there are none; if uncertain, choose the "
+                            "closest matching visible UI element.\n"
                             "Use relative image coordinates where x and y are "
                             "integers from 0 to 1000."
                         ),
