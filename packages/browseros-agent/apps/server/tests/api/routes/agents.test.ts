@@ -69,6 +69,7 @@ describe('createAgentRoutes', () => {
   it('streams sidepanel ACP chat as an AI SDK UI message stream', async () => {
     const conversationId = '00000000-0000-4000-8000-000000000001'
     let sentInput: AgentPromptInput | undefined
+    const abortController = new AbortController()
     const route = createMountedRoutes([], {
       browser: {
         async resolveTabIds(tabIds: number[]) {
@@ -87,6 +88,7 @@ describe('createAgentRoutes', () => {
     const response = await route.request('/agents/sidepanel/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: abortController.signal,
       body: JSON.stringify({
         conversationId,
         adapter: 'codex',
@@ -116,6 +118,37 @@ describe('createAgentRoutes', () => {
       'Tab 1 (Page ID: 101) - "Example" (https://example.com)',
     )
     expect(sentInput?.message).toContain('<USER_QUERY>\nhi\n</USER_QUERY>')
+    expect(sentInput?.signal).toBe(abortController.signal)
+
+    const list = await route.request('/agents')
+    expect(await list.json()).toEqual({ agents: [] })
+  })
+
+  it('rejects invalid sidepanel ACP chat requests', async () => {
+    const route = createMountedRoutes([])
+
+    for (const { patch, error } of [
+      {
+        patch: { conversationId: 'not-a-uuid' },
+        error: 'conversationId must be a UUID',
+      },
+      { patch: { adapter: 'openai' }, error: 'Invalid adapter' },
+      { patch: { modelId: 'unknown-model' }, error: 'Invalid modelId' },
+      { patch: { reasoningEffort: 'turbo' }, error: 'Invalid reasoningEffort' },
+      { patch: { message: '   ' }, error: 'Message is required' },
+    ]) {
+      const response = await route.request('/agents/sidepanel/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...validSidepanelAcpBody(),
+          ...patch,
+        }),
+      })
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ error })
+    }
   })
 
   it('rejects overlong agent names', async () => {
@@ -200,6 +233,16 @@ function createFakeService(agents: AgentDefinition[]) {
         { type: 'done', stopReason: 'end_turn' },
       ])
     },
+  }
+}
+
+function validSidepanelAcpBody() {
+  return {
+    conversationId: '00000000-0000-4000-8000-000000000001',
+    adapter: 'codex',
+    modelId: 'gpt-5.5',
+    reasoningEffort: 'medium',
+    message: 'hi',
   }
 }
 
