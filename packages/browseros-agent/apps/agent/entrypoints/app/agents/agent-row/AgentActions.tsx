@@ -4,7 +4,6 @@ import {
   MessageSquare,
   MoreHorizontal,
   Pencil,
-  Play,
   RotateCcw,
   Trash2,
 } from 'lucide-react'
@@ -39,6 +38,13 @@ interface AgentActionsProps {
   onDelete: (agent: AgentListItem) => void
 }
 
+/**
+ * Single primary CTA per row: `Resume` (filled, accent-orange, with a
+ * pulsing dot) when an active turn exists; otherwise `Chat` (outline).
+ * Both navigate to the same place — the chat hook auto-attaches via
+ * `/chat/active` when there's a live turn — but the row signals which
+ * action the user is actually taking.
+ */
 export const AgentActions: FC<AgentActionsProps> = ({
   agent,
   activeTurnId,
@@ -60,29 +66,33 @@ export const AgentActions: FC<AgentActionsProps> = ({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      {activeTurnId && (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {activeTurnId ? (
         <Button
           variant="default"
           size="sm"
           onClick={handleChat}
-          className="bg-[var(--accent-orange)] text-white hover:bg-[var(--accent-orange)]/90"
+          className="gap-2 bg-[var(--accent-orange)] text-white shadow-sm hover:bg-[var(--accent-orange)]/90"
         >
-          <Play className="mr-1.5 size-3 fill-current" />
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-white" />
+          </span>
           Resume
         </Button>
+      ) : (
+        <Button variant="outline" size="sm" onClick={handleChat}>
+          <MessageSquare className="mr-1.5 size-3" />
+          Chat
+        </Button>
       )}
-      <Button variant="outline" size="sm" onClick={handleChat}>
-        <MessageSquare className="mr-1.5 size-3" />
-        Chat
-      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
             aria-label={`More actions for ${displayName(agent)}`}
-            className="size-8"
+            className="size-8 text-muted-foreground hover:text-foreground"
           >
             <MoreHorizontal className="size-4" />
           </Button>
@@ -92,11 +102,6 @@ export const AgentActions: FC<AgentActionsProps> = ({
             <Copy className="mr-2 size-3.5" />
             Copy id
           </DropdownMenuItem>
-          {/*
-            Rename and Reset history land in their own follow-ups; the
-            placeholders here keep the menu shape stable and signal
-            that the slots belong to this dropdown.
-          */}
           <ComingSoonItem
             icon={Pencil}
             label="Rename"

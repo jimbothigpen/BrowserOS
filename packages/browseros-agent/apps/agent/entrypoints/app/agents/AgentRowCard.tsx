@@ -19,10 +19,15 @@ interface AgentRowCardProps extends AgentRowCallbacks {
 }
 
 /**
- * Composition shell for the agent rail. Owns no state — every
- * sub-component handles its own micro-state (error-panel collapse,
- * cwd-copy flash, hover-cards) and emits callbacks for things the
- * page must know about (delete, pin/unpin).
+ * Composition shell for the agent rail. Owns no state; sub-components
+ * each handle their own micro-state (error-panel collapse, etc.) and
+ * emit callbacks (delete, pin/unpin) for the page to act on.
+ *
+ * The whole card carries state — not just the tile — so the row's
+ * border subtly tells the user what's going on at a glance:
+ *   working → accent-orange border with a soft glow
+ *   error   → destructive border
+ *   idle    → muted border, lifts on hover
  */
 export const AgentRowCard: FC<AgentRowCardProps> = ({
   data,
@@ -33,9 +38,13 @@ export const AgentRowCard: FC<AgentRowCardProps> = ({
   return (
     <div
       className={cn(
-        'group rounded-xl border border-border bg-card p-4 shadow-sm transition-all',
-        'hover:border-[var(--accent-orange)]/50 hover:shadow-sm',
-        data.status === 'error' && 'border-destructive/40',
+        'group rounded-xl border bg-card p-4 shadow-sm transition-all',
+        'hover:-translate-y-px hover:shadow-md',
+        data.status === 'working'
+          ? 'border-[var(--accent-orange)]/40 shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-orange)_18%,transparent)]'
+          : data.status === 'error'
+            ? 'border-destructive/40'
+            : 'border-border hover:border-[var(--accent-orange)]/40',
       )}
     >
       <div className="flex items-start gap-4">
@@ -43,7 +52,6 @@ export const AgentRowCard: FC<AgentRowCardProps> = ({
           adapter={data.adapter}
           status={data.status}
           lastUsedAt={data.lastUsedAt}
-          adapterHealth={data.adapterHealth}
         />
 
         <div className="min-w-0 flex-1">
@@ -60,19 +68,12 @@ export const AgentRowCard: FC<AgentRowCardProps> = ({
             adapter={data.adapter}
             modelLabel={data.modelLabel}
             reasoningEffort={data.reasoningEffort}
+            adapterHealth={data.adapterHealth}
           />
 
-          <AgentLastMessage
-            agentId={data.agent.agentId}
-            message={data.lastUserMessage}
-          />
+          <AgentLastMessage message={data.lastUserMessage} />
 
-          <AgentMetaRow
-            lastUsedAt={data.lastUsedAt}
-            cwd={data.cwd}
-            turnsLast7d={data.tokens?.last7d.requestCount ?? 0}
-            tokens={data.tokens}
-          />
+          <AgentMetaRow lastUsedAt={data.lastUsedAt} tokens={data.tokens} />
 
           {data.status === 'error' && data.lastError && (
             <AgentErrorPanel

@@ -21,7 +21,13 @@ export const PinToggle: FC<PinToggleProps> = ({ pinned, onToggle }) => (
         <Button
           variant="ghost"
           size="icon"
-          className="size-6 text-muted-foreground hover:text-foreground"
+          className={cn(
+            'size-6 text-muted-foreground transition-opacity hover:text-foreground',
+            // Calm default rail: unpinned stars only appear on hover.
+            // Pinned stars stay solid so the "this is pinned" signal is
+            // never hidden.
+            pinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          )}
           aria-pressed={pinned}
           aria-label={pinned ? 'Unpin agent' : 'Pin agent'}
           onClick={(event) => {
