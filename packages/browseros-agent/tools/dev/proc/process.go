@@ -14,6 +14,8 @@ import (
 
 var errWatchRunLocked = errors.New("dev watch run is already locked")
 
+const maxTCPPort = 65535
+
 type WatchRunIdentity struct {
 	Mode    string `json:"mode"`
 	Profile string `json:"profile"`
@@ -72,7 +74,7 @@ func AcquireWatchRunLockInDir(baseDir string, identity WatchRunIdentity, timeout
 		return nil, false, err
 	}
 
-	state, err := ReadWatchRunState(paths.State)
+	state, err := readWatchRunStateWithRetry(paths.State, 250*time.Millisecond)
 	if err != nil {
 		return nil, false, fmt.Errorf("dev watch lock is held but state is unreadable at %s: %w", paths.State, err)
 	}
@@ -100,6 +102,9 @@ func AcquireWatchRunLockInDir(baseDir string, identity WatchRunIdentity, timeout
 	}
 	lock, err = waitForWatchRunLock(paths, identity, time.Second)
 	if err != nil {
+		if errors.Is(err, errWatchRunLocked) {
+			return nil, false, fmt.Errorf("previous dev watch process group %d did not exit after SIGKILL; inspect %s before retrying", state.PGID, paths.Lock)
+		}
 		return nil, false, err
 	}
 	return lock, true, nil
@@ -120,6 +125,8 @@ func (l *WatchRunLock) Close() error {
 		return nil
 	}
 
+	// Keep the lock file path stable. Unlinking it during handoff can let
+	// another opener lock a different inode while an owner still holds this one.
 	removeErr := os.Remove(l.statePath)
 	unlockErr := syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
 	closeErr := l.file.Close()
@@ -145,6 +152,22 @@ func ReadWatchRunState(path string) (WatchRunState, error) {
 		return WatchRunState{}, fmt.Errorf("parse watch run state: %w", err)
 	}
 	return state, nil
+}
+
+func readWatchRunStateWithRetry(path string, timeout time.Duration) (WatchRunState, error) {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		state, err := ReadWatchRunState(path)
+		if err == nil {
+			return state, nil
+		}
+		lastErr = err
+		if time.Now().After(deadline) {
+			return WatchRunState{}, lastErr
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func watchRunPaths(baseDir string, identity WatchRunIdentity) watchRunPathsResult {
@@ -237,10 +260,14 @@ func validateWatchRunIdentity(identity WatchRunIdentity) error {
 	if identity.Profile == "" {
 		return fmt.Errorf("watch run profile is empty")
 	}
-	if identity.Ports.CDP <= 0 || identity.Ports.Server <= 0 || identity.Ports.Extension <= 0 {
+	if !isValidTCPPort(identity.Ports.CDP) || !isValidTCPPort(identity.Ports.Server) || !isValidTCPPort(identity.Ports.Extension) {
 		return fmt.Errorf("watch run ports are invalid: %+v", identity.Ports)
 	}
 	return nil
+}
+
+func isValidTCPPort(port int) bool {
+	return port > 0 && port <= maxTCPPort
 }
 
 func signalProcessGroup(pgid int, signal syscall.Signal) error {

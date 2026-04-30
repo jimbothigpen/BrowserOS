@@ -78,6 +78,9 @@ func TestAcquireWatchRunLockWritesStateAndReleases(t *testing.T) {
 	if _, err := os.Stat(paths.State); !os.IsNotExist(err) {
 		t.Fatalf("expected state file to be removed on close, got %v", err)
 	}
+	if _, err := os.Stat(paths.Lock); err != nil {
+		t.Fatalf("expected lock file path to remain reusable, got %v", err)
+	}
 
 	lock, stopped, err = AcquireWatchRunLockInDir(baseDir, identity, time.Second)
 	if err != nil {
@@ -88,6 +91,18 @@ func TestAcquireWatchRunLockWritesStateAndReleases(t *testing.T) {
 	}
 	if err := lock.Close(); err != nil {
 		t.Fatalf("closing reacquired lock: %v", err)
+	}
+}
+
+func TestAcquireWatchRunLockRejectsInvalidPorts(t *testing.T) {
+	identity := WatchRunIdentity{
+		Mode:    "watch",
+		Profile: "/tmp/browseros-dev",
+		Ports:   Ports{CDP: 9005, Server: 65536, Extension: 9305},
+	}
+
+	if _, _, err := AcquireWatchRunLockInDir(t.TempDir(), identity, time.Second); err == nil {
+		t.Fatal("expected invalid port error")
 	}
 }
 

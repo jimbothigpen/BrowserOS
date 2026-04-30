@@ -53,11 +53,11 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		mode = "manual"
 	}
 	var runLock *proc.WatchRunLock
-	acquireRunLock := func() error {
+	acquireRunLock := func(ports proc.Ports) error {
 		lock, stopped, err := proc.AcquireWatchRunLock(proc.WatchRunIdentity{
 			Mode:    mode,
 			Profile: userDataDir,
-			Ports:   p,
+			Ports:   ports,
 		}, 3*time.Second)
 		if err != nil {
 			return err
@@ -82,14 +82,14 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		}
 		userDataDir = dir
 		proc.LogMsgf(proc.TagInfo, "Created fresh profile: %s", userDataDir)
-		if err := acquireRunLock(); err != nil {
+		if err := acquireRunLock(p); err != nil {
 			return err
 		}
 	} else {
 		if err := os.MkdirAll(userDataDir, 0o755); err != nil {
 			return fmt.Errorf("creating user-data dir: %w", err)
 		}
-		if err := acquireRunLock(); err != nil {
+		if err := acquireRunLock(p); err != nil {
 			return err
 		}
 		proc.LogMsg(proc.TagInfo, "Killing processes on preferred ports...")
@@ -108,8 +108,12 @@ func runWatch(cmd *cobra.Command, args []string) error {
 				p.CDP, p.Server, p.Extension)
 		}
 	}
+	defer func() {
+		if err := runLock.Close(); err != nil {
+			proc.LogMsgf(proc.TagInfo, "Warning: closing run lock: %v", err)
+		}
+	}()
 	defer reservations.ReleaseAll()
-	defer runLock.Close()
 
 	fmt.Println()
 	proc.LogMsgf(proc.TagInfo, "Mode: %s", proc.BoldColor.Sprint(mode))
