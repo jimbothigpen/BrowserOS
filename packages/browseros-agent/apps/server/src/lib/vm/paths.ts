@@ -97,7 +97,7 @@ export function resolveBundledLimactl(
   const candidate = join(limaRoot, 'bin', 'limactl')
   if (!existsSync(candidate)) {
     throw new Error(
-      `bundled limactl not found at ${candidate}; see the build-tools README and run bun run cache:sync`,
+      `bundled limactl not found at ${candidate}; refresh server resources from the build-tools README`,
     )
   }
   assertBundledLimaGuestAgent(limaRoot, hostArch)
@@ -145,7 +145,7 @@ export function resolveBundledLimaTemplate(resourcesDir: string): string {
   const candidate = join(resourcesDir, 'vm', 'browseros-vm.yaml')
   if (!existsSync(candidate)) {
     throw new Error(
-      `bundled Lima template not found at ${candidate}; see the build-tools README and run bun run cache:sync`,
+      `bundled Lima template not found at ${candidate}; refresh server resources from the build-tools README`,
     )
   }
   return candidate

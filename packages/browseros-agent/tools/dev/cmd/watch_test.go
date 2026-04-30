@@ -7,27 +7,6 @@ import (
 	"testing"
 )
 
-func TestEnsureDevCachePresentMissingMessage(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	err := ensureDevCachePresent()
-	if err == nil {
-		t.Fatal("expected missing cache error")
-	}
-
-	msg := err.Error()
-	if !strings.Contains(msg, "VM cache is missing.") {
-		t.Fatalf("expected missing cache message, got %q", msg)
-	}
-	if strings.Count(msg, "dev:setup") != 1 {
-		t.Fatalf("expected dev:setup once, got %q", msg)
-	}
-	if strings.Contains(msg, home) {
-		t.Fatalf("expected cache path to be hidden, got %q", msg)
-	}
-}
-
 func TestEnsureLimactlPresentMissingMessage(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 

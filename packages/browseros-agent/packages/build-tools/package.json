@@ -3,15 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "BrowserOS release artifact producer and dev cache sync",
+  "description": "BrowserOS release artifact producer",
   "scripts": {
-    "build:tarball": "bun run scripts/build-tarball.ts",
-    "emit-manifest": "bun run scripts/emit-manifest.ts",
     "upload": "bun run scripts/upload-to-r2.ts",
-    "download": "bun run scripts/download-from-r2.ts",
-    "cache:sync": "bun run scripts/cache-sync.ts",
-    "dev:seed:tarball": "bun run scripts/seed-dev-agent-tarball.ts",
-    "smoke:tarball": "bun run scripts/smoke-tarball.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

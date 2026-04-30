@@ -1,4 +1,5 @@
-import { createReadStream } from 'node:fs'
+import { once } from 'node:events'
+import { createReadStream, type ReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 import {
@@ -6,7 +7,6 @@ import {
   type CompletedPart,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
-  GetObjectCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -45,10 +45,6 @@ export function getBucket(): string {
   return required('R2_BUCKET')
 }
 
-export function getCdnBase(): string {
-  return process.env.R2_PUBLIC_BASE_URL?.trim() ?? 'https://cdn.browseros.com'
-}
-
 /** Uploads a file to R2, using multipart uploads for large artifacts so failed parts can be retried. */
 export async function putFile(
   client: S3Client,
@@ -75,16 +71,7 @@ export async function putFile(
   }
 
   await sendWithRetry(
-    () =>
-      client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: createReadStream(filePath),
-          ContentLength: size,
-          ContentType: contentType,
-        }),
-      ),
+    () => putObjectFromFile(client, bucket, key, filePath, contentType, size),
     opts,
   )
 }
@@ -124,15 +111,16 @@ async function putFileMultipart(
       const contentLength = end - start + 1
       const result = await sendWithRetry(
         () =>
-          client.send(
-            new UploadPartCommand({
-              Bucket: bucket,
-              Key: key,
-              UploadId,
-              PartNumber: partNumber,
-              Body: createReadStream(filePath, { start, end }),
-              ContentLength: contentLength,
-            }),
+          uploadPartFromFile(
+            client,
+            bucket,
+            key,
+            filePath,
+            UploadId,
+            partNumber,
+            start,
+            end,
+            contentLength,
           ),
         opts,
       )
@@ -161,6 +149,66 @@ async function putFileMultipart(
   }
 }
 
+async function putObjectFromFile(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  filePath: string,
+  contentType: string,
+  contentLength: number,
+): Promise<unknown> {
+  const body = createReadStream(filePath)
+  try {
+    return await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentLength: contentLength,
+        ContentType: contentType,
+      }),
+    )
+  } catch (error) {
+    await destroyReadStream(body)
+    throw error
+  }
+}
+
+async function uploadPartFromFile(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  filePath: string,
+  uploadId: string,
+  partNumber: number,
+  start: number,
+  end: number,
+  contentLength: number,
+): Promise<{ ETag?: string }> {
+  const body = createReadStream(filePath, { start, end })
+  try {
+    return await client.send(
+      new UploadPartCommand({
+        Bucket: bucket,
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+        Body: body,
+        ContentLength: contentLength,
+      }),
+    )
+  } catch (error) {
+    await destroyReadStream(body)
+    throw error
+  }
+}
+
+async function destroyReadStream(stream: ReadStream): Promise<void> {
+  stream.destroy()
+  if (stream.closed) return
+  await once(stream, 'close').catch(() => undefined)
+}
+
 /** Retries part uploads by rerunning the command factory, which recreates consumed request bodies. */
 async function sendWithRetry<T>(
   send: () => Promise<T>,
@@ -182,49 +230,4 @@ async function sendWithRetry<T>(
   }
 
   throw lastError
-}
-
-export async function putBody(
-  client: S3Client,
-  bucket: string,
-  key: string,
-  body: string,
-  contentType: string,
-): Promise<void> {
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentLength: Buffer.byteLength(body),
-      ContentType: contentType,
-    }),
-  )
-}
-
-export async function getBody(
-  client: S3Client,
-  bucket: string,
-  key: string,
-): Promise<string | null> {
-  try {
-    const response = await client.send(
-      new GetObjectCommand({ Bucket: bucket, Key: key }),
-    )
-    const body = response.Body as
-      | { transformToByteArray(): Promise<Uint8Array> }
-      | undefined
-    if (!body) throw new Error(`missing response body for R2 key: ${key}`)
-    const bytes = await body.transformToByteArray()
-    return new TextDecoder().decode(bytes)
-  } catch (error) {
-    const cause = error as {
-      name?: string
-      $metadata?: { httpStatusCode?: number }
-    }
-    if (cause.name === 'NoSuchKey' || cause.$metadata?.httpStatusCode === 404) {
-      return null
-    }
-    throw error
-  }
 }

@@ -40,9 +40,6 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := ensureDevCachePresent(); err != nil {
-		return err
-	}
 	if err := ensureLimactlPresent(); err != nil {
 		return err
 	}
@@ -185,21 +182,6 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	}
 	wg.Wait()
 	proc.LogMsg(proc.TagInfo, "All processes stopped")
-	return nil
-}
-
-func ensureDevCachePresent() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	manifestPath := filepath.Join(home, ".browseros-dev", "cache", "vm", "manifest.json")
-	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
-		return fmt.Errorf("%s %s",
-			proc.ErrorColor.Sprint("VM cache is missing."),
-			proc.DimColor.Sprintf("Run %s once.", proc.BoldColor.Sprint("bun run dev:setup")),
-		)
-	}
 	return nil
 }
 

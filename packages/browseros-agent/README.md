@@ -79,14 +79,15 @@ cp apps/server/.env.example apps/server/.env.development
 cp apps/agent/.env.example apps/agent/.env.development
 cp apps/server/.env.production.example apps/server/.env.production
 
-# Install deps, generate agent code, and sync the VM cache
+# Install deps and generate agent code
 bun run dev:setup
 
 # Start the full dev environment
 bun run dev:watch
 ```
 
-`dev:watch` exits when the VM cache manifest is missing, but setup stays in `dev:setup`.
+`dev:watch` starts the server immediately. OpenClaw VM/image prewarm runs from
+the server startup path and pulls the configured GHCR image on demand.
 
 ### Environment Variables
 
