@@ -94,6 +94,15 @@ describe('R2Publisher', () => {
     expect(
       byKey.get(`runs/${runId}/task-1/screenshots/1.png`)?.ContentType,
     ).toBe('image/png')
+    expect(
+      byKey.get(`runs/${runId}/tasks/task-1/metadata.json`)?.ContentType,
+    ).toBe('application/json')
+    expect(
+      byKey.get(`runs/${runId}/tasks/task-1/messages.jsonl`)?.ContentType,
+    ).toBe('application/x-ndjson')
+    expect(
+      byKey.get(`runs/${runId}/tasks/task-1/screenshots/1.png`)?.ContentType,
+    ).toBe('image/png')
     expect(byKey.get(`runs/${runId}/manifest.json`)?.ContentType).toBe(
       'application/json',
     )

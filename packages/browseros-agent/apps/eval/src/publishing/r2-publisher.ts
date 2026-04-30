@@ -46,7 +46,6 @@ interface UploadJob {
 interface TaskDirEntry {
   taskId: string
   taskPath: string
-  canonicalLayout: boolean
 }
 
 export function contentTypeForPath(filePath: string): string {
@@ -132,7 +131,6 @@ async function findTaskDirs(runDir: string): Promise<TaskDirEntry[]> {
       legacyTasks.push({
         taskId: entry.name,
         taskPath,
-        canonicalLayout: false,
       })
     }
   }
@@ -149,7 +147,6 @@ async function findTaskDirs(runDir: string): Promise<TaskDirEntry[]> {
       canonicalTasks.push({
         taskId: entry.name,
         taskPath,
-        canonicalLayout: true,
       })
     }
   }
@@ -297,13 +294,11 @@ export class R2Publisher {
           filePath: file,
           contentType: contentTypeForPath(file),
         })
-        if (taskDirEntry.canonicalLayout) {
-          jobs.push({
-            key: `runs/${runId}/tasks/${taskId}/${relative}`,
-            filePath: file,
-            contentType: contentTypeForPath(file),
-          })
-        }
+        jobs.push({
+          key: `runs/${runId}/tasks/${taskId}/${relative}`,
+          filePath: file,
+          contentType: contentTypeForPath(file),
+        })
       }
 
       manifestTasks.push({
