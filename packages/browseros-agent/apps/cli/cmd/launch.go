@@ -77,33 +77,39 @@ If BrowserOS is already running, reports the server URL.`,
 // Server probing
 // ---------------------------------------------------------------------------
 
-// probeRunningServer checks explicit config, launch discovery, and common ports for a running server.
+var commonBrowserOSPorts = []int{9100, 9200, 9300}
+
+// probeRunningServer checks launch discovery, explicit config, and common ports for a running server.
 func probeRunningServer() string {
-	check := func(baseURL string) bool {
-		client := &http.Client{Timeout: 2 * time.Second}
-		resp, err := client.Get(baseURL + "/health")
-		if err != nil {
-			return false
-		}
-		resp.Body.Close()
-		return resp.StatusCode == 200
-	}
+	client := &http.Client{Timeout: 2 * time.Second}
 
-	if url := defaultServerURL(); url != "" && check(url) {
+	if url := loadBrowserosServerURL(); url != "" && checkServerHealth(client, url) {
 		return url
 	}
 
-	if url := loadBrowserosServerURL(); url != "" && check(url) {
+	if url := defaultServerURL(); url != "" && checkServerHealth(client, url) {
 		return url
 	}
 
-	for _, port := range []int{9100, 9200, 9300} {
+	return probeCommonServerPorts(client)
+}
+
+func checkServerHealth(client *http.Client, baseURL string) bool {
+	resp, err := client.Get(baseURL + "/health")
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == 200
+}
+
+func probeCommonServerPorts(client *http.Client) string {
+	for _, port := range commonBrowserOSPorts {
 		url := fmt.Sprintf("http://127.0.0.1:%d", port)
-		if check(url) {
+		if checkServerHealth(client, url) {
 			return url
 		}
 	}
-
 	return ""
 }
 
@@ -306,14 +312,11 @@ func waitForServer(maxWait time.Duration) (string, bool) {
 
 	for time.Now().Before(deadline) {
 		// server.json is written by BrowserOS on startup with the actual port
-		if url := loadBrowserosServerURL(); url != "" {
-			resp, err := client.Get(url + "/health")
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == 200 {
-					return url, true
-				}
-			}
+		if url := loadBrowserosServerURL(); url != "" && checkServerHealth(client, url) {
+			return url, true
+		}
+		if url := probeCommonServerPorts(client); url != "" {
+			return url, true
 		}
 		fmt.Print(".")
 		time.Sleep(1 * time.Second)
