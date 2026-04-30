@@ -54,6 +54,7 @@ export function buildBrowserToolSet(
       inputSchema: def.input,
       execute: async (params) => {
         const startTime = performance.now()
+        logger.info('tool call', { tool: def.name, params })
         try {
           const result = await executeTool(
             def,
@@ -62,11 +63,17 @@ export function buildBrowserToolSet(
             AbortSignal.timeout(120_000),
           )
 
+          const durationMs = Math.round(performance.now() - startTime)
           metrics.log('tool_executed', {
             tool_name: def.name,
-            duration_ms: Math.round(performance.now() - startTime),
+            duration_ms: durationMs,
             success: !result.isError,
             source: 'chat',
+          })
+          logger.info('tool result', {
+            tool: def.name,
+            ms: durationMs,
+            isError: !!result.isError,
           })
 
           return {

@@ -232,6 +232,9 @@ export class Application {
     logger.info('')
     logger.info('Services running:')
     logger.info(`  HTTP Server: http://127.0.0.1:${this.config.serverPort}`)
+    logger.info(
+      `  MolmoPoint:  ${process.env.BROWSEROS_MOLMOPOINT_URL || '<not configured>'}`,
+    )
     logger.info('')
   }
 }

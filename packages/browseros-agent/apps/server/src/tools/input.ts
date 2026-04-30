@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { logger } from '../lib/logger'
 import { getMolmoPointClient } from '../lib/molmopoint-client'
 import { defineTool } from './framework'
 
@@ -6,6 +7,125 @@ const pageParam = z.number().describe('Page ID (from list_pages)')
 const elementParam = z
   .number()
   .describe('Element ID from snapshot (the number in [N])')
+
+const CLICK_MARKER_PRE_CLICK_DELAY_MS = 250
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function buildClickMarkerExpression(x: number, y: number): string {
+  return `((cx, cy) => {
+  const AIM_ID = '__molmo_click_aim';
+  const setStyles = (el, styles) => {
+    for (const [key, value] of Object.entries(styles)) {
+      el.style.setProperty(key, value, 'important');
+    }
+  };
+  document.querySelectorAll('[data-molmo-click-aim="true"]').forEach((el) => el.remove());
+
+  const host = document.createElement('div');
+  host.id = AIM_ID;
+  host.dataset.molmoClickAim = 'true';
+  setStyles(host, {
+    position: 'fixed',
+    left: cx + 'px',
+    top: cy + 'px',
+    width: '0',
+    height: '0',
+    'pointer-events': 'none',
+    'z-index': '2147483647',
+    contain: 'layout paint style',
+    transform: 'translateZ(0)'
+  });
+
+  const halo = document.createElement('div');
+  setStyles(halo, {
+    position: 'absolute',
+    left: '-32px',
+    top: '-32px',
+    width: '64px',
+    height: '64px',
+    'border-radius': '9999px',
+    border: '2px solid rgba(239, 68, 68, 0.45)',
+    'box-shadow': '0 0 32px 10px rgba(239, 68, 68, 0.28)',
+    background: 'rgba(239, 68, 68, 0.06)'
+  });
+
+  const ring = document.createElement('div');
+  setStyles(ring, {
+    position: 'absolute',
+    left: '-22px',
+    top: '-22px',
+    width: '44px',
+    height: '44px',
+    'border-radius': '9999px',
+    border: '4px solid #ef4444',
+    'box-shadow': '0 0 0 3px rgba(255, 255, 255, 0.95), 0 8px 24px rgba(0, 0, 0, 0.35)'
+  });
+
+  const horizontal = document.createElement('div');
+  setStyles(horizontal, {
+    position: 'absolute',
+    left: '-34px',
+    top: '-2px',
+    width: '68px',
+    height: '4px',
+    'border-radius': '9999px',
+    background: '#ef4444',
+    'box-shadow': '0 0 0 2px rgba(255, 255, 255, 0.95)'
+  });
+
+  const vertical = document.createElement('div');
+  setStyles(vertical, {
+    position: 'absolute',
+    left: '-2px',
+    top: '-34px',
+    width: '4px',
+    height: '68px',
+    'border-radius': '9999px',
+    background: '#ef4444',
+    'box-shadow': '0 0 0 2px rgba(255, 255, 255, 0.95)'
+  });
+
+  const dot = document.createElement('div');
+  setStyles(dot, {
+    position: 'absolute',
+    left: '-6px',
+    top: '-6px',
+    width: '12px',
+    height: '12px',
+    'border-radius': '9999px',
+    background: '#ef4444',
+    border: '3px solid #fff',
+    'box-shadow': '0 2px 10px rgba(0, 0, 0, 0.45)'
+  });
+
+  host.append(halo, horizontal, vertical, ring, dot);
+  (document.documentElement || document.body).appendChild(host);
+
+  const animate = (el, frames, options) => {
+    try {
+      if (typeof el.animate === 'function') el.animate(frames, options);
+    } catch {
+      // Static marker remains visible if Web Animations are unavailable.
+    }
+  };
+  animate(host, [
+    { transform: 'translateZ(0) scale(0.72)', opacity: 0 },
+    { transform: 'translateZ(0) scale(1)', opacity: 1, offset: 0.18 },
+    { transform: 'translateZ(0) scale(1)', opacity: 1, offset: 0.78 },
+    { transform: 'translateZ(0) scale(1.18)', opacity: 0 }
+  ], { duration: 1400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' });
+  animate(halo, [
+    { transform: 'scale(0.7)', opacity: 0.95 },
+    { transform: 'scale(1.25)', opacity: 0 }
+  ], { duration: 1100, easing: 'ease-out', fill: 'forwards' });
+
+  setTimeout(() => host.remove(), 1600);
+  return null;
+})(${JSON.stringify(x)}, ${JSON.stringify(y)})`
+}
 
 export const click = defineTool({
   name: 'click',
@@ -38,8 +158,14 @@ export const click = defineTool({
     modelText: z.string(),
   }),
   handler: async (args, ctx, response) => {
+    logger.info('click(target) called', {
+      page: args.page,
+      target: args.target,
+    })
+
     const client = getMolmoPointClient()
     if (!client) {
+      logger.error('click: BROWSEROS_MOLMOPOINT_URL not set')
       response.error(
         'click requires BROWSEROS_MOLMOPOINT_URL to be set to the ' +
           'MolmoPoint server URL.',
@@ -47,24 +173,45 @@ export const click = defineTool({
       return
     }
 
+    const t0 = performance.now()
     const shot = await ctx.browser.screenshot(args.page, {
       format: 'png',
       fullPage: false,
     })
     const dpr = shot.devicePixelRatio || 1
+    logger.info('click: screenshot captured', {
+      ms: Math.round(performance.now() - t0),
+      dpr,
+      bytes: shot.data.length,
+    })
 
+    const t1 = performance.now()
     let prediction: Awaited<ReturnType<typeof client.predict>>
     try {
       prediction = await client.predict(shot.data, args.target)
     } catch (err) {
-      response.error(
-        `MolmoPoint request failed: ${err instanceof Error ? err.message : String(err)}`,
-      )
+      const msg = err instanceof Error ? err.message : String(err)
+      logger.error('click: MolmoPoint predict failed', {
+        target: args.target,
+        err: msg,
+      })
+      response.error(`MolmoPoint request failed: ${msg}`)
       return
     }
+    logger.info('click: MolmoPoint responded', {
+      ms: Math.round(performance.now() - t1),
+      pointCount: prediction.points.length,
+      firstPoint: prediction.points[0],
+      modelText: prediction.text,
+      imageSize: prediction.image_size,
+    })
 
     const point = prediction.points[0]
     if (!point) {
+      logger.warn('click: MolmoPoint returned no points', {
+        target: args.target,
+        modelText: prediction.text,
+      })
       response.error(
         `MolmoPoint returned no point for "${args.target}". Model said: ${prediction.text || '<empty>'}`,
       )
@@ -74,30 +221,21 @@ export const click = defineTool({
     // MolmoPoint returns image-pixel coords; CDP wants CSS-pixel coords.
     const x = point.x / dpr
     const y = point.y / dpr
+    logger.info('click: dispatching', {
+      target: args.target,
+      x: Math.round(x),
+      y: Math.round(y),
+      dpr,
+    })
 
-    // Drop a small red dot at the click point. Self-fades and removes itself
-    // after ~1s. position:fixed so viewport-relative coords are correct.
-    await ctx.browser
-      .evaluate(
-        args.page,
-        `((cx, cy) => {
-  const STYLE_ID = '__molmo_click_dot_style';
-  if (!document.getElementById(STYLE_ID)) {
-    const s = document.createElement('style');
-    s.id = STYLE_ID;
-    s.textContent = '@keyframes __molmoClickDot{0%{transform:scale(0.6);opacity:1}100%{transform:scale(2.4);opacity:0}}';
-    (document.head || document.documentElement).appendChild(s);
-  }
-  const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;left:' + (cx - 16) + 'px;top:' + (cy - 16) + 'px;width:32px;height:32px;border-radius:50%;background:#ef4444;box-shadow:0 0 24px 8px rgba(239,68,68,0.6);pointer-events:none;z-index:2147483647;animation:__molmoClickDot 800ms ease-out forwards;';
-  document.documentElement.appendChild(d);
-  setTimeout(() => d.remove(), 1000);
-  return null;
-})(${x}, ${y})`,
-      )
-      .catch(() => {
-        // dot is purely cosmetic; ignore any failure (e.g. CSP blocks inline style)
-      })
+    // Show an aim marker before dispatching the click. The short delay gives
+    // Chromium a paint frame, which matters when the click immediately navigates.
+    const markerResult = await ctx.browser
+      .evaluate(args.page, buildClickMarkerExpression(x, y))
+      .catch(() => undefined)
+    if (!markerResult?.error) {
+      await delay(CLICK_MARKER_PRE_CLICK_DELAY_MS)
+    }
 
     await ctx.browser.clickAt(args.page, x, y, {
       button: args.button,
