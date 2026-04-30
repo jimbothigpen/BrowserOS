@@ -102,6 +102,33 @@ describe('ContainerRuntime', () => {
     )
   })
 
+  it('bounds gateway create retries when the name stays in use', async () => {
+    const deps = createDeps()
+    deps.shell.createContainer = mock(async () => {
+      throw new ContainerNameInUseError(
+        OPENCLAW_GATEWAY_CONTAINER_NAME,
+        'nerdctl create',
+        1,
+        `name-store error\nname "${OPENCLAW_GATEWAY_CONTAINER_NAME}" is already used`,
+      )
+    })
+    const runtime = new ContainerRuntime({
+      vm: deps.vm,
+      shell: deps.shell,
+      loader: deps.loader,
+      projectDir: PROJECT_DIR,
+    })
+
+    await expect(runtime.startGateway(defaultSpec)).rejects.toBeInstanceOf(
+      ContainerNameInUseError,
+    )
+
+    expect(deps.shell.createContainer).toHaveBeenCalledTimes(3)
+    expect(deps.shell.removeContainer).toHaveBeenCalledTimes(3)
+    expect(deps.shell.waitForContainerNameRelease).toHaveBeenCalledTimes(3)
+    expect(deps.shell.startContainer).not.toHaveBeenCalled()
+  })
+
   it('uses OPENCLAW_IMAGE as a direct image override', async () => {
     const previous = process.env.OPENCLAW_IMAGE
     process.env.OPENCLAW_IMAGE = 'localhost/openclaw:test'
