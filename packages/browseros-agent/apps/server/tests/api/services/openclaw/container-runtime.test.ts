@@ -4,11 +4,13 @@
  */
 
 import { describe, expect, it, mock } from 'bun:test'
-import { OPENCLAW_GATEWAY_CONTAINER_NAME } from '@browseros/shared/constants/openclaw'
+import {
+  OPENCLAW_GATEWAY_CONTAINER_NAME,
+  OPENCLAW_IMAGE,
+} from '@browseros/shared/constants/openclaw'
 import { ContainerRuntime } from '../../../../src/api/services/openclaw/container-runtime'
 
 const PROJECT_DIR = '/tmp/openclaw'
-const GATEWAY_IMAGE_REF = 'ghcr.io/openclaw/openclaw:2026.4.12'
 const defaultSpec = {
   hostPort: 18789,
   hostHome: '/Users/me/.browseros/vm/openclaw',
@@ -41,7 +43,7 @@ describe('ContainerRuntime', () => {
     expect(deps.shell.createContainer).toHaveBeenCalledWith(
       expect.objectContaining({
         name: OPENCLAW_GATEWAY_CONTAINER_NAME,
-        image: GATEWAY_IMAGE_REF,
+        image: OPENCLAW_IMAGE,
         restart: 'unless-stopped',
         ports: [
           {
@@ -137,7 +139,7 @@ describe('ContainerRuntime', () => {
         '/mnt/browseros/vm/openclaw:/home/node',
         '--add-host',
         'host.containers.internal:192.168.5.2',
-        GATEWAY_IMAGE_REF,
+        OPENCLAW_IMAGE,
       ]),
       undefined,
     )
@@ -175,6 +177,55 @@ describe('ContainerRuntime', () => {
     )
     expect(logs).toEqual(['log line'])
   })
+
+  it('prewarms the gateway image without creating a container', async () => {
+    const deps = createDeps()
+    const runtime = new ContainerRuntime({
+      vm: deps.vm,
+      shell: deps.shell,
+      loader: deps.loader,
+      projectDir: PROJECT_DIR,
+    })
+
+    await runtime.prewarmGatewayImage()
+
+    expect(deps.loader.ensureAgentImageLoaded).toHaveBeenCalledWith(
+      'openclaw',
+      undefined,
+    )
+    expect(deps.shell.createContainer).not.toHaveBeenCalled()
+  })
+
+  it('detects when the gateway container uses the current image', async () => {
+    const deps = createDeps()
+    deps.shell.containerImageRef.mockImplementation(async () => OPENCLAW_IMAGE)
+    const runtime = new ContainerRuntime({
+      vm: deps.vm,
+      shell: deps.shell,
+      loader: deps.loader,
+      projectDir: PROJECT_DIR,
+    })
+
+    await expect(runtime.isGatewayCurrent()).resolves.toBe(true)
+    expect(deps.shell.containerImageRef).toHaveBeenCalledWith(
+      OPENCLAW_GATEWAY_CONTAINER_NAME,
+    )
+  })
+
+  it('detects when the gateway container uses an old image', async () => {
+    const deps = createDeps()
+    deps.shell.containerImageRef.mockImplementation(
+      async () => 'ghcr.io/openclaw/openclaw:old',
+    )
+    const runtime = new ContainerRuntime({
+      vm: deps.vm,
+      shell: deps.shell,
+      loader: deps.loader,
+      projectDir: PROJECT_DIR,
+    })
+
+    await expect(runtime.isGatewayCurrent()).resolves.toBe(false)
+  })
 })
 
 function createDeps() {
@@ -190,6 +241,7 @@ function createDeps() {
       startContainer: mock(async () => {}),
       stopContainer: mock(async () => {}),
       removeContainer: mock(async () => {}),
+      containerImageRef: mock(async () => OPENCLAW_IMAGE),
       exec: mock(async () => 0),
       runCommand: mock(
         async (_args: string[], onLog?: (line: string) => void) => {
@@ -201,7 +253,7 @@ function createDeps() {
     },
     loader: {
       ensureImageLoaded: mock(async () => {}),
-      ensureAgentImageLoaded: mock(async () => GATEWAY_IMAGE_REF),
+      ensureAgentImageLoaded: mock(async () => OPENCLAW_IMAGE),
     },
   }
 }

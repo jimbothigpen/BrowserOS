@@ -8,6 +8,7 @@ import {
   OPENCLAW_AGENT_NAME,
   OPENCLAW_GATEWAY_CONTAINER_NAME,
   OPENCLAW_GATEWAY_CONTAINER_PORT,
+  OPENCLAW_IMAGE,
 } from '@browseros/shared/constants/openclaw'
 import type {
   ContainerCli,
@@ -93,6 +94,19 @@ export class ContainerRuntime {
 
   async pullImage(image: string, onLog?: LogFn): Promise<void> {
     await this.loader.ensureImageLoaded(image, onLog)
+  }
+
+  /** Warm the gateway image in containerd without creating or starting containers. */
+  async prewarmGatewayImage(onLog?: LogFn): Promise<void> {
+    await this.ensureGatewayImageLoaded(onLog)
+  }
+
+  /** Report whether the existing gateway container was created from the target image. */
+  async isGatewayCurrent(): Promise<boolean> {
+    const image = await this.shell.containerImageRef(
+      OPENCLAW_GATEWAY_CONTAINER_NAME,
+    )
+    return image === this.expectedGatewayImageRef()
   }
 
   async startGateway(
@@ -303,6 +317,10 @@ export class ContainerRuntime {
       return override
     }
     return this.loader.ensureAgentImageLoaded(OPENCLAW_AGENT_NAME, onLog)
+  }
+
+  private expectedGatewayImageRef(): string {
+    return process.env.OPENCLAW_IMAGE?.trim() || OPENCLAW_IMAGE
   }
 
   private buildGatewayEnv(input: GatewayContainerSpec): Record<string, string> {
