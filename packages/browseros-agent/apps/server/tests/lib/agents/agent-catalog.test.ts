@@ -48,6 +48,9 @@ describe('AGENT_ADAPTER_CATALOG', () => {
 
     expect(isSupportedAgentModel('claude', 'haiku')).toBe(true)
     expect(isSupportedAgentModel('claude', 'claude-opus-4-7')).toBe(true)
+    expect(isSupportedAgentModel('claude', 'claude-sonnet-4-6')).toBe(true)
+    expect(isSupportedAgentModel('claude', 'claude-haiku-4-5')).toBe(true)
+    expect(isSupportedAgentModel('claude', 'claude-not-real')).toBe(false)
     expect(isSupportedAgentModel('codex', 'gpt-5.5')).toBe(true)
     expect(isSupportedAgentModel('codex', 'gpt-5.4-mini')).toBe(true)
     expect(isSupportedAgentModel('codex', 'codex-auto-review')).toBe(false)
