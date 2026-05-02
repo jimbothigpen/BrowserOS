@@ -273,7 +273,7 @@ export class AcpxRuntime implements AgentRuntime {
       )
       if (latestRecord) return latestRecord
     }
-    return this.sessionStore.load(agent.sessionKey)
+    return (await this.sessionStore.load(agent.sessionKey)) ?? null
   }
 
   private async resolveNonManagedCwd(
