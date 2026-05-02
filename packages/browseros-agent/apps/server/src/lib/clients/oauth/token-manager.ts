@@ -479,7 +479,7 @@ export class OAuthTokenManager {
   }
 
   private stopCallbackIfIdle(): void {
-    const hasPkceFlows = [...this.pendingFlows.values()].some(() => true)
+    const hasPkceFlows = this.pendingFlows.size > 0
     if (!hasPkceFlows) {
       this.callbackServer.stop()
     }

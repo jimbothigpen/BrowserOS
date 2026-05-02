@@ -32,17 +32,14 @@ export class OAuthTokenStore implements OAuthTokenStoreContract {
       accountId: tokens.accountId ?? null,
       updatedAt: Date.now(),
     }
-    const existing = this.findRow(browserosId, provider)
-    if (existing) {
-      this.db
-        .update(oauthTokens)
-        .set(row)
-        .where(tokenKey(browserosId, provider))
-        .run()
-      return
-    }
-
-    this.db.insert(oauthTokens).values(row).run()
+    this.db
+      .insert(oauthTokens)
+      .values(row)
+      .onConflictDoUpdate({
+        target: [oauthTokens.browserosId, oauthTokens.provider],
+        set: row,
+      })
+      .run()
   }
 
   getTokens(browserosId: string, provider: string): StoredOAuthTokens | null {

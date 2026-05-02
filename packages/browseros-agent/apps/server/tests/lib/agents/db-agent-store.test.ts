@@ -8,8 +8,10 @@ import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { eq } from 'drizzle-orm'
 import { DbAgentStore } from '../../../src/lib/agents/db-agent-store'
 import { closeDb, initializeDb } from '../../../src/lib/db'
+import { agentDefinitions } from '../../../src/lib/db/schema'
 
 describe('DbAgentStore', () => {
   const tempDirs: string[] = []
@@ -76,6 +78,34 @@ describe('DbAgentStore', () => {
     expect(new Set(listed.map((agent) => agent.id)).size).toBe(created.length)
   })
 
+  it('persists OpenClaw adapter config with the agent record', async () => {
+    const { db, store } = createStoreWithDb()
+
+    const agent = await store.create({
+      name: 'OpenClaw bot',
+      adapter: 'openclaw',
+      providerType: 'openai-compatible',
+      providerName: 'Kimi',
+      baseUrl: 'https://api.fireworks.ai/inference/v1',
+      apiKey: 'test-key',
+      supportsImages: true,
+    })
+
+    const row = db
+      .select()
+      .from(agentDefinitions)
+      .where(eq(agentDefinitions.id, agent.id))
+      .get()
+
+    expect(JSON.parse(row?.adapterConfigJson ?? '{}')).toEqual({
+      providerType: 'openai-compatible',
+      providerName: 'Kimi',
+      baseUrl: 'https://api.fireworks.ai/inference/v1',
+      apiKey: 'test-key',
+      supportsImages: true,
+    })
+  })
+
   it('upserts gateway-owned OpenClaw records idempotently', async () => {
     const store = createStore()
 
@@ -96,11 +126,15 @@ describe('DbAgentStore', () => {
   })
 
   function createStore(): DbAgentStore {
+    return createStoreWithDb().store
+  }
+
+  function createStoreWithDb() {
     const dir = mkdtempSync(join(tmpdir(), 'browseros-db-agents-test-'))
     tempDirs.push(dir)
     const handle = initializeDb({
       dbPath: join(dir, 'db', 'browseros.sqlite'),
     })
-    return new DbAgentStore({ db: handle.db })
+    return { db: handle.db, store: new DbAgentStore({ db: handle.db }) }
   }
 })

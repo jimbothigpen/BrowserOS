@@ -64,7 +64,7 @@ export class DbAgentStore implements AgentStore {
         permissionMode: 'approve-all',
         sessionKey: `agent:${id}:main`,
         pinned: false,
-        adapterConfigJson: null,
+        adapterConfigJson: serializeAdapterConfig(input),
         createdAt: now,
         updatedAt: now,
       }
@@ -181,4 +181,21 @@ function toAgentDefinition(row: AgentDefinitionRow): AgentDefinition {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+function serializeAdapterConfig(input: CreateAgentInput): string | null {
+  const config = {
+    ...(input.providerType !== undefined
+      ? { providerType: input.providerType }
+      : {}),
+    ...(input.providerName !== undefined
+      ? { providerName: input.providerName }
+      : {}),
+    ...(input.baseUrl !== undefined ? { baseUrl: input.baseUrl } : {}),
+    ...(input.apiKey !== undefined ? { apiKey: input.apiKey } : {}),
+    ...(input.supportsImages !== undefined
+      ? { supportsImages: input.supportsImages }
+      : {}),
+  }
+  return Object.keys(config).length > 0 ? JSON.stringify(config) : null
 }
