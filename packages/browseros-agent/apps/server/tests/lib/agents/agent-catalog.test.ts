@@ -47,7 +47,10 @@ describe('AGENT_ADAPTER_CATALOG', () => {
     expect(getAgentAdapterDescriptor('openclaw')?.models).toEqual([])
 
     expect(isSupportedAgentModel('claude', 'haiku')).toBe(true)
+    expect(isSupportedAgentModel('claude', 'claude-opus-4-7')).toBe(true)
     expect(isSupportedAgentModel('codex', 'gpt-5.5')).toBe(true)
+    expect(isSupportedAgentModel('codex', 'gpt-5.4-mini')).toBe(true)
+    expect(isSupportedAgentModel('codex', 'codex-auto-review')).toBe(false)
     // Empty models list → all model ids are accepted ("default" passthrough).
     expect(isSupportedAgentModel('openclaw', undefined)).toBe(true)
     expect(isSupportedAgentModel('openclaw', 'default')).toBe(true)
