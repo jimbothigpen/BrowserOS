@@ -898,7 +898,9 @@ Use the BrowserOS MCP server for all browser tasks, including browsing the web, 
     const command =
       getCreateRuntimeOptions(calls).agentRegistry.resolve('claude')
     expect(command).toContain('env AGENT_HOME=')
+    expect(command).toContain('CLAUDE_CONFIG_DIR=')
     expect(command).not.toContain('CODEX_HOME=')
+    expect(command).toContain('/runtime/claude-config')
   })
 
   it('injects AGENT_HOME and CODEX_HOME into Codex ACP command resolution', async () => {
