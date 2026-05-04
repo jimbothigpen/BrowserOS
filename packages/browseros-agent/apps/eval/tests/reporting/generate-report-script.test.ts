@@ -98,6 +98,12 @@ describe('generate-report script', () => {
     expect(prompt).toContain('summary.json')
     expect(prompt).toContain('messages.jsonl')
     expect(prompt).toContain('screenshots')
+    expect(prompt).toContain('Deterministic run metrics')
+    expect(prompt).toContain('"queryId": "agisdk-networkin-10"')
+    expect(prompt).toContain('"toolCalls": 1')
+    expect(prompt).toContain('"toolErrors": 1')
+    expect(prompt).toContain('Duration by task')
+    expect(prompt).toContain('Tool calls by task')
     expect(prompt).toContain(outputPath)
   })
 

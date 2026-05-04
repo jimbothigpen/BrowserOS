@@ -3,6 +3,7 @@
 import { mkdir, stat } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { query as claudeQuery } from '@anthropic-ai/claude-agent-sdk'
+import { readRunMetricSummary } from '../src/reporting/task-metrics'
 
 export const DEFAULT_REPORT_MODEL = 'claude-opus-4-6'
 export const DEFAULT_REPORT_MAX_TURNS = 300
@@ -68,7 +69,12 @@ function claudeCodeEnv(env: Env): Env {
   }
 }
 
-function buildReportPrompt(inputDir: string, outputPath: string): string {
+async function buildReportPrompt(
+  inputDir: string,
+  outputPath: string,
+): Promise<string> {
+  const metrics = await readRunMetricSummary(inputDir)
+
   return `Analyze this BrowserOS eval run and write a shareable HTML report.
 
 Run directory: ${inputDir}
@@ -88,8 +94,10 @@ you should create or overwrite is the requested report.html.
 The report should follow the style and density of the Shadowfax AGI SDK report:
 - Title like "AGI SDK Random-10 Failure Report" or a run-specific equivalent
 - Run directory and note that screenshots are embedded as data URIs
-- Summary cards for total tasks, passed, failed, and pass rate
+- Summary cards for total tasks, passed, failed, pass rate, average duration, average steps, and average tool calls
+- A Metrics section with compact charts for Duration by task, Steps by task, Tool calls by task, and Tool errors by task
 - Task Summary table with task id, status, score, duration, steps, and prompt
+- Include tool calls and tool errors in the Task Summary table
 - Failure sections with stable anchors using each task id, for example <section id="agisdk-networkin-10">
 - For each failed task: Diagnosis, Evidence, Next Check, final screenshot, AGI SDK / grader criteria, final answer, and recent trajectory events
 - Make failure links in the summary table point to the task anchors
@@ -101,6 +109,11 @@ Analysis guidance:
 - Use messages.jsonl strategically. Do not paste huge DOM outputs into the report. Summarize only the relevant recent trajectory and evidence.
 - Limit trajectory analysis to the most relevant 200-300 events/calls across the run. Prefer failed tasks and the final/key actions for each failure.
 - If a grader criterion is boolean-only or ambiguous, say so and identify what additional artifact would make it debuggable.
+
+Deterministic run metrics computed from metadata.json and messages.jsonl:
+\`\`\`json
+${JSON.stringify(metrics, null, 2)}
+\`\`\`
 
 After writing the file, verify that ${outputPath} exists and is non-empty.`
 }
@@ -162,7 +175,7 @@ export async function generateEvalReport(
   const invocation = {
     inputDir,
     outputPath,
-    prompt: buildReportPrompt(inputDir, outputPath),
+    prompt: await buildReportPrompt(inputDir, outputPath),
   }
   await (options.runAgent ?? runClaudeCodeReportAgent)(invocation)
   await assertReportWritten(outputPath)

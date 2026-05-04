@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
+import { readTaskMetrics } from '../reporting/task-metrics'
 import {
   buildViewerManifest,
   type ViewerManifestTaskInput,
@@ -315,6 +316,7 @@ export class R2Publisher {
         graderResults:
           (meta.grader_results as ViewerManifestTaskInput['graderResults']) ||
           {},
+        metrics: await readTaskMetrics(taskPath, meta, screenshotCount),
       })
     }
 

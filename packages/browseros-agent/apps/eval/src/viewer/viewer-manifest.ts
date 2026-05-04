@@ -1,3 +1,8 @@
+import {
+  buildRunMetrics,
+  type EvalRunMetrics,
+  type EvalTaskMetrics,
+} from '../reporting/task-metrics'
 import type { GraderResult } from '../types'
 
 export const VIEWER_MANIFEST_SCHEMA_VERSION = 2
@@ -20,6 +25,7 @@ export interface ViewerManifestTaskInput {
   status: string
   durationMs: number
   screenshotCount: number
+  metrics?: EvalTaskMetrics
   graderResults: Record<string, GraderResult>
 }
 
@@ -39,6 +45,7 @@ export interface ViewerManifest {
   agentConfig?: Record<string, unknown>
   dataset?: string
   summary?: Record<string, unknown>
+  metrics?: EvalRunMetrics
   tasks: ViewerManifestTask[]
 }
 
@@ -70,6 +77,26 @@ function taskPaths(queryId: string): ViewerManifestTaskPaths {
 export function buildViewerManifest(
   input: BuildViewerManifestInput,
 ): ViewerManifest {
+  const tasks = input.tasks.map((task) => {
+    const { artifactId, ...publicTask } = task
+    const metrics =
+      publicTask.metrics ??
+      ({
+        durationMs: publicTask.durationMs,
+        steps: publicTask.screenshotCount,
+        screenshots: publicTask.screenshotCount,
+        toolCalls: 0,
+        toolErrors: 0,
+      } satisfies EvalTaskMetrics)
+
+    return {
+      ...publicTask,
+      metrics,
+      startUrl: publicTask.startUrl ?? '',
+      paths: taskPaths(artifactId ?? publicTask.queryId),
+    }
+  })
+
   return {
     schemaVersion: VIEWER_MANIFEST_SCHEMA_VERSION,
     runId: input.runId,
@@ -80,13 +107,7 @@ export function buildViewerManifest(
     ...(input.agentConfig ? { agentConfig: input.agentConfig } : {}),
     ...(input.dataset ? { dataset: input.dataset } : {}),
     ...(input.summary ? { summary: input.summary } : {}),
-    tasks: input.tasks.map((task) => {
-      const { artifactId, ...publicTask } = task
-      return {
-        ...publicTask,
-        startUrl: publicTask.startUrl ?? '',
-        paths: taskPaths(artifactId ?? publicTask.queryId),
-      }
-    }),
+    metrics: buildRunMetrics(tasks.map((task) => task.metrics)),
+    tasks,
   }
 }

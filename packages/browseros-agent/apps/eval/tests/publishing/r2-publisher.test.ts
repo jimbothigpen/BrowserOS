@@ -40,6 +40,7 @@ async function writeRunFixture(
       start_url: 'https://example.test',
       termination_reason: 'completed',
       total_duration_ms: 1200,
+      total_steps: 4,
       screenshot_count: 1,
       agent_config: { type: 'single', model: 'kimi' },
       grader_results: {
@@ -47,7 +48,15 @@ async function writeRunFixture(
       },
     }),
   )
-  await writeFile(join(taskDir, 'messages.jsonl'), '{"type":"user"}\n')
+  await writeFile(
+    join(taskDir, 'messages.jsonl'),
+    [
+      '{"type":"user"}',
+      '{"type":"tool-input-available","toolName":"click"}',
+      '{"type":"tool-input-available","toolName":"take_snapshot"}',
+      '{"type":"tool-output-error","toolName":"click"}',
+    ].join('\n'),
+  )
   await writeFile(join(taskDir, 'grades.json'), '{"ok":true}')
   await writeFile(join(taskDir, 'screenshots', '1.png'), 'png')
   await writeFile(
@@ -132,11 +141,26 @@ describe('R2Publisher', () => {
       dataset: 'webbench',
       reportPath: 'report.html',
       summary: { passRate: 1, avgDurationMs: 1200 },
+      metrics: {
+        taskCount: 1,
+        avgDurationMs: 1200,
+        avgSteps: 4,
+        avgToolCalls: 2,
+        totalToolCalls: 2,
+        totalToolErrors: 1,
+      },
       tasks: [
         {
           queryId: 'task-1',
           status: 'completed',
           screenshotCount: 1,
+          metrics: {
+            durationMs: 1200,
+            steps: 4,
+            screenshots: 1,
+            toolCalls: 2,
+            toolErrors: 1,
+          },
           paths: {
             attempt: 'tasks/task-1/attempt.json',
             metadata: 'tasks/task-1/metadata.json',
