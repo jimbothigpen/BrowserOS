@@ -978,9 +978,9 @@ Use the BrowserOS MCP server for all browser tasks, including browsing the web, 
     ])
   })
 
-  it('resolves Hermes with BROWSEROS_HERMES_ACP_COMMAND override', async () => {
-    const previous = process.env.BROWSEROS_HERMES_ACP_COMMAND
-    process.env.BROWSEROS_HERMES_ACP_COMMAND = 'python -m acp_adapter'
+  it('resolves Hermes with HERMES_ACP_COMMAND override', async () => {
+    const previous = process.env.HERMES_ACP_COMMAND
+    process.env.HERMES_ACP_COMMAND = 'python -m acp_adapter'
     try {
       const browserosDir = await mkdtemp(
         join(tmpdir(), 'browseros-acpx-browseros-'),
@@ -1015,9 +1015,9 @@ Use the BrowserOS MCP server for all browser tasks, including browsing the web, 
       expect(command).not.toContain('hermes acp')
     } finally {
       if (previous === undefined) {
-        delete process.env.BROWSEROS_HERMES_ACP_COMMAND
+        delete process.env.HERMES_ACP_COMMAND
       } else {
-        process.env.BROWSEROS_HERMES_ACP_COMMAND = previous
+        process.env.HERMES_ACP_COMMAND = previous
       }
     }
   })

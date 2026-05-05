@@ -759,7 +759,11 @@ function createBrowserosAgentRegistry(input: {
  * development can point at an unpublished adapter without changing code.
  */
 function resolveHermesAcpCommand(): string {
-  return process.env.BROWSEROS_HERMES_ACP_COMMAND?.trim() || 'hermes acp'
+  return (
+    process.env.HERMES_ACP_COMMAND?.trim() ||
+    process.env.BROWSEROS_HERMES_ACP_COMMAND?.trim() ||
+    'hermes acp'
+  )
 }
 
 /**

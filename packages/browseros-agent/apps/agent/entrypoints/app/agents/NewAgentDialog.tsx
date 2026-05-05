@@ -99,6 +99,8 @@ export const NewAgentDialog: FC<NewAgentDialogProps> = ({
     createRuntime,
     selectedAdapter: selectedCreateAdapter,
   })
+  const harnessModels = selectedHarnessAdapter?.models ?? []
+  const harnessReasoningEfforts = selectedHarnessAdapter?.reasoningEfforts ?? []
   const isHarnessRuntime = createRuntime !== 'openclaw'
   const openClawBlocked = createRuntime === 'openclaw' && !canManageOpenClaw
   const cliBlocked =
@@ -233,24 +235,26 @@ export const NewAgentDialog: FC<NewAgentDialogProps> = ({
                 </Alert>
               ) : null}
 
-              <div className="grid gap-2">
-                <Label htmlFor="harness-model">Model</Label>
-                <Select
-                  value={harnessModelId}
-                  onValueChange={onHarnessModelChange}
-                >
-                  <SelectTrigger id="harness-model">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(selectedHarnessAdapter?.models ?? []).map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {harnessModels.length > 0 ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="harness-model">Model</Label>
+                  <Select
+                    value={harnessModelId}
+                    onValueChange={onHarnessModelChange}
+                  >
+                    <SelectTrigger id="harness-model">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {harnessModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
 
               <div className="grid gap-2">
                 <Label htmlFor="harness-effort">Reasoning</Label>
@@ -262,13 +266,11 @@ export const NewAgentDialog: FC<NewAgentDialogProps> = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(selectedHarnessAdapter?.reasoningEfforts ?? []).map(
-                      (effort) => (
-                        <SelectItem key={effort.id} value={effort.id}>
-                          {effort.label}
-                        </SelectItem>
-                      ),
-                    )}
+                    {harnessReasoningEfforts.map((effort) => (
+                      <SelectItem key={effort.id} value={effort.id}>
+                        {effort.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
