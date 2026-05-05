@@ -740,10 +740,23 @@ function createBrowserosAgentRegistry(input: {
         // Phase A: Hermes runs as a host process. The user installs Hermes
         // (e.g. via setup-hermes.sh) so `hermes` is on PATH, and configures
         // it via `hermes setup` (config.yaml is the source of truth for the
-        // model). We spawn it directly with HERMES_HOME pointing at the
-        // per-agent BrowserOS-managed home. Phase A.5 will swap this to
+        // model). We spawn it with HERMES_HOME pointing at the per-agent
+        // BrowserOS-managed home. Phase A.5 will swap this to
         // `nerdctl exec` into a Hermes container.
-        return wrapCommandWithEnv('hermes acp', input.commandEnv)
+        //
+        // The `bash -c "... | tee /dev/null"` wrapper is a workaround for
+        // a Bun↔Python pipe interop bug: Bun's child_process polyfill uses
+        // socketpair() for child stdio, but Python's
+        // asyncio.connect_write_pipe (used by hermes-agent's acp library)
+        // does not drain its writes onto a unix socket. With `tee` in the
+        // middle, hermes' stdout flows through a real pipe(2) that asyncio
+        // can drain, and tee then writes those bytes to bash's stdout (the
+        // socket Bun reads). Verified 2026-05-06 against `hermes-agent`
+        // 0.12.0; without it, hermes' stdout never reaches the harness.
+        return wrapCommandWithEnv(
+          `bash -c 'exec hermes acp | tee /dev/null'`,
+          input.commandEnv,
+        )
       }
 
       if (lower === 'claude' || lower === 'codex') {

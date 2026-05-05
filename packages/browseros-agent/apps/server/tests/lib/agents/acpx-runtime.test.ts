@@ -955,7 +955,7 @@ Use the BrowserOS MCP server for all browser tasks, including browsing the web, 
     expect(command).toContain('/runtime/codex-home')
   })
 
-  it('resolves the Hermes adapter to `hermes acp` with HERMES_HOME env', async () => {
+  it('resolves the Hermes adapter to a `hermes acp` pipeline with HERMES_HOME env', async () => {
     const browserosDir = await mkdtemp(
       join(tmpdir(), 'browseros-acpx-browseros-'),
     )
@@ -985,7 +985,12 @@ Use the BrowserOS MCP server for all browser tasks, including browsing the web, 
     const command =
       getCreateRuntimeOptions(calls).agentRegistry.resolve('hermes')
     expect(command).toContain('env HERMES_HOME=')
+    // The shell wrapper exists to work around a Bun↔Python pipe bug;
+    // see comment in resolveHermesAcpCommand. Both the inner `hermes acp`
+    // exec and the `tee /dev/null` bridge must be present.
     expect(command).toContain('hermes acp')
+    expect(command).toContain('tee /dev/null')
+    expect(command).toContain('bash -c')
     expect(command).not.toContain('AGENT_HOME=')
     expect(command).not.toContain('CODEX_HOME=')
     expect(command).not.toContain('CLAUDE_CONFIG_DIR=')
