@@ -84,6 +84,15 @@ export const AGENT_ADAPTER_CATALOG: AgentAdapterDescriptor[] = [
       { id: 'adaptive', label: 'Adaptive' },
     ],
   },
+  {
+    id: 'hermes',
+    name: 'Hermes',
+    defaultModelId: 'default',
+    defaultReasoningEffort: 'default',
+    modelControl: 'best-effort',
+    models: [],
+    reasoningEfforts: [{ id: 'default', label: 'Default', recommended: true }],
+  },
 ]
 
 export function getAgentAdapterDescriptor(
@@ -93,7 +102,12 @@ export function getAgentAdapterDescriptor(
 }
 
 export function isAgentAdapter(value: unknown): value is AgentAdapter {
-  return value === 'claude' || value === 'codex' || value === 'openclaw'
+  return (
+    value === 'claude' ||
+    value === 'codex' ||
+    value === 'openclaw' ||
+    value === 'hermes'
+  )
 }
 
 export function resolveDefaultModelId(adapter: AgentAdapter): string {

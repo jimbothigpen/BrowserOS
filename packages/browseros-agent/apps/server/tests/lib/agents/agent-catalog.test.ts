@@ -7,16 +7,20 @@ import { describe, expect, it } from 'bun:test'
 import {
   AGENT_ADAPTER_CATALOG,
   getAgentAdapterDescriptor,
+  isAgentAdapter,
   isSupportedAgentModel,
   isSupportedReasoningEffort,
+  resolveDefaultModelId,
+  resolveDefaultReasoningEffort,
 } from '../../../src/lib/agents/agent-catalog'
 
 describe('AGENT_ADAPTER_CATALOG', () => {
-  it('exposes Claude, Codex, and OpenClaw adapters with model and effort options', () => {
+  it('exposes Claude, Codex, OpenClaw, and Hermes adapters with model and effort options', () => {
     expect(AGENT_ADAPTER_CATALOG.map((adapter) => adapter.id)).toEqual([
       'claude',
       'codex',
       'openclaw',
+      'hermes',
     ])
 
     expect(getAgentAdapterDescriptor('claude')).toMatchObject({
@@ -46,6 +50,15 @@ describe('AGENT_ADAPTER_CATALOG', () => {
     // gateway-side agent record and is sourced from the LlmProviderConfig.
     expect(getAgentAdapterDescriptor('openclaw')?.models).toEqual([])
 
+    expect(getAgentAdapterDescriptor('hermes')).toMatchObject({
+      id: 'hermes',
+      name: 'Hermes',
+      defaultModelId: 'default',
+      defaultReasoningEffort: 'default',
+      modelControl: 'best-effort',
+    })
+    expect(getAgentAdapterDescriptor('hermes')?.models).toEqual([])
+
     expect(isSupportedAgentModel('claude', 'haiku')).toBe(true)
     expect(isSupportedAgentModel('claude', 'claude-opus-4-7')).toBe(true)
     expect(isSupportedAgentModel('claude', 'claude-sonnet-4-6')).toBe(true)
@@ -58,10 +71,19 @@ describe('AGENT_ADAPTER_CATALOG', () => {
     expect(isSupportedAgentModel('openclaw', undefined)).toBe(true)
     expect(isSupportedAgentModel('openclaw', 'default')).toBe(true)
     expect(isSupportedAgentModel('openclaw', 'gpt-5.5')).toBe(false)
+    expect(isSupportedAgentModel('hermes', undefined)).toBe(true)
+    expect(isSupportedAgentModel('hermes', 'default')).toBe(true)
+    expect(isSupportedAgentModel('hermes', 'gpt-5.5')).toBe(false)
 
     expect(isSupportedReasoningEffort('codex', 'xhigh')).toBe(true)
     expect(isSupportedReasoningEffort('claude', 'banana')).toBe(false)
     expect(isSupportedReasoningEffort('openclaw', 'adaptive')).toBe(true)
     expect(isSupportedReasoningEffort('openclaw', 'xhigh')).toBe(false)
+    expect(isSupportedReasoningEffort('hermes', 'default')).toBe(true)
+    expect(isSupportedReasoningEffort('hermes', 'medium')).toBe(false)
+    expect(resolveDefaultModelId('hermes')).toBe('default')
+    expect(resolveDefaultReasoningEffort('hermes')).toBe('default')
+    expect(isAgentAdapter('hermes')).toBe(true)
+    expect(isAgentAdapter('not-real')).toBe(false)
   })
 })

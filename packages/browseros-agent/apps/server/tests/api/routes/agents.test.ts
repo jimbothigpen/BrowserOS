@@ -632,6 +632,42 @@ describe('createAgentRoutes', () => {
       error: `Name must be ${AGENT_HARNESS_LIMITS.AGENT_NAME_MAX_CHARS} characters or fewer`,
     })
   })
+
+  it('creates Hermes harness agents with default model and reasoning', async () => {
+    const agents: AgentDefinition[] = []
+    const route = createMountedRoutes(agents)
+
+    const response = await route.request('/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Hermes bot', adapter: 'hermes' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      agent: {
+        name: 'Hermes bot',
+        adapter: 'hermes',
+      },
+    })
+  })
+
+  it('rejects invalid Hermes reasoning efforts', async () => {
+    const route = createMountedRoutes([])
+
+    const response = await route.request('/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Hermes bot',
+        adapter: 'hermes',
+        reasoningEffort: 'medium',
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid reasoningEffort' })
+  })
 })
 
 function createMountedRoutes(
@@ -696,7 +732,7 @@ function createFakeService(agents: AgentDefinition[]) {
     },
     async createAgent(input: {
       name: string
-      adapter: 'claude' | 'codex' | 'openclaw'
+      adapter: AgentDefinition['adapter']
       modelId?: string
       reasoningEffort?: string
     }) {
