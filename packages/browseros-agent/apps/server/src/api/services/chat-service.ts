@@ -276,7 +276,17 @@ export class ChatService {
 
     return createAgentUIStreamResponse({
       agent: session.agent.toolLoopAgent,
-      uiMessages: filterValidMessages(session.agent.messages),
+      // Strip tool-call parts whose tool isn't in the current agent's
+      // registered toolset before sending. ACP providers register no
+      // host-side tools (Constraint #1: acpx-ai-provider doesn't plumb
+      // them), so past ACP tool-call parts (`tool-Edit /path/...`)
+      // would otherwise fail AI SDK schema validation on every
+      // subsequent turn. For non-ACP providers this also handles
+      // mid-chat MCP disconnects without requiring a session rebuild.
+      uiMessages: sanitizeMessagesForToolset(
+        session.agent.messages,
+        session.agent.toolNames,
+      ),
       abortSignal,
       onFinish: async ({ messages }: { messages: UIMessage[] }) => {
         session.agent.messages = filterValidMessages(messages)
