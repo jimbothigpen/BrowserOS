@@ -32,20 +32,14 @@ describe('cleanHistoryUserText', () => {
   })
 
   it('unwraps the BrowserOS ACP user_request envelope', () => {
+    // The envelope format below mirrors `buildBrowserosAcpPrompt`'s
+    // exact output: `<role>…</role>\n\n<user_request>\n…\n</user_request>`.
+    // Stripping is delegated to `unwrapBrowserosAcpUserMessage`, which
+    // anchors on those exact constants.
     const raw =
-      '[Working directory: /tmp/workspace]\n\n' +
       '<role>\nYou are BrowserOS - a browser agent...\n</role>\n\n' +
       '<user_request>\nhey\n</user_request>'
     expect(cleanHistoryUserText(raw)).toBe('hey')
-  })
-
-  it('strips a trailing system-reminder block', () => {
-    const raw =
-      '[Working directory: /tmp/workspace]\n\n' +
-      '<role>\nYou are BrowserOS\n</role>\n\n' +
-      '<user_request>\nopen google.com\n</user_request>\n\n' +
-      '<system-reminder>\nA reminder the user never typed.\n</system-reminder>'
-    expect(cleanHistoryUserText(raw)).toBe('open google.com')
   })
 
   it('splits queued-marker concatenations and cleans each chunk', () => {
