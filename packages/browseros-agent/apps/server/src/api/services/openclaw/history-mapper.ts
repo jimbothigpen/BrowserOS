@@ -39,6 +39,11 @@ const CRON_DELIVERY_TRAILER =
 const QUEUED_MARKER_LINE =
   /^\[Queued user message that arrived while the previous turn was still active\]\s*$/m
 const SUBAGENT_CONTEXT_PREFIX = /^\[Subagent Context\][\s\S]*$/
+// Emitted by OpenClaw's acp-cli (`[Working directory: <path>]\n\n` before
+// the user text — see /app/dist/acp-cli-*.js in the gateway image). We
+// strip the line as a unit by anchoring on the closing bracket + double
+// newline so any path content is consumed without a content-shape regex.
+const OPENCLAW_WORKDIR_PREFIX = /^\[Working directory: [^\]]*\]\n\n/
 
 /**
  * Strip OpenClaw + BrowserOS scaffolding from a "user" message before
@@ -49,6 +54,11 @@ const SUBAGENT_CONTEXT_PREFIX = /^\[Subagent Context\][\s\S]*$/
  * exact-string match against the same constants `buildBrowserosAcpPrompt`
  * uses to wrap. Matcher and wrapper live in the same repo, so the two
  * always travel together.
+ *
+ * OpenClaw's acp-cli prepends a `[Working directory: <path>]\n\n` line
+ * before the BrowserOS envelope (see /app/dist/acp-cli-*.js, line 1361).
+ * We strip that single line up-front so the `^<role>` anchor in
+ * `unwrapBrowserosAcpUserMessage` matches.
  *
  * OpenClaw-injected scaffolding (cron prefix, queued-marker, subagent
  * context) is still pattern-matched here. Removing those requires either
@@ -89,7 +99,10 @@ function cleanSingleUserMessage(raw: string): string {
     const payload = cronMatch[2] ?? ''
     return payload.replace(CRON_DELIVERY_TRAILER, '').trim()
   }
-  return unwrapBrowserosAcpUserMessage(trimmed).trim()
+  // Strip OpenClaw's acp-cli workdir prefix before delegating, so the
+  // BrowserOS unwrap helper's `^<role>` anchor matches.
+  const withoutWorkdir = trimmed.replace(OPENCLAW_WORKDIR_PREFIX, '')
+  return unwrapBrowserosAcpUserMessage(withoutWorkdir).trim()
 }
 
 type RichBlock =

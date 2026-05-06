@@ -31,14 +31,29 @@ describe('cleanHistoryUserText', () => {
     )
   })
 
+  // Mirrors `BROWSEROS_ACP_AGENT_INSTRUCTIONS` from acpx-runtime.ts.
+  // `unwrapBrowserosAcpUserMessage`'s `stripOuterRoleEnvelope` performs
+  // an exact-prefix/suffix match against this constant, so test fixtures
+  // need the full text — not a truncated stand-in.
+  const ROLE_BLOCK =
+    '<role>\n' +
+    'You are BrowserOS - a browser agent with full control of a Chromium browser through the BrowserOS MCP server.\n\n' +
+    'Use the BrowserOS MCP server for all browser tasks, including browsing the web, interacting with pages, inspecting browser state, and managing tabs, windows, bookmarks, and history.\n' +
+    '</role>'
+
   it('unwraps the BrowserOS ACP user_request envelope', () => {
-    // The envelope format below mirrors `buildBrowserosAcpPrompt`'s
-    // exact output: `<role>…</role>\n\n<user_request>\n…\n</user_request>`.
-    // Stripping is delegated to `unwrapBrowserosAcpUserMessage`, which
-    // anchors on those exact constants.
+    const raw = `${ROLE_BLOCK}\n\n<user_request>\nhey\n</user_request>`
+    expect(cleanHistoryUserText(raw)).toBe('hey')
+  })
+
+  it("strips OpenClaw acp-cli's leading [Working directory:] line", () => {
+    // OpenClaw 2026.5.x's acp-cli prepends `[Working directory: <path>]
+    // \n\n` before the BrowserOS envelope. We strip that line up-front
+    // so the inner `<role>…</role>\n\n<user_request>` envelope can be
+    // unwrapped by `unwrapBrowserosAcpUserMessage`.
     const raw =
-      '<role>\nYou are BrowserOS - a browser agent...\n</role>\n\n' +
-      '<user_request>\nhey\n</user_request>'
+      '[Working directory: /Users/me/.browseros-dev/agents/harness/workspace]\n\n' +
+      `${ROLE_BLOCK}\n\n<user_request>\nhey\n</user_request>`
     expect(cleanHistoryUserText(raw)).toBe('hey')
   })
 
