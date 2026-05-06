@@ -13,10 +13,15 @@ export interface TimeoutResult<T> {
   terminationReason: TerminationReason
 }
 
+export interface EvalTimeoutOptions {
+  rethrowError?: (error: Error) => boolean
+}
+
 export async function withEvalTimeout<T>(
   timeoutMs: number,
   capture: CaptureContext,
   fn: (signal: AbortSignal) => Promise<T>,
+  options: EvalTimeoutOptions = {},
 ): Promise<TimeoutResult<T>> {
   const abortController = new AbortController()
   const timeoutHandle = setTimeout(() => abortController.abort(), timeoutMs)
@@ -39,6 +44,9 @@ export async function withEvalTimeout<T>(
       capture.addError('agent_execution', error.message, {
         stack: error.stack,
       })
+      if (options.rethrowError?.(error)) {
+        throw error
+      }
     }
 
     return { terminationReason }

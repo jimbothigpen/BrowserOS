@@ -10,6 +10,10 @@ import { registry } from '@browseros/server/tools/registry'
 import { CaptchaWaiter } from '../capture/captcha-waiter'
 import { DEFAULT_TIMEOUT_MS } from '../constants'
 import type { TaskMetadata } from '../types'
+import {
+  isProviderExecutionError,
+  retryProviderErrors,
+} from '../utils/provider-error-retry'
 import { resolveProviderConfig } from '../utils/resolve-provider-config'
 import { withEvalTimeout } from '../utils/with-eval-timeout'
 import type { AgentContext, AgentEvaluator, AgentResult } from './types'
@@ -89,87 +93,96 @@ export class SingleAgentEvaluator implements AgentEvaluator {
         capture,
         async (signal) => {
           if (!agent) throw new Error('Agent was not initialized')
+          const activeAgent = agent
           // Format prompt with browser context so the agent knows what page it's on
           // (same formatting as chat-service.ts → formatUserMessage)
           const prompt = formatUserMessage(task.query, browserContext)
-          const result = await agent.toolLoopAgent.generate({
-            prompt,
-            abortSignal: signal,
+          const result = await retryProviderErrors(
+            () =>
+              activeAgent.toolLoopAgent.generate({
+                prompt,
+                abortSignal: signal,
 
-            experimental_onToolCallStart: ({ toolCall }) => {
-              const input = toolCall.input as
-                | Record<string, unknown>
-                | undefined
-              if (input && typeof input.page === 'number') {
-                capture.setActivePageId(input.page)
-              }
+                experimental_onToolCallStart: ({ toolCall }) => {
+                  const input = toolCall.input as
+                    | Record<string, unknown>
+                    | undefined
+                  if (input && typeof input.page === 'number') {
+                    capture.setActivePageId(input.page)
+                  }
+                },
+
+                experimental_onToolCallFinish: async () => {
+                  try {
+                    if (captchaWaiter) {
+                      await captchaWaiter.waitIfCaptchaPresent(
+                        browser,
+                        capture.getActivePageId(),
+                      )
+                    }
+                    const screenshotNum = await capture.screenshot.capture(
+                      capture.getActivePageId(),
+                    )
+                    capture.emitEvent(task.query_id, {
+                      type: 'screenshot-captured',
+                      screenshot: screenshotNum,
+                    })
+                  } catch {
+                    // Screenshot failures are non-fatal
+                  }
+                },
+
+                onStepFinish: async ({ toolCalls, toolResults, text }) => {
+                  if (toolCalls) {
+                    for (const tc of toolCalls) {
+                      const inputEvent = {
+                        type: 'tool-input-available',
+                        toolCallId: tc.toolCallId,
+                        toolName: tc.toolName,
+                        input: tc.input,
+                      } as any
+                      await capture.messageLogger.logStreamEvent(inputEvent)
+                      capture.emitEvent(task.query_id, inputEvent)
+                    }
+                  }
+
+                  if (toolResults) {
+                    for (const tr of toolResults) {
+                      const outputEvent = {
+                        type: 'tool-output-available',
+                        toolCallId: tr.toolCallId,
+                        output: tr.output,
+                      } as any
+                      await capture.messageLogger.logStreamEvent(outputEvent)
+                      capture.emitEvent(task.query_id, outputEvent)
+                    }
+                  }
+
+                  if (text) {
+                    const textId = randomUUID()
+                    const startEvent = { type: 'text-start', id: textId } as any
+                    const deltaEvent = {
+                      type: 'text-delta',
+                      id: textId,
+                      delta: text,
+                    } as any
+                    const endEvent = { type: 'text-end', id: textId } as any
+                    await capture.messageLogger.logStreamEvent(startEvent)
+                    await capture.messageLogger.logStreamEvent(deltaEvent)
+                    await capture.messageLogger.logStreamEvent(endEvent)
+                    capture.emitEvent(task.query_id, deltaEvent)
+                  }
+                },
+              }),
+            {
+              label: `single-agent ${task.query_id}`,
+              signal,
             },
-
-            experimental_onToolCallFinish: async () => {
-              try {
-                if (captchaWaiter) {
-                  await captchaWaiter.waitIfCaptchaPresent(
-                    browser,
-                    capture.getActivePageId(),
-                  )
-                }
-                const screenshotNum = await capture.screenshot.capture(
-                  capture.getActivePageId(),
-                )
-                capture.emitEvent(task.query_id, {
-                  type: 'screenshot-captured',
-                  screenshot: screenshotNum,
-                })
-              } catch {
-                // Screenshot failures are non-fatal
-              }
-            },
-
-            onStepFinish: async ({ toolCalls, toolResults, text }) => {
-              if (toolCalls) {
-                for (const tc of toolCalls) {
-                  const inputEvent = {
-                    type: 'tool-input-available',
-                    toolCallId: tc.toolCallId,
-                    toolName: tc.toolName,
-                    input: tc.input,
-                  } as any
-                  await capture.messageLogger.logStreamEvent(inputEvent)
-                  capture.emitEvent(task.query_id, inputEvent)
-                }
-              }
-
-              if (toolResults) {
-                for (const tr of toolResults) {
-                  const outputEvent = {
-                    type: 'tool-output-available',
-                    toolCallId: tr.toolCallId,
-                    output: tr.output,
-                  } as any
-                  await capture.messageLogger.logStreamEvent(outputEvent)
-                  capture.emitEvent(task.query_id, outputEvent)
-                }
-              }
-
-              if (text) {
-                const textId = randomUUID()
-                const startEvent = { type: 'text-start', id: textId } as any
-                const deltaEvent = {
-                  type: 'text-delta',
-                  id: textId,
-                  delta: text,
-                } as any
-                const endEvent = { type: 'text-end', id: textId } as any
-                await capture.messageLogger.logStreamEvent(startEvent)
-                await capture.messageLogger.logStreamEvent(deltaEvent)
-                await capture.messageLogger.logStreamEvent(endEvent)
-                capture.emitEvent(task.query_id, deltaEvent)
-              }
-            },
-          })
+          )
 
           finalText = result.text || null
         },
+        { rethrowError: isProviderExecutionError },
       )
 
       const endTime = Date.now()
