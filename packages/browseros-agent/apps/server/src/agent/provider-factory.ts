@@ -12,6 +12,7 @@ import type { LanguageModel } from 'ai'
 import { createBrowserOSFetch } from '../lib/browseros-fetch'
 import { getBrowserOSMcpUrl } from '../lib/clients/acp/mcp-url'
 import { getSharedAcpRuntime } from '../lib/clients/acp/runtime-singleton'
+import { ensureAcpScratchDir } from '../lib/clients/acp/workspace'
 import { createCodexFetch } from '../lib/clients/oauth/codex-fetch'
 import { createCopilotFetch } from '../lib/clients/oauth/copilot-fetch'
 import { logger } from '../lib/logger'
@@ -210,15 +211,17 @@ function createAcpFactory(
       'ACP provider requires acpAgentId — pick an ACP agent in the LLM settings.',
     )
   }
-  // Per-call cwd: chat workspace selector wins; fall back to the
-  // default the user pinned on the provider record. ACP agents
-  // require a working directory to start a session.
-  const cwd = config.workingDir ?? config.acpDefaultCwd
-  if (!cwd) {
-    throw new Error(
-      'ACP provider needs a working directory. Select a workspace from the chat composer or set a default workspace on the ACP provider.',
-    )
-  }
+  // cwd resolution chain:
+  //   1. chat composer's userWorkingDir (per-turn)
+  //   2. per-provider acpDefaultCwd (set in /settings/ai)
+  //   3. auto-scratch under ~/.browseros/acp-workspaces/<conversationId>/
+  // The third level keeps zero-config chat working — most BrowserOS
+  // chats are browser tasks where cwd is irrelevant; the agent
+  // operates via the BrowserOS MCP, not via filesystem reads.
+  const cwd =
+    config.workingDir ??
+    config.acpDefaultCwd ??
+    ensureAcpScratchDir(config.conversationId)
   // Session key keeps state distinct per (agent, cwd, conversation) so
   // workspace switches inside a chat correctly fork sessions and
   // separate conversations don't bleed context.
