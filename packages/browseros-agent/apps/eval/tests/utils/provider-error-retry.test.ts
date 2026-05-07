@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import {
   isProviderExecutionError,
+  isProviderRateLimitError,
   retryProviderErrors,
 } from '../../src/utils/provider-error-retry'
 
@@ -10,6 +11,13 @@ function providerError(message = 'Provider returned error'): Error {
   ;(error as unknown as Record<string, unknown>).statusCode = 500
   ;(error as unknown as Record<string, unknown>).responseBody =
     '{"error":"upstream failed"}'
+  return error
+}
+
+function rateLimitError(): Error {
+  const error = new Error('rate limit exceeded, please try again later')
+  error.name = 'AI_APICallError'
+  ;(error as unknown as Record<string, unknown>).statusCode = 429
   return error
 }
 
@@ -29,6 +37,13 @@ async function withoutRetryWarnings<T>(fn: () => Promise<T>): Promise<T> {
 describe('provider error retries', () => {
   it('detects provider errors from SDK-style markers', () => {
     expect(isProviderExecutionError(providerError())).toBe(true)
+    expect(isProviderExecutionError(rateLimitError())).toBe(true)
+    expect(isProviderRateLimitError(rateLimitError())).toBe(true)
+    expect(
+      isProviderExecutionError(
+        new Error('rate limit exceeded, please try again later'),
+      ),
+    ).toBe(true)
     expect(isProviderExecutionError(new Error('regular tool failure'))).toBe(
       false,
     )
@@ -48,6 +63,29 @@ describe('provider error retries', () => {
 
       expect(result).toBe('ok')
       expect(calls).toBe(4)
+    })
+  })
+
+  it('uses the rate-limit retry policy for provider rate limits', async () => {
+    await withoutRetryWarnings(async () => {
+      let calls = 0
+      const result = await retryProviderErrors(
+        async () => {
+          calls++
+          if (calls <= 2) throw rateLimitError()
+          return 'ok'
+        },
+        {
+          label: 'test',
+          retries: 0,
+          windowMs: 0,
+          rateLimitRetries: 2,
+          rateLimitWindowMs: 0,
+        },
+      )
+
+      expect(result).toBe('ok')
+      expect(calls).toBe(3)
     })
   })
 

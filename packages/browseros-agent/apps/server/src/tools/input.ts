@@ -101,6 +101,7 @@ export const click = defineInputTool({
     x: z.number(),
     y: z.number(),
     hitElement: guiHitElementOutput,
+    guiPointDebug: z.record(z.unknown()).optional(),
   }),
   handler: async (args, ctx, response) => {
     const { x, y, hitElement, log } = await resolveGuiPoint(
@@ -135,6 +136,7 @@ export const click = defineInputTool({
       x,
       y,
       hitElement,
+      guiPointDebug: clickLog,
     })
   },
 })
@@ -251,6 +253,7 @@ export const hover = defineInputTool({
     prompt: z.string(),
     x: z.number(),
     y: z.number(),
+    guiPointDebug: z.record(z.unknown()).optional(),
   }),
   handler: async (args, ctx, response) => {
     const { x, y, log } = await resolveGuiPoint(ctx, args.page, args.prompt)
@@ -270,6 +273,7 @@ export const hover = defineInputTool({
       prompt: args.prompt,
       x,
       y,
+      guiPointDebug: hoverLog,
     })
   },
 })

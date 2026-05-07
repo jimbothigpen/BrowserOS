@@ -525,6 +525,28 @@ function getErrorRecovery(
 }
 
 // -----------------------------------------------------------------------------
+// section: eval-mode
+// -----------------------------------------------------------------------------
+
+function getEvalMode(
+  _exclude: Set<string>,
+  options?: BuildSystemPromptOptions,
+): string {
+  if (!options?.evalMode) return ''
+
+  return `<eval_mode>
+## Eval Mode
+
+You are running inside a benchmark environment. The user's task is pre-authorized for the eval clone site.
+
+- Do not ask the user for confirmation before clicking final submit, place-order, book, send, save, create, or similar completion buttons required by the task.
+- If the task asks you to complete a workflow and the visible page asks for fields the user did not specify, choose reasonable dummy values.
+- Complete the task end-to-end using the available tools, then report the outcome.
+- Only pause for credentials, CAPTCHA, 2FA, real payment confirmation, or blocked site access.
+</eval_mode>`
+}
+
+// -----------------------------------------------------------------------------
 // section: memory-and-identity
 // -----------------------------------------------------------------------------
 
@@ -809,6 +831,7 @@ const promptSections: Record<string, PromptSectionFn> = {
   ) => getToolSelection(_exclude, options),
   'external-integrations': getExternalIntegrations,
   'error-recovery': getErrorRecovery,
+  'eval-mode': getEvalMode,
   'memory-and-identity': getMemoryAndIdentity,
   workspace: getWorkspace,
   skills: (_exclude: Set<string>, options?: BuildSystemPromptOptions) =>
@@ -837,6 +860,8 @@ export interface BuildSystemPromptOptions {
   origin?: 'sidepanel' | 'newtab'
   /** Experimental mode: browser control is limited to GUI-backed click only. */
   guiClickOnly?: boolean
+  /** Eval mode: benchmark tasks are pre-authorized within clone sites. */
+  evalMode?: boolean
 }
 
 export function buildSystemPrompt(options?: BuildSystemPromptOptions): string {

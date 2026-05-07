@@ -62,6 +62,12 @@ const CAPTCHA_EXT_DIR = join(
   '../../extensions/nopecha',
 )
 
+export function resolveServerStartScript(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  return env.BROWSEROS_EVAL_SERVER_START_SCRIPT || 'start:ci'
+}
+
 export class BrowserOSAppManager {
   private ports: EvalPorts
   private chromeProc: Subprocess | null = null
@@ -215,9 +221,10 @@ export class BrowserOSAppManager {
     }
     this.serverLogFd = logFd
 
-    // `start:ci` skips `--watch` (no file-watcher overhead in CI). Falls back
-    // to the regular `start` script outside CI for the dev-watch experience.
-    const startScript = process.env.CI ? 'start:ci' : 'start'
+    // Eval servers must not use `start` because it runs Bun in watch mode; a
+    // source edit during a long eval can restart the worker server before the
+    // grader fetches /finish. Keep an escape hatch for local debugging.
+    const startScript = resolveServerStartScript()
     this.serverProc = spawn({
       cmd: ['bun', 'run', '--filter', '@browseros/server', startScript],
       cwd: MONOREPO_ROOT,

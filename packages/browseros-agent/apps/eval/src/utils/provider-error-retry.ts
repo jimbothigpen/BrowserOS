@@ -2,6 +2,8 @@ import { sleep } from './sleep'
 
 const DEFAULT_PROVIDER_ERROR_RETRIES = 5
 const DEFAULT_PROVIDER_ERROR_RETRY_WINDOW_MS = 10_000
+const DEFAULT_RATE_LIMIT_RETRIES = 8
+const DEFAULT_RATE_LIMIT_RETRY_WINDOW_MS = 120_000
 const PROVIDER_ERROR_LOG_MAX_STRING_CHARS = 10_000
 const PROVIDER_ERROR_LOG_MAX_DEPTH = 5
 
@@ -19,6 +21,8 @@ export interface ProviderErrorRetryOptions {
   signal?: AbortSignal
   retries?: number
   windowMs?: number
+  rateLimitRetries?: number
+  rateLimitWindowMs?: number
   onRetry?: (event: ProviderErrorRetryEvent) => void
 }
 
@@ -47,7 +51,9 @@ function errorMarkers(error: unknown, seen = new Set<unknown>()): string[] {
     const record = error as Record<string, unknown>
     if ('isRetryable' in record) markers.push('isRetryable')
     if ('statusCode' in record) markers.push('statusCode')
+    if ('statusCode' in record) markers.push(String(record.statusCode))
     if ('responseBody' in record) markers.push('responseBody')
+    if ('responseBody' in record) markers.push(String(record.responseBody))
     if ('cause' in record) {
       markers.push(...errorMarkers(record.cause, seen))
     }
@@ -63,6 +69,7 @@ function errorMarkers(error: unknown, seen = new Set<unknown>()): string[] {
 export function isProviderExecutionError(error: unknown): boolean {
   const markerText = errorMarkers(error).join('\n')
   return (
+    isProviderRateLimitError(error) ||
     markerText.includes('Provider returned error') ||
     markerText.includes('APICallError') ||
     markerText.includes('AI_RetryError') ||
@@ -70,6 +77,17 @@ export function isProviderExecutionError(error: unknown): boolean {
     markerText.includes('isRetryable') ||
     markerText.includes('statusCode') ||
     markerText.includes('responseBody')
+  )
+}
+
+export function isProviderRateLimitError(error: unknown): boolean {
+  const markerText = errorMarkers(error).join('\n').toLowerCase()
+  return (
+    markerText.includes('rate limit') ||
+    markerText.includes('rate-limit') ||
+    markerText.includes('too many requests') ||
+    markerText.includes('statuscode\n429') ||
+    markerText.includes('\n429\n')
   )
 }
 
@@ -150,9 +168,13 @@ export async function retryProviderErrors<T>(
   operation: () => Promise<T>,
   options: ProviderErrorRetryOptions,
 ): Promise<T> {
-  const maxRetries = options.retries ?? DEFAULT_PROVIDER_ERROR_RETRIES
-  const windowMs = options.windowMs ?? DEFAULT_PROVIDER_ERROR_RETRY_WINDOW_MS
-  const delayMs = maxRetries > 0 ? Math.floor(windowMs / maxRetries) : 0
+  const providerRetries = options.retries ?? DEFAULT_PROVIDER_ERROR_RETRIES
+  const providerWindowMs =
+    options.windowMs ?? DEFAULT_PROVIDER_ERROR_RETRY_WINDOW_MS
+  const rateLimitRetries =
+    options.rateLimitRetries ?? DEFAULT_RATE_LIMIT_RETRIES
+  const rateLimitWindowMs =
+    options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_RETRY_WINDOW_MS
 
   for (let attempt = 0; ; attempt++) {
     try {
@@ -162,6 +184,11 @@ export async function retryProviderErrors<T>(
       if (options.signal?.aborted || !isProviderError) {
         throw error
       }
+
+      const isRateLimit = isProviderRateLimitError(error)
+      const maxRetries = isRateLimit ? rateLimitRetries : providerRetries
+      const windowMs = isRateLimit ? rateLimitWindowMs : providerWindowMs
+      const delayMs = maxRetries > 0 ? Math.floor(windowMs / maxRetries) : 0
 
       if (attempt >= maxRetries) {
         logFinalProviderError(options.label, error, attempt + 1)
@@ -176,7 +203,7 @@ export async function retryProviderErrors<T>(
       }
       options.onRetry?.(event)
       console.warn(
-        `[provider-retry] ${options.label}: retry ${event.retryNumber}/${maxRetries} in ${delayMs}ms after provider error: ${errorMessage(error)}`,
+        `[provider-retry] ${options.label}: retry ${event.retryNumber}/${maxRetries} in ${delayMs}ms after ${isRateLimit ? 'rate limit' : 'provider error'}: ${errorMessage(error)}`,
       )
       await sleep(delayMs, options.signal)
     }

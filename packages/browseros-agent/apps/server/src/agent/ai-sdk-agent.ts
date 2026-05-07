@@ -268,6 +268,7 @@ export class AiSdkAgent {
       skillsCatalog,
       origin: config.resolvedConfig.origin,
       guiClickOnly: GUI_CLICK_ONLY_MODE,
+      evalMode: config.resolvedConfig.evalMode,
     })
 
     // Configure compaction for context window management

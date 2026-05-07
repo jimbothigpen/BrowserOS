@@ -79,6 +79,7 @@ export function buildBrowserToolSet(
             content: result.content,
             isError: result.isError ?? false,
             metadata: result.metadata,
+            structuredContent: result.structuredContent,
           }
         } catch (error) {
           const errorText =
