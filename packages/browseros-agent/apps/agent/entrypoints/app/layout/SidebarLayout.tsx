@@ -96,13 +96,13 @@ export const SidebarLayout: FC = () => {
           <AppSidebar expanded={sidebarOpen} onOpenShortcuts={openShortcuts} />
         </div>
 
-        {/* Main content - full width, centered */}
+        {/* Main content — offset by the collapsed sidebar width so content never sits under it */}
         {location.pathname === '/home/chat' ? (
-          <main className="relative h-dvh overflow-hidden">
+          <main className="relative h-dvh overflow-hidden pl-14">
             <Outlet />
           </main>
         ) : (
-          <main className="min-h-screen overflow-y-auto">
+          <main className="min-h-screen overflow-y-auto pl-14">
             <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
               <Outlet />
             </div>
