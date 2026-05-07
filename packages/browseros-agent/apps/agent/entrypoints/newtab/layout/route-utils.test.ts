@@ -22,7 +22,7 @@ describe('route-utils', () => {
     expect(shouldHideFocusGrid('/home')).toBe(true)
     expect(shouldHideFocusGrid('/home/agents/main')).toBe(true)
     expect(shouldHideFocusGrid('/home/chat')).toBe(true)
-    expect(shouldHideFocusGrid('/home/skills')).toBe(true)
+    expect(shouldHideFocusGrid('/home/skills')).toBe(false)
     expect(shouldHideFocusGrid('/home/personalize')).toBe(false)
   })
 })

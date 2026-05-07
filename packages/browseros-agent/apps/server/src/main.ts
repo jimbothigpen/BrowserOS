@@ -35,12 +35,6 @@ import { metrics } from './lib/metrics'
 import { isPortInUseError } from './lib/port-binding'
 import { Sentry } from './lib/sentry'
 import { seedSoulTemplate } from './lib/soul'
-import { migrateBuiltinSkills } from './skills/migrate'
-import {
-  startSkillSync,
-  stopSkillSync,
-  syncBuiltinSkills,
-} from './skills/remote-sync'
 import { registry } from './tools/registry'
 import { VERSION } from './version'
 
@@ -122,7 +116,6 @@ export class Application {
     )
 
     this.logStartupSummary()
-    startSkillSync()
 
     // OpenClaw is best-effort — a failure here must not crash the server.
     // The container runtime constructor throws synchronously on non-darwin
@@ -155,7 +148,6 @@ export class Application {
 
   stop(reason?: string): void {
     logger.info('Shutting down server...', { reason })
-    stopSkillSync()
     getOpenClawService()
       .shutdown()
       .catch(() => {})
@@ -177,8 +169,6 @@ export class Application {
     await ensureBrowserosDir()
     await cleanOldSessions()
     await seedSoulTemplate()
-    await migrateBuiltinSkills()
-    await syncBuiltinSkills()
 
     initializeDb({
       dbPath: getDbPath(),

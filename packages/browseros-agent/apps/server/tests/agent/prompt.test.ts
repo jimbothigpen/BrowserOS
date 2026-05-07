@@ -12,7 +12,7 @@
  *
  * The tests are organized by concern:
  *
- * 1. SECTION PRESENCE — Ensures all 14 v6 sections exist in the output.
+ * 1. SECTION PRESENCE — Ensures all v6 sections exist in the output.
  *    If a section disappears, the agent loses an entire category of guidance.
  *
  * 2. WORKSPACE GATING — The most critical behavioral gate. Filesystem tools
@@ -102,7 +102,7 @@ function buildScheduled(overrides?: Partial<BuildSystemPromptOptions>): string {
 // ---------------------------------------------------------------------------
 
 describe('section presence', () => {
-  it('includes all 14 v6 sections in regular mode', () => {
+  it('includes all v6 sections in regular mode', () => {
     const prompt = buildRegular()
 
     // Each section has a unique XML tag or heading that identifies it
@@ -133,15 +133,10 @@ describe('section presence', () => {
     expect(prompt.endsWith('</AGENT_PROMPT>')).toBe(true)
   })
 
-  it('includes skills catalog when provided', () => {
+  it('does not include skills catalog injection', () => {
     const prompt = buildRegular({
       skillsCatalog: '<available_skills><skill>test</skill></available_skills>',
-    })
-    expect(prompt).toContain('<available_skills>')
-  })
-
-  it('omits skills catalog when not provided', () => {
-    const prompt = buildRegular({ skillsCatalog: undefined })
+    } as Partial<BuildSystemPromptOptions> & { skillsCatalog: string })
     expect(prompt).not.toContain('<available_skills>')
   })
 })

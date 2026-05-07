@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { resolveStaticFeatureSupport } from './capabilities'
+import { Feature, resolveStaticFeatureSupport } from './capabilities'
 
 describe('resolveStaticFeatureSupport', () => {
+  it('does not expose the unshipped Skills feature gate', () => {
+    expect(Object.values(Feature)).not.toContain('SKILLS_SUPPORT')
+  })
+
   it('enables alpha-gated features automatically in development', () => {
     expect(
       resolveStaticFeatureSupport({
