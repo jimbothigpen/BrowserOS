@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   CircleDashed,
   Loader2,
-  ShieldX,
   XCircle,
 } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
@@ -85,14 +84,9 @@ const isToolInProgress = (state: ToolInvocationState) =>
 
 const isToolError = (state: ToolInvocationState) => state === 'output-error'
 
-const isToolDenied = (state: ToolInvocationState) => state === 'output-denied'
-
 const ToolStatusIcon: FC<{ state: ToolInvocationState }> = ({ state }) => {
   if (isToolCompleted(state)) {
     return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-  }
-  if (isToolDenied(state)) {
-    return <ShieldX className="h-3.5 w-3.5 text-red-400" />
   }
   if (isToolInProgress(state)) {
     return (

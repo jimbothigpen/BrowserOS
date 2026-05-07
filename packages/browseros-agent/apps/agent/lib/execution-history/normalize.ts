@@ -5,7 +5,6 @@ const NUDGE_TOOL_NAMES = new Set(['suggest_schedule', 'suggest_app_connection'])
 const TERMINAL_STEP_STATES = new Set<ExecutionStepState>([
   'output-available',
   'output-error',
-  'output-denied',
 ])
 const MAX_PREVIEW_CHARS = 180
 
@@ -36,10 +35,6 @@ function isExecutionToolPart(
 }
 
 function getPreviewText(part: ToolLikePart): string {
-  if (part.state === 'output-denied') {
-    return 'Action denied'
-  }
-
   if (part.state === 'output-error') {
     return 'Action failed'
   }
@@ -124,7 +119,6 @@ export function normalizeExecutionSteps(args: {
     assistantMessageId: assistantMessage?.id,
     steps,
     actionCount: steps.length,
-    deniedCount: steps.filter((step) => step.state === 'output-denied').length,
     errorCount: steps.filter((step) => step.state === 'output-error').length,
   }
 }

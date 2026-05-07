@@ -43,7 +43,6 @@ const getStatusBadge = (status: ToolUIPart['state']) => {
     'input-available': 'Running',
     'output-available': 'Completed',
     'output-error': 'Error',
-    'output-denied': 'Denied',
   }
 
   const icons: Partial<Record<ToolUIPart['state'], ReactNode>> = {
@@ -51,7 +50,6 @@ const getStatusBadge = (status: ToolUIPart['state']) => {
     'input-available': <ClockIcon className="size-4 animate-pulse" />,
     'output-available': <CheckCircleIcon className="size-4 text-green-600" />,
     'output-error': <XCircleIcon className="size-4 text-red-600" />,
-    'output-denied': <XCircleIcon className="size-4 text-orange-600" />,
   }
 
   return (

@@ -10,7 +10,6 @@ export type ExecutionStepState =
   | 'input-available'
   | 'output-available'
   | 'output-error'
-  | 'output-denied'
 
 export interface ExecutionStepRecord {
   id: string
@@ -37,7 +36,6 @@ export interface ExecutionTaskRecord {
   responseText?: string
   responsePreview?: string
   actionCount: number
-  deniedCount: number
   errorCount: number
   steps: ExecutionStepRecord[]
 }

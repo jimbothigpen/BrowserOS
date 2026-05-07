@@ -3,7 +3,6 @@ import {
   ChevronDown,
   CircleDotDashed,
   Clock3,
-  ShieldAlert,
   XCircle,
 } from 'lucide-react'
 import { type FC, useState } from 'react'
@@ -27,7 +26,6 @@ const formatStateLabel = (state: ExecutionStepRecord['state']) => {
   if (state === 'input-streaming') return 'Preparing'
   if (state === 'input-available') return 'Running'
   if (state === 'output-available') return 'Completed'
-  if (state === 'output-denied') return 'Denied'
   return 'Error'
 }
 
@@ -38,10 +36,6 @@ const getStateIcon = (step: ExecutionStepRecord) => {
 
   if (step.state === 'input-streaming' || step.state === 'input-available') {
     return <Clock3 className="h-4 w-4 text-[var(--accent-orange)]" />
-  }
-
-  if (step.state === 'output-denied') {
-    return <ShieldAlert className="h-4 w-4 text-orange-500" />
   }
 
   if (step.state === 'output-error') {
@@ -94,22 +88,11 @@ export const ExecutionStepItem: FC<{
         </CollapsibleTrigger>
         <CollapsibleContent className="border-border/60 border-t">
           {step.input !== undefined && <ToolInput input={step.input} />}
-          {step.state === 'output-denied' ? (
-            <div className="space-y-2 p-4">
-              <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                Result
-              </h4>
-              <div className="rounded-md bg-orange-500/10 p-3 text-orange-700 text-sm dark:text-orange-300">
-                The requested action was denied.
-              </div>
-            </div>
-          ) : (
-            <ToolOutput
-              output={step.output}
-              errorText={step.errorText}
-              className="pt-0"
-            />
-          )}
+          <ToolOutput
+            output={step.output}
+            errorText={step.errorText}
+            className="pt-0"
+          />
         </CollapsibleContent>
       </div>
     </Collapsible>

@@ -103,11 +103,6 @@ export const ExecutionTaskCard: FC<{
                       <span>{formatDuration(task)}</span>
                     </>
                   )}
-                  {task.deniedCount > 0 && (
-                    <Badge variant="outline" className="h-5 rounded-full px-2">
-                      {task.deniedCount} denied
-                    </Badge>
-                  )}
                   {task.errorCount > 0 && (
                     <Badge variant="outline" className="h-5 rounded-full px-2">
                       {task.errorCount} error

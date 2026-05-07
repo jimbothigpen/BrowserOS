@@ -172,9 +172,6 @@ function estimateAssistantContent(content: AssistantContent): {
         images += estimate.images
         break
       }
-      case 'tool-approval-request':
-        chars += part.approvalId.length + part.toolCallId.length
-        break
       case 'file':
         images++
         break
@@ -196,11 +193,6 @@ function estimateToolContent(content: ToolContent): {
       const estimate = estimateToolResultOutput(part.output)
       chars += estimate.chars
       images += estimate.images
-    } else {
-      chars += part.approvalId.length
-      if (part.reason) {
-        chars += part.reason.length
-      }
     }
   }
 

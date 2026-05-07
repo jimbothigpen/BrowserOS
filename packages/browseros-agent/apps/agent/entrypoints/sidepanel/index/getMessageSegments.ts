@@ -8,7 +8,6 @@ export type ToolInvocationState =
   | 'input-available'
   | 'output-available'
   | 'output-error'
-  | 'output-denied'
 
 export interface ToolInvocationInfo {
   state: ToolInvocationState
