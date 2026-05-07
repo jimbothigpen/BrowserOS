@@ -9,7 +9,7 @@ import { CdpBackend } from '@browseros/server/browser/backends/cdp'
 import { registry } from '@browseros/server/tools/registry'
 import { CaptchaWaiter } from '../capture/captcha-waiter'
 import { DEFAULT_TIMEOUT_MS } from '../constants'
-import type { TaskMetadata } from '../types'
+import type { TaskMetadata, UIMessageStreamEvent } from '../types'
 import {
   isProviderExecutionError,
   retryProviderErrors,
@@ -17,6 +17,43 @@ import {
 import { resolveProviderConfig } from '../utils/resolve-provider-config'
 import { withEvalTimeout } from '../utils/with-eval-timeout'
 import type { AgentContext, AgentEvaluator, AgentResult } from './types'
+
+const EMPTY_TOOL_RESULT_STOP_CONTINUATION_LIMIT = 2
+
+interface ToolLoopResultShape {
+  text: string
+  finishReason: string
+  toolCalls: readonly unknown[]
+  steps: ReadonlyArray<{
+    toolResults: readonly unknown[]
+  }>
+}
+
+export function shouldContinueAfterEmptyToolResultStop(
+  result: ToolLoopResultShape,
+): boolean {
+  const previousStep = result.steps.at(-2)
+
+  return (
+    result.finishReason === 'stop' &&
+    result.text.trim().length === 0 &&
+    result.toolCalls.length === 0 &&
+    (previousStep?.toolResults.length ?? 0) > 0
+  )
+}
+
+export function buildEmptyToolResultStopContinuationPrompt(
+  taskQuery: string,
+): string {
+  return [
+    'Continue the eval task from the current browser state.',
+    '',
+    'The previous model response stopped immediately after a tool result without issuing another tool call or a final answer. Do not stop after routine tool results. If the requested workflow is complete, respond with a brief completion message. Otherwise, inspect the page if needed and continue using tools.',
+    '',
+    'Original task:',
+    taskQuery,
+  ].join('\n')
+}
 
 export class SingleAgentEvaluator implements AgentEvaluator {
   constructor(private ctx: AgentContext) {}
@@ -94,93 +131,125 @@ export class SingleAgentEvaluator implements AgentEvaluator {
         async (signal) => {
           if (!agent) throw new Error('Agent was not initialized')
           const activeAgent = agent
-          // Format prompt with browser context so the agent knows what page it's on
-          // (same formatting as chat-service.ts → formatUserMessage)
-          const prompt = formatUserMessage(task.query, browserContext)
-          const result = await retryProviderErrors(
-            () =>
-              activeAgent.toolLoopAgent.generate({
-                prompt,
-                abortSignal: signal,
 
-                experimental_onToolCallStart: ({ toolCall }) => {
-                  const input = toolCall.input as
-                    | Record<string, unknown>
-                    | undefined
-                  if (input && typeof input.page === 'number') {
-                    capture.setActivePageId(input.page)
-                  }
-                },
+          let continuationCount = 0
+          let currentQuery = task.query
 
-                experimental_onToolCallFinish: async () => {
-                  try {
-                    if (captchaWaiter) {
-                      await captchaWaiter.waitIfCaptchaPresent(
-                        browser,
+          for (;;) {
+            // Format prompt with browser context so the agent knows what page it's on
+            // (same formatting as chat-service.ts → formatUserMessage)
+            const prompt = formatUserMessage(currentQuery, browserContext)
+            const result = await retryProviderErrors(
+              () =>
+                activeAgent.toolLoopAgent.generate({
+                  prompt,
+                  abortSignal: signal,
+
+                  experimental_onToolCallStart: ({ toolCall }) => {
+                    const input = toolCall.input as
+                      | Record<string, unknown>
+                      | undefined
+                    if (input && typeof input.page === 'number') {
+                      capture.setActivePageId(input.page)
+                    }
+                  },
+
+                  experimental_onToolCallFinish: async () => {
+                    try {
+                      if (captchaWaiter) {
+                        await captchaWaiter.waitIfCaptchaPresent(
+                          browser,
+                          capture.getActivePageId(),
+                        )
+                      }
+                      const screenshotNum = await capture.screenshot.capture(
                         capture.getActivePageId(),
                       )
+                      capture.emitEvent(task.query_id, {
+                        type: 'screenshot-captured',
+                        screenshot: screenshotNum,
+                      })
+                    } catch {
+                      // Screenshot failures are non-fatal
                     }
-                    const screenshotNum = await capture.screenshot.capture(
-                      capture.getActivePageId(),
-                    )
-                    capture.emitEvent(task.query_id, {
-                      type: 'screenshot-captured',
-                      screenshot: screenshotNum,
-                    })
-                  } catch {
-                    // Screenshot failures are non-fatal
-                  }
-                },
+                  },
 
-                onStepFinish: async ({ toolCalls, toolResults, text }) => {
-                  if (toolCalls) {
-                    for (const tc of toolCalls) {
-                      const inputEvent = {
-                        type: 'tool-input-available',
-                        toolCallId: tc.toolCallId,
-                        toolName: tc.toolName,
-                        input: tc.input,
-                      } as any
-                      await capture.messageLogger.logStreamEvent(inputEvent)
-                      capture.emitEvent(task.query_id, inputEvent)
+                  onStepFinish: async ({ toolCalls, toolResults, text }) => {
+                    if (toolCalls) {
+                      for (const tc of toolCalls) {
+                        const inputEvent: UIMessageStreamEvent = {
+                          type: 'tool-input-available',
+                          toolCallId: tc.toolCallId,
+                          toolName: tc.toolName,
+                          input: tc.input,
+                        }
+                        await capture.messageLogger.logStreamEvent(inputEvent)
+                        capture.emitEvent(task.query_id, inputEvent)
+                      }
                     }
-                  }
 
-                  if (toolResults) {
-                    for (const tr of toolResults) {
-                      const outputEvent = {
-                        type: 'tool-output-available',
-                        toolCallId: tr.toolCallId,
-                        output: tr.output,
-                      } as any
-                      await capture.messageLogger.logStreamEvent(outputEvent)
-                      capture.emitEvent(task.query_id, outputEvent)
+                    if (toolResults) {
+                      for (const tr of toolResults) {
+                        const outputEvent: UIMessageStreamEvent = {
+                          type: 'tool-output-available',
+                          toolCallId: tr.toolCallId,
+                          output: tr.output,
+                        }
+                        await capture.messageLogger.logStreamEvent(outputEvent)
+                        capture.emitEvent(task.query_id, outputEvent)
+                      }
                     }
-                  }
 
-                  if (text) {
-                    const textId = randomUUID()
-                    const startEvent = { type: 'text-start', id: textId } as any
-                    const deltaEvent = {
-                      type: 'text-delta',
-                      id: textId,
-                      delta: text,
-                    } as any
-                    const endEvent = { type: 'text-end', id: textId } as any
-                    await capture.messageLogger.logStreamEvent(startEvent)
-                    await capture.messageLogger.logStreamEvent(deltaEvent)
-                    await capture.messageLogger.logStreamEvent(endEvent)
-                    capture.emitEvent(task.query_id, deltaEvent)
-                  }
-                },
-              }),
-            {
-              label: `single-agent ${task.query_id}`,
-              signal,
-            },
-          )
+                    if (text) {
+                      const textId = randomUUID()
+                      const startEvent: UIMessageStreamEvent = {
+                        type: 'text-start',
+                        id: textId,
+                      }
+                      const deltaEvent: UIMessageStreamEvent = {
+                        type: 'text-delta',
+                        id: textId,
+                        delta: text,
+                      }
+                      const endEvent: UIMessageStreamEvent = {
+                        type: 'text-end',
+                        id: textId,
+                      }
+                      await capture.messageLogger.logStreamEvent(startEvent)
+                      await capture.messageLogger.logStreamEvent(deltaEvent)
+                      await capture.messageLogger.logStreamEvent(endEvent)
+                      capture.emitEvent(task.query_id, deltaEvent)
+                    }
+                  },
+                }),
+              {
+                label: `single-agent ${task.query_id}`,
+                signal,
+              },
+            )
 
-          finalText = result.text || null
+            if (!shouldContinueAfterEmptyToolResultStop(result)) {
+              finalText = result.text || null
+              break
+            }
+
+            if (
+              continuationCount >= EMPTY_TOOL_RESULT_STOP_CONTINUATION_LIMIT
+            ) {
+              throw new Error(
+                `Model stopped with empty output immediately after a tool result ${continuationCount + 1} times`,
+              )
+            }
+
+            continuationCount++
+            capture.addWarning(
+              'agent_execution',
+              `Model stopped with empty output immediately after a tool result; continuing task (${continuationCount}/${EMPTY_TOOL_RESULT_STOP_CONTINUATION_LIMIT})`,
+            )
+            currentQuery = buildEmptyToolResultStopContinuationPrompt(
+              task.query,
+            )
+          }
         },
         { rethrowError: isProviderExecutionError },
       )
