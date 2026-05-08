@@ -106,13 +106,11 @@ describe('OpenClawContainerRuntime', () => {
 
   function makeRuntime() {
     const lockDir = mkTempDir()
-    const browserosDir = '/host/browseros'
+    const browserosDir = mkTempDir()
+    const openclawDir = join(browserosDir, 'vm/openclaw')
     const { deps, getCapturedSpec } = makeDeps({ lockDir })
-    const runtime = new TestRuntime(deps, {
-      browserosDir,
-      openclawDir: `${browserosDir}/vm/openclaw`,
-    })
-    return { runtime, getCapturedSpec, browserosDir }
+    const runtime = new TestRuntime(deps, { browserosDir, openclawDir })
+    return { runtime, getCapturedSpec, browserosDir, openclawDir }
   }
 
   it('declares the canonical OpenClaw runtime descriptor', () => {
@@ -126,13 +124,13 @@ describe('OpenClawContainerRuntime', () => {
   })
 
   it('mountRoots maps the openclaw state dir to the gateway container home', () => {
-    const { runtime } = makeRuntime()
+    const { runtime, openclawDir } = makeRuntime()
     const mounts: readonly MountRoot[] = (
       runtime as unknown as { mountRoots(): readonly MountRoot[] }
     ).mountRoots()
     expect(mounts).toEqual([
       {
-        hostPath: '/host/browseros/vm/openclaw',
+        hostPath: openclawDir,
         containerPath: '/home/node',
         kind: 'shared',
       },

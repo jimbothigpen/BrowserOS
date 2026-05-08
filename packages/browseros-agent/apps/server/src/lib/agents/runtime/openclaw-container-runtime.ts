@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import {
   OPENCLAW_GATEWAY_CONTAINER_NAME,
   OPENCLAW_GATEWAY_CONTAINER_PORT,
@@ -112,6 +114,15 @@ export class OpenClawContainerRuntime extends ContainerAgentRuntime {
   protected async buildContainerSpec(): Promise<ContainerSpec> {
     const hostPort = this.hostPort
     const envFilePath = getOpenClawStateEnvPath(this.openclawConfig.openclawDir)
+    // OpenClawService normally seeds this during its setup flow, but
+    // starting via the runtime directly (RuntimeControlPanel "Start"
+    // CTA on a fresh install) bypasses that path, so nerdctl --env-file
+    // would crash on the missing file. Touch it here so the runtime is
+    // self-sufficient.
+    if (!existsSync(envFilePath)) {
+      await mkdir(dirname(envFilePath), { recursive: true })
+      await writeFile(envFilePath, '', { mode: 0o600 })
+    }
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
     const gateway = await this.deps.vm.getDefaultGateway()
     return {
