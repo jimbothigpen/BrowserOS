@@ -29,7 +29,13 @@ export interface ChatRequestBrowserContext {
   enabledMcpServers?: string[]
   customMcpServers?: {
     name: string
+    type?: 'http' | 'process'
     url?: string
+    headers?: Record<string, string>
+    command?: string
+    args?: string[]
+    env?: Record<string, string>
+    cwd?: string
   }[]
 }
 

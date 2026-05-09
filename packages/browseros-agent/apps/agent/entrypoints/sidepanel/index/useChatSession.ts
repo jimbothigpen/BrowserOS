@@ -151,10 +151,7 @@ const buildRequestBrowserContext = ({
   activeTab?: chrome.tabs.Tab
   action?: ChatAction
   enabledMcpServers: Array<string | undefined>
-  customMcpServers: {
-    name: string
-    url?: string
-  }[]
+  customMcpServers: NonNullable<ChatRequestBrowserContext['customMcpServers']>
 }): ChatRequestBrowserContext | undefined => {
   const browserContext: ChatRequestBrowserContext = {}
 

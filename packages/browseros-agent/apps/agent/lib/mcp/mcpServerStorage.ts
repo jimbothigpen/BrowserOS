@@ -11,7 +11,13 @@ export interface McpServer {
   managedServerName?: string
   managedServerDescription?: string
   config?: {
+    type?: 'http' | 'process'
     url?: string
+    headers?: Record<string, string>
+    command?: string
+    args?: string[]
+    env?: Record<string, string>
+    cwd?: string
     description?: string
   }
 }

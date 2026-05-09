@@ -7,6 +7,7 @@ import {
   providersStorage,
 } from '@/lib/llm-providers/storage'
 import type { LlmProviderConfig } from '@/lib/llm-providers/types'
+import { buildChatCustomMcpServers } from '@/lib/mcp/customMcpServerPayload'
 import { mcpServerStorage } from '@/lib/mcp/mcpServerStorage'
 import { buildChatRequestBody } from '@/lib/messaging/server/buildChatRequestBody'
 import { personalizationStorage } from '../personalization/personalizationStorage'
@@ -102,10 +103,7 @@ export async function getChatServerResponse(
     .filter((s) => s.type === 'managed')
     .map((s) => s.managedServerName)
     .filter((name): name is string => !!name)
-  const customMcpServers = mcpServers
-    .filter((s) => s.type === 'custom' && !!s.config?.url)
-    // biome-ignore lint/style/noNonNullAssertion: filter guarantees url exists
-    .map((s) => ({ name: s.displayName, url: s.config!.url }))
+  const customMcpServers = buildChatCustomMcpServers(mcpServers)
 
   const response = await fetch(`${agentServerUrl}/chat`, {
     method: 'POST',

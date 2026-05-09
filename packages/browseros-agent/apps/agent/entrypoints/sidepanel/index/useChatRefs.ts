@@ -6,6 +6,7 @@ import {
 } from '@/entrypoints/app/agents/useAgents'
 import type { LlmProviderConfig } from '@/lib/llm-providers/types'
 import { useLlmProviders } from '@/lib/llm-providers/useLlmProviders'
+import { buildChatCustomMcpServers } from '@/lib/mcp/customMcpServerPayload'
 import { type McpServer, useMcpServers } from '@/lib/mcp/mcpServerStorage'
 import { usePersonalization } from '@/lib/personalization/personalizationStorage'
 import {
@@ -24,12 +25,7 @@ const constructMcpServers = (servers: McpServer[]) => {
 }
 
 const constructCustomServers = (servers: McpServer[]) => {
-  return servers
-    .filter((eachServer) => eachServer.type === 'custom')
-    .map((each) => ({
-      name: each.displayName,
-      url: each.config?.url,
-    }))
+  return buildChatCustomMcpServers(servers)
 }
 
 export const useChatRefs = () => {

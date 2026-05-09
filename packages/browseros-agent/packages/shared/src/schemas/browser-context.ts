@@ -29,13 +29,38 @@ export type Tab = z.infer<typeof TabSchema>
 /**
  * Custom MCP server configuration schema
  */
-export const CustomMcpServerSchema: z.ZodObject<{
-  name: z.ZodString
-  url: z.ZodString
-}> = z.object({
-  name: z.string(),
-  url: z.string().url(),
-})
+export const CustomMcpServerTypeSchema = z.enum(['http', 'process'])
+
+export const CustomMcpServerSchema = z
+  .object({
+    name: z.string(),
+    type: CustomMcpServerTypeSchema.optional(),
+    url: z.string().url().optional(),
+    headers: z.record(z.string()).optional(),
+    command: z.string().min(1).optional(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string()).optional(),
+    cwd: z.string().min(1).optional(),
+  })
+  .superRefine((server, ctx) => {
+    const type = server.type ?? (server.command ? 'process' : 'http')
+
+    if (type === 'http' && !server.url) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['url'],
+        message: 'HTTP MCP servers require a URL',
+      })
+    }
+
+    if (type === 'process' && !server.command) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['command'],
+        message: 'Process MCP servers require a command',
+      })
+    }
+  })
 
 export type CustomMcpServer = z.infer<typeof CustomMcpServerSchema>
 

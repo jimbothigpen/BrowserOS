@@ -1,6 +1,7 @@
 import { createMCPClient } from '@ai-sdk/mcp'
 import { TIMEOUTS } from '@browseros/shared/constants/timeouts'
 import type { BrowserContext } from '@browseros/shared/schemas/browser-context'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { ToolSet } from 'ai'
 import { logger } from '../lib/logger'
 import {
@@ -8,12 +9,24 @@ import {
   type McpTransportType,
 } from '../lib/mcp-transport-detect'
 
-export interface McpServerSpec {
+export interface HttpMcpServerSpec {
   name: string
+  type: 'http'
   url: string
   transport: McpTransportType
   headers?: Record<string, string>
 }
+
+export interface ProcessMcpServerSpec {
+  name: string
+  type: 'process'
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  cwd?: string
+}
+
+export type McpServerSpec = HttpMcpServerSpec | ProcessMcpServerSpec
 
 export interface McpServerSpecDeps {
   browserContext?: BrowserContext
@@ -34,19 +47,85 @@ export async function buildMcpServerSpecs(
   // User-provided custom MCP servers
   if (deps.browserContext?.customMcpServers?.length) {
     const servers = deps.browserContext.customMcpServers
+    const httpServers: Array<{
+      name: string
+      url: string
+      headers?: Record<string, string>
+    }> = []
+
+    for (const server of servers) {
+      const name = `custom-${server.name}`
+      const type = server.type ?? (server.command ? 'process' : 'http')
+
+      if (type === 'process') {
+        if (!server.command) {
+          logger.warn('Skipping process MCP server without command', { name })
+          continue
+        }
+        specs.push({
+          name,
+          type: 'process',
+          command: server.command,
+          args: server.args,
+          env: server.env,
+          cwd: server.cwd,
+        })
+        continue
+      }
+
+      if (!server.url) {
+        logger.warn('Skipping HTTP MCP server without URL', { name })
+        continue
+      }
+      httpServers.push({
+        name,
+        url: server.url,
+        headers: server.headers,
+      })
+    }
+
     const transports = await Promise.all(
-      servers.map((s) => detectMcpTransport(s.url)),
+      httpServers.map((s) => detectMcpTransport(s.url)),
     )
-    for (let i = 0; i < servers.length; i++) {
+    for (let i = 0; i < httpServers.length; i++) {
       specs.push({
-        name: `custom-${servers[i].name}`,
-        url: servers[i].url,
+        name: httpServers[i].name,
+        type: 'http',
+        url: httpServers[i].url,
         transport: transports[i],
+        headers: httpServers[i].headers,
       })
     }
   }
 
   return specs
+}
+
+function resolveProcessCommand(command: string): string {
+  if (process.platform === 'win32' && command.toLowerCase() === 'npx') {
+    return 'npx.cmd'
+  }
+  return command
+}
+
+function getMcpLogContext(spec: McpServerSpec) {
+  if (spec.type === 'process') {
+    return {
+      name: spec.name,
+      type: spec.type,
+      command: resolveProcessCommand(spec.command),
+      args: spec.args,
+      cwd: spec.cwd,
+      envKeys: Object.keys(spec.env ?? {}).sort(),
+    }
+  }
+
+  return {
+    name: spec.name,
+    type: spec.type,
+    url: spec.url,
+    transport: spec.transport,
+  }
 }
 
 // Connect a single MCP client with timeout protection
@@ -57,10 +136,24 @@ async function connectMcpClient(
   try {
     const client = await Promise.race([
       createMCPClient({
-        transport: {
-          type: spec.transport === 'sse' ? 'sse' : 'http',
-          url: spec.url,
-          headers: spec.headers,
+        transport:
+          spec.type === 'process'
+            ? new StdioClientTransport({
+                command: resolveProcessCommand(spec.command),
+                args: spec.args,
+                env: spec.env,
+                cwd: spec.cwd,
+              })
+            : {
+                type: spec.transport === 'sse' ? 'sse' : 'http',
+                url: spec.url,
+                headers: spec.headers,
+              },
+        onUncaughtError(error) {
+          logger.warn('Uncaught MCP client error', {
+            ...getMcpLogContext(spec),
+            error: error instanceof Error ? error.message : String(error),
+          })
         },
       }),
       new Promise<never>((_, reject) =>
@@ -88,8 +181,7 @@ async function connectMcpClient(
     return { client, tools: clientTools }
   } catch (error) {
     logger.warn('Failed to connect MCP client, skipping', {
-      name: spec.name,
-      url: spec.url,
+      ...getMcpLogContext(spec),
       error: error instanceof Error ? error.message : String(error),
     })
     return null

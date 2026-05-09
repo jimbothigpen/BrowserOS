@@ -169,7 +169,12 @@ export const ConnectMCP: FC = () => {
 
   const addCustomServer = (config: {
     name: string
-    url: string
+    type: 'http' | 'process'
+    url?: string
+    command?: string
+    args?: string[]
+    env?: Record<string, string>
+    cwd?: string
     description: string
   }) => {
     addServer({
@@ -177,7 +182,12 @@ export const ConnectMCP: FC = () => {
       displayName: config.name,
       type: 'custom',
       config: {
+        type: config.type,
         url: config.url,
+        command: config.command,
+        args: config.args,
+        env: config.env,
+        cwd: config.cwd,
         description: config.description,
       },
     })
@@ -259,7 +269,7 @@ export const ConnectMCP: FC = () => {
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-orange)]/10">
                   <McpServerIcon
-                    serverName={server.managedServerName ?? ''}
+                    serverName={server.managedServerName ?? server.displayName}
                     size={20}
                     className="text-[var(--accent-orange)]"
                   />
@@ -280,7 +290,8 @@ export const ConnectMCP: FC = () => {
                   <p className="text-muted-foreground text-sm">
                     {server.managedServerDescription ||
                       server.config?.description ||
-                      server.config?.url}
+                      server.config?.url ||
+                      server.config?.command}
                   </p>
                 </div>
                 {server.type === 'managed' &&

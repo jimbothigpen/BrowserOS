@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { createHash } from 'node:crypto'
 import { createAgentUIStreamResponse, type UIMessage } from 'ai'
 import { AiSdkAgent } from '../../agent/ai-sdk-agent'
 import { formatUserMessage } from '../../agent/format-message'
@@ -484,7 +485,28 @@ export class ChatService {
   private buildMcpServerKey(browserContext?: BrowserContext): string {
     const managed = browserContext?.enabledMcpServers?.slice().sort() ?? []
     const custom =
-      browserContext?.customMcpServers?.map((s) => s.url).sort() ?? []
+      browserContext?.customMcpServers
+        ?.map((server) => {
+          const type = server.type ?? (server.command ? 'process' : 'http')
+          if (type === 'process') {
+            const envHash = server.env
+              ? createHash('sha256')
+                  .update(JSON.stringify(Object.entries(server.env).sort()))
+                  .digest('hex')
+                  .slice(0, 12)
+              : ''
+            return [
+              'process',
+              server.name,
+              server.command,
+              server.args?.join('\0'),
+              server.cwd,
+              envHash,
+            ].join(':')
+          }
+          return ['http', server.name, server.url].join(':')
+        })
+        .sort() ?? []
     const klavisState =
       managed.length > 0
         ? this.deps.klavisRef?.handle
