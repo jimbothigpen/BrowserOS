@@ -333,6 +333,28 @@ export const wait_for = defineNavigationTool({
   }),
   handler: async (args, ctx, response) => {
     const timeout = args.timeout ?? 10_000
+    const conditionCount = [
+      args.text !== undefined,
+      args.textGone !== undefined,
+      args.selector !== undefined,
+      args.selectorGone !== undefined,
+      args.time !== undefined,
+    ].filter(Boolean).length
+
+    if (conditionCount === 0) {
+      response.error(
+        'Provide text, textGone, selector, selectorGone, or time to wait for.',
+      )
+      return
+    }
+
+    if (conditionCount > 1) {
+      response.error(
+        'Provide exactly one wait condition. time cannot be combined with text, textGone, selector, or selectorGone.',
+      )
+      return
+    }
+
     const target =
       args.text !== undefined
         ? `text "${args.text}"`
@@ -346,26 +368,7 @@ export const wait_for = defineNavigationTool({
                 ? `${args.time}ms`
                 : ''
 
-    if (
-      !args.text &&
-      !args.textGone &&
-      !args.selector &&
-      !args.selectorGone &&
-      args.time === undefined
-    ) {
-      response.error(
-        'Provide text, textGone, selector, selectorGone, or time to wait for.',
-      )
-      return
-    }
-
-    if (
-      args.time !== undefined &&
-      !args.text &&
-      !args.textGone &&
-      !args.selector &&
-      !args.selectorGone
-    ) {
+    if (args.time !== undefined) {
       await new Promise((resolve) => setTimeout(resolve, args.time))
       response.text(`Waited ${args.time}ms.`)
       response.data({

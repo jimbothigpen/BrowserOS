@@ -668,6 +668,7 @@ export class Browser {
     const session = await this.resolveSession(page)
     const deadline = Date.now() + opts.timeout
     const interval = 500
+    let selectorGoneWasPresent = false
 
     while (Date.now() <= deadline) {
       if (opts.text) {
@@ -696,10 +697,14 @@ export class Browser {
 
       if (opts.selectorGone) {
         const result = await session.Runtime.evaluate({
-          expression: `!document.querySelector(${JSON.stringify(opts.selectorGone)})`,
+          expression: `!!document.querySelector(${JSON.stringify(opts.selectorGone)})`,
           returnByValue: true,
         })
-        if (result.result?.value === true) return true
+        if (result.result?.value === true) {
+          selectorGoneWasPresent = true
+        } else if (selectorGoneWasPresent) {
+          return true
+        }
       }
 
       const remaining = deadline - Date.now()
