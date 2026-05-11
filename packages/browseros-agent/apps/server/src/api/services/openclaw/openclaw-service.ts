@@ -119,9 +119,8 @@ function mapRuntimeStateToLegacy(
       return 'running'
     case 'errored':
       return 'error'
-    case 'installed':
-    case 'stopped':
-    case null:
+    // 'installed' / 'stopped' / null / unknown all map to stopped (or error
+    // when the service has a sticky lastError).
     default:
       return lastError ? 'error' : 'stopped'
   }
@@ -627,141 +626,6 @@ export class OpenClawService {
     })
   }
 
-  async start(onLog?: (msg: string) => void): Promise<void> {
-    return this.withLifecycleLock('start', async () => {
-      const logProgress = this.createProgressLogger(onLog)
-      logger.info('Starting OpenClaw service', {
-        hostPort: this.hostPort,
-      })
-
-      await this.runtime.ensureReady(logProgress)
-
-      await this.ensureStateEnvFile()
-
-      await this.ensureGatewayPortAllocated(logProgress)
-
-      if (await this.isCurrentGatewayAvailable(this.hostPort)) {
-        this.startGatewayLogTail()
-        this.controlPlaneStatus = 'connecting'
-        logProgress('Probing OpenClaw control plane...')
-        try {
-          await this.runControlPlaneCall(() => this.cliClient.probe())
-          this.lastError = null
-          logger.info('OpenClaw gateway already running', {
-            hostPort: this.hostPort,
-          })
-          return
-        } catch (error) {
-          logger.warn('OpenClaw control plane probe failed during start', {
-            hostPort: this.hostPort,
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
-      }
-
-      logProgress('Starting OpenClaw gateway...')
-      await this.runtime.startGateway(undefined, logProgress)
-      this.startGatewayLogTail()
-
-      logProgress('Waiting for gateway readiness...')
-      const ready = await this.runtime.waitForReady(
-        this.hostPort,
-        READY_TIMEOUT_MS,
-      )
-      if (!ready) {
-        this.lastError = 'Gateway did not become ready after start'
-        throw new Error(this.lastError)
-      }
-
-      this.controlPlaneStatus = 'connecting'
-      logProgress('Probing OpenClaw control plane...')
-      await this.runControlPlaneCall(() => this.cliClient.probe())
-      await this.ensureAllCliProvidersInstalled(logProgress)
-      this.lastError = null
-      logger.info('OpenClaw gateway started', { hostPort: this.hostPort })
-    })
-  }
-
-  async stop(): Promise<void> {
-    return this.withLifecycleLock('stop', async () => {
-      logger.info('Stopping OpenClaw service', { hostPort: this.hostPort })
-      this.controlPlaneStatus = 'disconnected'
-      this.stopGatewayLogTail()
-      await this.runtime.stopGateway()
-      logger.info('OpenClaw container stopped')
-    })
-  }
-
-  async restart(onLog?: (msg: string) => void): Promise<void> {
-    return this.withLifecycleLock('restart', async () => {
-      const logProgress = this.createProgressLogger(onLog)
-      logger.info('Restarting OpenClaw service', {
-        hostPort: this.hostPort,
-      })
-
-      this.controlPlaneStatus = 'reconnecting'
-      await this.runtime.ensureReady(logProgress)
-      this.stopGatewayLogTail()
-      await this.ensureStateEnvFile()
-      await this.ensureGatewayPortAllocated(logProgress)
-      logProgress('Restarting OpenClaw gateway...')
-      await this.runtime.restartGateway(undefined, logProgress)
-      this.startGatewayLogTail()
-
-      logProgress('Waiting for gateway readiness...')
-      const ready = await this.runtime.waitForReady(
-        this.hostPort,
-        READY_TIMEOUT_MS,
-      )
-      if (!ready) {
-        this.lastError = 'Gateway did not become ready after restart'
-        throw new Error(this.lastError)
-      }
-
-      logProgress('Probing OpenClaw control plane...')
-      await this.runControlPlaneCall(() => this.cliClient.probe())
-      await this.ensureAllCliProvidersInstalled(logProgress)
-      this.lastError = null
-      logProgress('Gateway restarted successfully')
-      logger.info('OpenClaw gateway restarted', { hostPort: this.hostPort })
-    })
-  }
-
-  async reconnectControlPlane(onLog?: (msg: string) => void): Promise<void> {
-    return this.withLifecycleLock('reconnect', async () => {
-      const logProgress = this.createProgressLogger(onLog)
-      logger.info('Reconnecting OpenClaw control plane', {
-        hostPort: this.hostPort,
-      })
-
-      logProgress('Checking gateway readiness...')
-      const ready = await this.runtime.isReady()
-      if (!ready) {
-        this.controlPlaneStatus = 'failed'
-        this.lastGatewayError = 'OpenClaw gateway is not ready'
-        this.lastRecoveryReason = 'container_not_ready'
-        throw new Error('OpenClaw gateway is not ready')
-      }
-
-      this.controlPlaneStatus = 'reconnecting'
-      logProgress('Reconnecting control plane...')
-      await this.runControlPlaneCall(() => this.cliClient.probe())
-      logProgress('Control plane connected')
-    })
-  }
-
-  async shutdown(): Promise<void> {
-    this.controlPlaneStatus = 'disconnected'
-    this.stopGatewayLogTail()
-    try {
-      await this.runtime.stopGateway()
-    } catch {
-      // Best effort during shutdown
-    }
-    await this.runtime.stopVm()
-    logger.info('OpenClaw shutdown complete')
-  }
-
   // ── Status ───────────────────────────────────────────────────────────
 
   async getStatus(): Promise<OpenClawStatusResponse> {
@@ -853,7 +717,7 @@ export class OpenClawService {
         configChanged,
         keysChanged,
       })
-      await this.restart()
+      await this.runtime.restartGateway(undefined)
     }
 
     const model = provider.model
@@ -1117,7 +981,7 @@ export class OpenClawService {
     const envChanged = await this.writeStateEnv(provider.envValues)
     const restarted = configChanged || envChanged
     if (restarted) {
-      await this.restart()
+      await this.runtime.restartGateway(undefined)
     }
     if (provider.model) {
       const model = provider.model
@@ -1461,16 +1325,6 @@ export class OpenClawService {
         error: err instanceof Error ? err.message : String(err),
       })
     }
-  }
-
-  private stopGatewayLogTail(): void {
-    if (!this.stopLogTail) return
-    try {
-      this.stopLogTail()
-    } catch {
-      // best effort
-    }
-    this.stopLogTail = null
   }
 
   private getHostWorkspaceDir(agentName: string): string {

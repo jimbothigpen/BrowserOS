@@ -111,54 +111,6 @@ export function createOpenClawRoutes() {
       }
     })
 
-    .post('/start', async (c) => {
-      try {
-        logger.info('OpenClaw start requested')
-        await getOpenClawService().start()
-        return c.json({ status: 'running' })
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        logger.error('OpenClaw start failed', { error: message })
-        return c.json({ error: message }, 500)
-      }
-    })
-
-    .post('/stop', async (c) => {
-      try {
-        logger.info('OpenClaw stop requested')
-        await getOpenClawService().stop()
-        return c.json({ status: 'stopped' })
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        logger.error('OpenClaw stop failed', { error: message })
-        return c.json({ error: message }, 500)
-      }
-    })
-
-    .post('/restart', async (c) => {
-      try {
-        logger.info('OpenClaw restart requested')
-        await getOpenClawService().restart()
-        return c.json({ status: 'running' })
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        logger.error('OpenClaw restart failed', { error: message })
-        return c.json({ error: message }, 500)
-      }
-    })
-
-    .post('/reconnect', async (c) => {
-      try {
-        logger.info('OpenClaw reconnect requested')
-        await getOpenClawService().reconnectControlPlane()
-        return c.json({ status: 'connected' })
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        logger.error('OpenClaw reconnect failed', { error: message })
-        return c.json({ error: message }, 500)
-      }
-    })
-
     .get('/agents', async (c) => {
       try {
         const agents = await getOpenClawService().listAgents()

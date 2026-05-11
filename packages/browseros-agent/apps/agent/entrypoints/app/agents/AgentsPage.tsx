@@ -24,22 +24,14 @@ import {
 import {
   canManageOpenClawAgents,
   getAgentsLoading,
-  getControlPlaneCopyForStatus,
   getGatewayUiState,
   getInlineError,
-  getLifecycleBanner,
-  getRecoveryDetail,
   getVisibleOpenClawAgents,
-  shouldShowControlPlaneDegraded,
   toHarnessListItem,
   toOpenClawListItem,
 } from './agents-page-utils'
 import { NewAgentDialog } from './NewAgentDialog'
-import {
-  ControlPlaneAlert,
-  InlineErrorAlert,
-  LifecycleAlert,
-} from './OpenClawControls'
+import { InlineErrorAlert } from './OpenClawControls'
 import { RuntimeControlPanel } from './runtime-controls/RuntimeControlPanel'
 import { RuntimeStatusBar } from './runtime-controls/RuntimeStatusBar'
 import { SetupOpenClawDialog } from './SetupOpenClawDialog'
@@ -86,14 +78,9 @@ export const AgentsPage: FC = () => {
     setupOpenClaw,
     createAgent: createOpenClawAgent,
     deleteAgent: deleteOpenClawAgent,
-    restartOpenClaw,
-    reconnectOpenClaw,
-    actionInProgress,
     settingUp,
     creating: creatingOpenClawAgent,
     deleting: deletingOpenClawAgent,
-    reconnecting,
-    pendingGatewayAction,
   } = useOpenClawMutations()
 
   const [setupOpen, setSetupOpen] = useState(false)
@@ -155,7 +142,10 @@ export const AgentsPage: FC = () => {
     setHarnessReasoningEffort,
   })
 
-  const lifecyclePending = pendingGatewayAction !== null
+  // Lifecycle pending used to track legacy /claw/start /stop /restart /reconnect
+  // mutations. Those routes are gone — RuntimeControlPanel renders its own
+  // spinner on the action buttons.
+  const lifecyclePending = false
   const gatewayUiState = useMemo(() => getGatewayUiState(status), [status])
   const openClawManageable = canManageOpenClawAgents(
     gatewayUiState,
@@ -234,31 +224,30 @@ export const AgentsPage: FC = () => {
     setHarnessReasoningEffort(descriptor?.defaultReasoningEffort ?? '')
   }
 
-  const { handleCreate, handleDelete, handleSetup, runWithPageErrorHandling } =
-    createAgentPageActions({
-      createProviderId,
-      createRuntime,
-      createHermesProviderId,
-      harnessModelId,
-      harnessReasoningEffort,
-      navigate,
-      newName,
-      selectableOpenClawProviders,
-      selectableHermesProviders,
-      setupProviderId,
-      createHarnessAgent: createHarnessAgent.mutateAsync,
-      createOpenClawAgent,
-      deleteHarnessAgent: deleteHarnessAgent.mutateAsync,
-      deleteOpenClawAgent,
-      setCliAuthModalOpen,
-      setCreateError,
-      setCreateOpen,
-      setDeletingAgentKey,
-      setNewName,
-      setPageError,
-      setSetupOpen,
-      setupOpenClaw,
-    })
+  const { handleCreate, handleDelete, handleSetup } = createAgentPageActions({
+    createProviderId,
+    createRuntime,
+    createHermesProviderId,
+    harnessModelId,
+    harnessReasoningEffort,
+    navigate,
+    newName,
+    selectableOpenClawProviders,
+    selectableHermesProviders,
+    setupProviderId,
+    createHarnessAgent: createHarnessAgent.mutateAsync,
+    createOpenClawAgent,
+    deleteHarnessAgent: deleteHarnessAgent.mutateAsync,
+    deleteOpenClawAgent,
+    setCliAuthModalOpen,
+    setCreateError,
+    setCreateOpen,
+    setDeletingAgentKey,
+    setNewName,
+    setPageError,
+    setSetupOpen,
+    setupOpenClaw,
+  })
 
   if (showTerminal) {
     return <AgentTerminal onBack={() => setShowTerminal(false)} />
@@ -284,13 +273,9 @@ export const AgentsPage: FC = () => {
     )
   }
 
-  const showControlPlaneDegraded = shouldShowControlPlaneDegraded(
-    gatewayUiState,
-    lifecyclePending,
-  )
-  const lifecycleBanner = getLifecycleBanner(pendingGatewayAction)
-  const recoveryDetail = status ? getRecoveryDetail(status) : null
-  const controlPlaneCopy = getControlPlaneCopyForStatus(status)
+  // showControlPlaneDegraded gating was removed alongside ControlPlaneAlert
+  // — the new RuntimeControlPanel surfaces degraded state directly via the
+  // runtime status pill and CTAs.
 
   // Bar only makes sense when the gateway is meaningfully alive AND
   // there's at least one OpenClaw agent in the merged list. Hide it
@@ -305,29 +290,10 @@ export const AgentsPage: FC = () => {
       <div className="fade-in slide-in-from-bottom-5 mx-auto flex w-full max-w-5xl animate-in flex-col gap-6 duration-500">
         <AgentsHeader onCreateAgent={() => setCreateOpen(true)} />
 
-        {lifecycleBanner ? <LifecycleAlert message={lifecycleBanner} /> : null}
-
         {inlineError ? (
           <InlineErrorAlert
             message={inlineError}
             onDismiss={() => setPageError(null)}
-          />
-        ) : null}
-
-        {status && showControlPlaneDegraded ? (
-          <ControlPlaneAlert
-            actionInProgress={actionInProgress}
-            controlPlaneBusy={gatewayUiState.controlPlaneBusy}
-            controlPlaneCopy={controlPlaneCopy}
-            reconnecting={reconnecting}
-            recoveryDetail={recoveryDetail}
-            status={status}
-            onReconnect={() => {
-              void runWithPageErrorHandling(reconnectOpenClaw)
-            }}
-            onRestart={() => {
-              void runWithPageErrorHandling(restartOpenClaw)
-            }}
           />
         ) : null}
 

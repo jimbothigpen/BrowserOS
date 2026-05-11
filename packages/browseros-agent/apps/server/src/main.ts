@@ -15,7 +15,6 @@ import { createHttpServer } from './api/server'
 import {
   configureOpenClawService,
   configureVmRuntime,
-  getOpenClawService,
 } from './api/services/openclaw/openclaw-service'
 import { CdpBackend } from './browser/backends/cdp'
 import { Browser } from './browser/browser'
@@ -27,6 +26,7 @@ import {
   configureHermesRuntime,
   configureOpenClawRuntime,
   getHermesRuntime,
+  getOpenClawRuntime,
 } from './lib/agents/runtime'
 import {
   cleanOldSessions,
@@ -193,8 +193,8 @@ export class Application {
   stop(reason?: string): void {
     logger.info('Shutting down server...', { reason })
     stopSkillSync()
-    getOpenClawService()
-      .shutdown()
+    getOpenClawRuntime()
+      ?.executeAction({ type: 'stop' })
       .catch(() => {})
     getHermesRuntime()
       ?.executeAction({ type: 'stop' })

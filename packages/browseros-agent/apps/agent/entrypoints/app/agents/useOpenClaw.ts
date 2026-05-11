@@ -201,66 +201,17 @@ export function useOpenClawMutations() {
     onSuccess,
   })
 
-  const startMutation = useMutation({
-    mutationFn: async () =>
-      clawFetch<{ status: string }>(ensureBaseUrl(), '/start', {
-        method: 'POST',
-      }),
-    onSuccess,
-  })
-
-  const stopMutation = useMutation({
-    mutationFn: async () =>
-      clawFetch<{ status: string }>(ensureBaseUrl(), '/stop', {
-        method: 'POST',
-      }),
-    onSuccess,
-  })
-
-  const restartMutation = useMutation({
-    mutationFn: async () =>
-      clawFetch<{ status: string }>(ensureBaseUrl(), '/restart', {
-        method: 'POST',
-      }),
-    onSuccess,
-  })
-
-  const reconnectMutation = useMutation({
-    mutationFn: async () =>
-      clawFetch<{ status: string }>(ensureBaseUrl(), '/reconnect', {
-        method: 'POST',
-      }),
-    onSuccess,
-  })
-
-  let pendingGatewayAction: GatewayLifecycleAction | null = null
-  if (setupMutation.isPending) pendingGatewayAction = 'setup'
-  else if (restartMutation.isPending) pendingGatewayAction = 'restart'
-  else if (stopMutation.isPending) pendingGatewayAction = 'stop'
-  else if (startMutation.isPending) pendingGatewayAction = 'start'
-  else if (reconnectMutation.isPending) pendingGatewayAction = 'reconnect'
-
   return {
     setupOpenClaw: setupMutation.mutateAsync,
     createAgent: createMutation.mutateAsync,
     deleteAgent: deleteMutation.mutateAsync,
-    startOpenClaw: startMutation.mutateAsync,
-    stopOpenClaw: stopMutation.mutateAsync,
-    restartOpenClaw: restartMutation.mutateAsync,
-    reconnectOpenClaw: reconnectMutation.mutateAsync,
     actionInProgress:
       setupMutation.isPending ||
       createMutation.isPending ||
-      deleteMutation.isPending ||
-      startMutation.isPending ||
-      stopMutation.isPending ||
-      restartMutation.isPending ||
-      reconnectMutation.isPending,
+      deleteMutation.isPending,
     settingUp: setupMutation.isPending,
     creating: createMutation.isPending,
     deleting: deleteMutation.isPending,
-    reconnecting: reconnectMutation.isPending,
-    pendingGatewayAction,
   }
 }
 
