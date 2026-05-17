@@ -69,6 +69,28 @@ class ExtractArtifactZipTest(unittest.TestCase):
                         f"{relative_path} should be executable",
                     )
 
+    def test_extracts_zip_members_without_unix_modes(self) -> None:
+        files = {
+            "resources/bin/browseros_server": b"server-binary",
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            archive_path = temp_path / "artifact.zip"
+            destination = temp_path / "output"
+            self._write_artifact_zip(archive_path, files)
+
+            extracted_paths = extract_artifact_zip(archive_path, destination)
+
+            self.assertEqual(len(extracted_paths), len(files))
+            extracted_path = destination / "resources/bin/browseros_server"
+            self.assertEqual(extracted_path.read_bytes(), b"server-binary")
+
+            if os.name != "nt":
+                mode = os.stat(extracted_path).st_mode
+                self.assertTrue(mode & stat.S_IRUSR)
+                self.assertFalse(mode & stat.S_IXUSR)
+
     def test_rejects_missing_declared_files(self) -> None:
         files = {
             "resources/bin/browseros_server": b"server-binary",

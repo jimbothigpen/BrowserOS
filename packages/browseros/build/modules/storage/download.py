@@ -15,6 +15,7 @@ from ...common.context import Context
 from ...common.utils import (
     log_info,
     log_success,
+    log_warning,
     get_platform,
 )
 
@@ -164,6 +165,12 @@ def _restore_zip_file_mode(dest_path: Path, archive_info: zipfile.ZipInfo) -> No
 
     mode = (archive_info.external_attr >> 16) & 0o777
     if mode == 0:
+        parts = PurePosixPath(archive_info.filename).parts
+        if len(parts) >= 2 and parts[0] == "resources" and parts[1] == "bin":
+            log_warning(
+                "No Unix mode bits in zip entry "
+                f"{archive_info.filename}; leaving default permissions"
+            )
         return
 
     dest_path.chmod((dest_path.stat().st_mode & ~0o777) | mode)
