@@ -48,23 +48,6 @@ describe('orderAgentsByPinThenRecency', () => {
     ])
   })
 
-  it('seed-pins the gateway main agent above other never-used agents', () => {
-    const result = orderAgentsByPinThenRecency([
-      makeAgent({ id: 'aaa', pinned: false, lastUsedAt: null }),
-      makeAgent({ id: 'main', pinned: false, lastUsedAt: null }),
-      makeAgent({ id: 'zzz', pinned: false, lastUsedAt: null }),
-    ])
-    expect(result.map((entry) => entry.id)).toEqual(['main', 'aaa', 'zzz'])
-  })
-
-  it('drops the main seed-pin once the agent has been used', () => {
-    const result = orderAgentsByPinThenRecency([
-      makeAgent({ id: 'aaa', pinned: false, lastUsedAt: 999 }),
-      makeAgent({ id: 'main', pinned: false, lastUsedAt: 1 }),
-    ])
-    expect(result.map((entry) => entry.id)).toEqual(['aaa', 'main'])
-  })
-
   it('puts never-used agents below recently-used ones', () => {
     const result = orderAgentsByPinThenRecency([
       makeAgent({ id: 'fresh', pinned: false, lastUsedAt: null }),
@@ -93,12 +76,12 @@ describe('compareAgentsByPinThenRecency', () => {
     expect(sorted.map((item) => item.id)).toEqual(['pinned', 'newer', 'older'])
   })
 
-  it('seeds the main agent above other never-used rows', () => {
+  it('id-stable tiebreaks never-used rows', () => {
     const items = [
       { id: 'zzz', pinned: false, lastUsedAt: null },
-      { id: 'main', pinned: false, lastUsedAt: null },
+      { id: 'aaa', pinned: false, lastUsedAt: null },
     ]
     const sorted = [...items].sort(compareAgentsByPinThenRecency)
-    expect(sorted.map((item) => item.id)).toEqual(['main', 'zzz'])
+    expect(sorted.map((item) => item.id)).toEqual(['aaa', 'zzz'])
   })
 })

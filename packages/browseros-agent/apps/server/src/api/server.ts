@@ -10,7 +10,6 @@
  * - MCP HTTP routes (using @hono/mcp transport)
  */
 
-import { OPENCLAW_GATEWAY_CONTAINER_NAME } from '@browseros/shared/constants/openclaw'
 import { Hono } from 'hono'
 import { websocket } from 'hono/bun'
 import { cors } from 'hono/cors'
@@ -22,7 +21,6 @@ import { initializeOAuth, shutdownOAuth } from '../lib/clients/oauth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { Sentry } from '../lib/sentry'
-import { getLimaHomeDir, resolveBundledLimactl, VM_NAME } from '../lib/vm'
 import { createAgentRoutes } from './routes/agents'
 import { createChatRoutes } from './routes/chat'
 import { createCreditsRoutes } from './routes/credits'
@@ -31,18 +29,14 @@ import { createKlavisRoutes } from './routes/klavis'
 import { createMcpRoutes } from './routes/mcp'
 import { createMonitoringRoutes } from './routes/monitoring'
 import { createOAuthRoutes } from './routes/oauth'
-import { createOpenClawRoutes } from './routes/openclaw'
 import { createProviderRoutes } from './routes/provider'
 import { createRefinePromptRoutes } from './routes/refine-prompt'
 import { createShutdownRoute } from './routes/shutdown'
 import { createStatusRoute } from './routes/status'
-import { createTerminalRoutes } from './routes/terminal'
 import {
   connectKlavisInBackground,
   type KlavisProxyRef,
 } from './services/klavis/strata-proxy'
-import { convertOpenClawHistoryToAgentHistory } from './services/openclaw/history-mapper'
-import { getOpenClawService } from './services/openclaw/openclaw-service'
 import type { Env, HttpServerConfig } from './types'
 import { defaultCorsConfig } from './utils/cors'
 import { requireTrustedAppOrigin } from './utils/request-auth'
@@ -97,22 +91,6 @@ export async function createHttpServer(config: HttpServerConfig) {
       })
     : () => {}
 
-  const clawRoutes = new Hono<Env>()
-    .use('/*', requireTrustedAppOrigin())
-    .route('/', createOpenClawRoutes())
-
-  const terminalRoutes = new Hono<Env>()
-    .use('/*', requireTrustedAppOrigin())
-    .route(
-      '/',
-      createTerminalRoutes({
-        containerName: OPENCLAW_GATEWAY_CONTAINER_NAME,
-        limaHome: getLimaHomeDir(),
-        limactlPath: () => resolveBundledLimactl(resourcesDir),
-        vmName: VM_NAME,
-      }),
-    )
-
   const monitoringRoutes = new Hono<Env>()
     .use('/*', requireTrustedAppOrigin())
     .route('/', createMonitoringRoutes())
@@ -124,42 +102,6 @@ export async function createHttpServer(config: HttpServerConfig) {
       createAgentRoutes({
         browserosServerPort: port,
         browser,
-        openclawGateway: {
-          getContainerName: () => OPENCLAW_GATEWAY_CONTAINER_NAME,
-          getLimaHomeDir: () => getLimaHomeDir(),
-          getLimactlPath: () => resolveBundledLimactl(resourcesDir),
-          getVmName: () => VM_NAME,
-        },
-        openclawProvisioner: {
-          createAgent: (input) => getOpenClawService().createAgent(input),
-          removeAgent: (agentId) => getOpenClawService().removeAgent(agentId),
-          listAgents: async () => {
-            const agents = await getOpenClawService().listAgents()
-            return agents.map((agent) => ({
-              agentId: agent.agentId,
-              name: agent.name,
-              model: agent.model,
-            }))
-          },
-          getStatus: () => getOpenClawService().getStatus(),
-          getAgentHistory: async (agentId) => {
-            // Aggregated across the agent's main + every sub-session
-            // (cron / hook / channel) so autonomous turns surface in
-            // the chat panel alongside user-initiated ones.
-            const raw = await getOpenClawService().getSessionHistory(
-              `agent:${agentId}:main`,
-            )
-            return convertOpenClawHistoryToAgentHistory(agentId, raw)
-          },
-        },
-        onTurnLifecycle: (agent, event) => {
-          if (agent.adapter !== 'openclaw') return
-          getOpenClawService().recordAgentTurnEvent(
-            agent.id,
-            agent.sessionKey,
-            event,
-          )
-        },
       }),
     )
 
@@ -225,7 +167,6 @@ export async function createHttpServer(config: HttpServerConfig) {
       }),
     )
     .route('/agents', agentRoutes)
-    .route('/claw', clawRoutes)
 
   // Error handler
   app.onError((err, c) => {
@@ -266,8 +207,6 @@ export async function createHttpServer(config: HttpServerConfig) {
   })
 
   await assertPortAvailable(port)
-
-  app.route('/terminal', terminalRoutes)
 
   const server = Bun.serve({
     fetch: (request, server) => app.fetch(request, { server }),

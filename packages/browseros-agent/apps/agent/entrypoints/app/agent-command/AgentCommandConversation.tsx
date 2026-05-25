@@ -1,8 +1,9 @@
-import { ArrowLeft, PanelRight } from 'lucide-react'
-import { type FC, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
+import { type FC, useEffect, useMemo, useRef } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import type {
+  AgentEntry,
   HarnessAgent,
   HarnessAgentAdapter,
 } from '@/entrypoints/app/agents/agent-harness-types'
@@ -15,25 +16,17 @@ import {
   useRemoveHarnessQueuedMessage,
   useUpdateHarnessAgent,
 } from '@/entrypoints/app/agents/useAgents'
-import type { AgentEntry } from '@/entrypoints/app/agents/useOpenClaw'
-import { type ProducedFilesRailGroup, useAgentOutputs } from '@/lib/agent-files'
 import { cn } from '@/lib/utils'
+import { AgentChat } from './AgentChat'
 import { AgentRail } from './AgentRail'
-import { useAgentCommandData } from './agent-command-layout'
 import {
-  OutputsRail,
-  useOutputsRailOpen,
-} from './agent-conversation.outputs-rail'
-import { ClawChat } from './ClawChat'
-import { ConversationHeader } from './ConversationHeader'
-import { ConversationInput } from './ConversationInput'
-import {
-  buildChatHistoryFromClawMessages,
+  buildChatHistoryFromAgentMessages,
   filterTurnsPersistedInHistory,
   flattenHistoryPages,
-  mapHistoryToProducedFilesGroups,
-  selectStripOnlyTurns,
-} from './claw-chat-types'
+} from './agent-chat-types'
+import { useAgentCommandData } from './agent-command-layout'
+import { ConversationHeader } from './ConversationHeader'
+import { ConversationInput } from './ConversationInput'
 import { consumePendingInitialMessage } from './pending-initial-message'
 import { QueuePanel } from './QueuePanel'
 import { useAgentConversation } from './useAgentConversation'
@@ -46,7 +39,6 @@ function AgentConversationController({
   agents,
   agentPathPrefix,
   createAgentPath,
-  onOpenOutputsRail,
 }: {
   agentId: string
   initialMessage: string | null
@@ -54,17 +46,12 @@ function AgentConversationController({
   agents: AgentEntry[]
   agentPathPrefix: string
   createAgentPath: string
-  onOpenOutputsRail?: ((turnId?: string | null) => void) | null
 }) {
   const navigate = useNavigate()
   const initialMessageSentRef = useRef<string | null>(null)
   const onInitialMessageConsumedRef = useRef(onInitialMessageConsumed)
   const agent = agents.find((entry) => entry.agentId === agentId)
   const agentName = agent?.name || agentId || 'Agent'
-  // Routing is now harness-only. Every OpenClaw agent has a harness
-  // record post the gateway → harness backfill, so the chat panel
-  // always talks to /agents/<id>/chat. The legacy ClawChat surface
-  // was deleted with the /claw/agents/:id/chat server route.
   const harnessHistoryQuery = useHarnessChatHistory(agentId, Boolean(agent))
 
   const historyMessages = useMemo(
@@ -75,7 +62,7 @@ function AgentConversationController({
     [harnessHistoryQuery.data],
   )
   const chatHistory = useMemo(
-    () => buildChatHistoryFromClawMessages(historyMessages),
+    () => buildChatHistoryFromAgentMessages(historyMessages),
     [historyMessages],
   )
 
@@ -86,15 +73,6 @@ function AgentConversationController({
   const harnessAgent = harnessAgents.find((entry) => entry.id === agentId)
   const queue = harnessAgent?.queue ?? []
   const activeTurnId = harnessAgent?.activeTurnId ?? null
-  const isOpenClawAgent = harnessAgent?.adapter === 'openclaw'
-
-  // Used to surface produced-files strips on a fresh page load
-  // when there's no optimistic turn to carry the data. Disabled
-  // for non-openclaw adapters since they don't attribute files.
-  const { groups: agentOutputGroups } = useAgentOutputs(
-    agentId,
-    isOpenClawAgent,
-  )
 
   const { turns, streaming, send } = useAgentConversation(agentId, {
     runtime: 'agent-harness',
@@ -119,44 +97,6 @@ function AgentConversationController({
     () => filterTurnsPersistedInHistory(turns, historyMessages),
     [historyMessages, turns],
   )
-  // Persisted turns that still need to surface their FileCardStrip
-  // — history items don't carry produced-files data, so without
-  // these the strip would vanish on history reload.
-  const stripOnlyTurns = useMemo(
-    () => selectStripOnlyTurns(turns, historyMessages),
-    [historyMessages, turns],
-  )
-  // Two outputs from the per-turn matcher:
-  //  - filesByAssistantId  → strip rendered directly under the
-  //    matching assistant history bubble.
-  //  - tailUnmatched      → groups with no history pair (orphans);
-  //    rendered at the conversation tail.
-  // Both are filtered to exclude turnIds already covered by a
-  // live or strip-only optimistic turn (those carry their own
-  // strip and history hasn't reloaded yet).
-  const { filesByAssistantId, tailStripGroups } = useMemo(() => {
-    if (!isOpenClawAgent) {
-      return {
-        filesByAssistantId: new Map<string, ProducedFilesRailGroup>(),
-        tailStripGroups: [] as ProducedFilesRailGroup[],
-      }
-    }
-    const coveredTurnIds = new Set<string>()
-    for (const turn of turns) {
-      if (turn.turnId) coveredTurnIds.add(turn.turnId)
-    }
-    const eligibleGroups = agentOutputGroups.filter(
-      (group) => !coveredTurnIds.has(group.turnId),
-    )
-    const { byAssistantMessageId, unmatched } = mapHistoryToProducedFilesGroups(
-      historyMessages,
-      eligibleGroups,
-    )
-    return {
-      filesByAssistantId: byAssistantMessageId,
-      tailStripGroups: unmatched,
-    }
-  }, [agentOutputGroups, isOpenClawAgent, historyMessages, turns])
   onInitialMessageConsumedRef.current = onInitialMessageConsumed
 
   const disabled = !agent
@@ -224,20 +164,16 @@ function AgentConversationController({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <ClawChat
+      <AgentChat
         agentName={agentName}
         historyMessages={historyMessages}
         turns={visibleTurns}
-        stripOnlyTurns={stripOnlyTurns}
-        filesByAssistantId={filesByAssistantId}
-        tailStripGroups={tailStripGroups}
         streaming={streaming}
         isInitialLoading={harnessHistoryQuery.isLoading}
         error={error}
         hasNextPage={false}
         isFetchingNextPage={false}
         onFetchNextPage={() => {}}
-        onOpenOutputsRail={onOpenOutputsRail}
         onRetry={() => {
           void harnessHistoryQuery.refetch()
         }}
@@ -317,9 +253,7 @@ function inferAdapterFromEntry(
     // tile's bot fallback renders until data arrives.
     return 'unknown'
   }
-  // OpenClaw-only entries (no harness shadow) are deprecated in
-  // practice but the rail still tolerates them.
-  return 'openclaw'
+  return 'unknown'
 }
 
 export const AgentCommandConversation: FC<AgentCommandConversationProps> = ({
@@ -347,45 +281,6 @@ export const AgentCommandConversation: FC<AgentCommandConversationProps> = ({
   const initialMessage = searchParams.get('q')
   const isPageVariant = variant === 'page'
   const backLabel = isPageVariant ? 'Back to agents' : 'Back to home'
-
-  const isOpenClawAgent = harnessAgent?.adapter === 'openclaw'
-  const [outputsRailOpen, setOutputsRailOpen] =
-    useOutputsRailOpen(resolvedAgentId)
-  const railVisible = isOpenClawAgent && outputsRailOpen
-
-  // Deep-link target for the rail. Set when (a) the user clicks
-  // View / +N on an inline file-card strip, or (b) an external nav
-  // arrived with `?outputsTurn=<turnId>`. Cleared by the rail
-  // itself once it has scrolled to + expanded the matching group.
-  const urlOutputsTurn = searchParams.get('outputsTurn')
-  const [focusTurnId, setFocusTurnId] = useState<string | null>(urlOutputsTurn)
-  // If the URL param flips while we're already on this agent, sync.
-  useEffect(() => {
-    if (!urlOutputsTurn) return
-    setFocusTurnId(urlOutputsTurn)
-    if (isOpenClawAgent) setOutputsRailOpen(true)
-  }, [urlOutputsTurn, isOpenClawAgent, setOutputsRailOpen])
-
-  const handleOpenOutputsRail = (turnId?: string | null) => {
-    if (!isOpenClawAgent) return
-    setOutputsRailOpen(true)
-    setFocusTurnId(turnId ?? null)
-  }
-  const handleFocusTurnConsumed = () => {
-    setFocusTurnId(null)
-    if (urlOutputsTurn) {
-      // Drop the URL param so a back-nav doesn't re-trigger the
-      // scroll. `replace: true` keeps history clean.
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev)
-          next.delete('outputsTurn')
-          return next
-        },
-        { replace: true },
-      )
-    }
-  }
 
   const adapterHealth = useMemo<AgentAdapterHealth | null>(() => {
     const adapterId = harnessAgent?.adapter
@@ -446,32 +341,15 @@ export const AgentCommandConversation: FC<AgentCommandConversationProps> = ({
               onPinToggle={(next) =>
                 handlePinToggle(harnessAgent ?? null, next)
               }
-              headerExtra={
-                isOpenClawAgent ? (
-                  <Button
-                    variant={railVisible ? 'secondary' : 'ghost'}
-                    size="icon"
-                    className="size-8 rounded-xl"
-                    onClick={() => setOutputsRailOpen(!railVisible)}
-                    title={railVisible ? 'Hide outputs' : 'Show outputs'}
-                  >
-                    <PanelRight className="size-4" />
-                  </Button>
-                ) : undefined
-              }
             />
           </div>
         </div>
 
-        {/* Body grid: rail list + chat (+ outputs rail when an
-            openclaw agent has it open). Columns share the same top
-            edge as the band above so headers can never drift. */}
+        {/* Body grid: rail list + chat. Columns share the same top edge as the band above. */}
         <div
           className={cn(
             'grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]',
-            railVisible
-              ? 'lg:grid-cols-[288px_minmax(0,1fr)_320px]'
-              : 'lg:grid-cols-[288px_minmax(0,1fr)]',
+            'lg:grid-cols-[288px_minmax(0,1fr)]',
           )}
         >
           <AgentRail
@@ -489,33 +367,12 @@ export const AgentCommandConversation: FC<AgentCommandConversationProps> = ({
               agents={agents}
               initialMessage={initialMessage}
               onInitialMessageConsumed={() => {
-                // Preserve the outputsTurn deep-link if present —
-                // dropping all params would erase the rail focus
-                // before it had a chance to consume.
-                setSearchParams(
-                  (prev) => {
-                    const next = new URLSearchParams()
-                    const turn = prev.get('outputsTurn')
-                    if (turn) next.set('outputsTurn', turn)
-                    return next
-                  },
-                  { replace: true },
-                )
+                setSearchParams(() => new URLSearchParams(), { replace: true })
               }}
               agentPathPrefix={agentPathPrefix}
               createAgentPath={createAgentPath}
-              onOpenOutputsRail={isOpenClawAgent ? handleOpenOutputsRail : null}
             />
           </div>
-
-          {railVisible ? (
-            <OutputsRail
-              agentId={resolvedAgentId}
-              onClose={() => setOutputsRailOpen(false)}
-              focusTurnId={focusTurnId}
-              onFocusTurnConsumed={handleFocusTurnConsumed}
-            />
-          ) : null}
         </div>
       </div>
     </div>

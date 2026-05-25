@@ -11,16 +11,9 @@ import {
   type HarnessQueuedMessage,
   mapHarnessAgentToEntry,
 } from './agent-harness-types'
-import type { OpenClawStatus } from './useOpenClaw'
 
-/**
- * Combined response shape of `GET /agents`. The page polls this once
- * and consumes both fields, replacing the dedicated `/claw/status`
- * poll the previous design carried.
- */
 interface HarnessAgentsResponse {
   agents: HarnessAgent[]
-  gateway: OpenClawStatus | null
 }
 
 export type { AgentHarnessStreamEvent }
@@ -28,12 +21,6 @@ export type { AgentHarnessStreamEvent }
 export const AGENT_QUERY_KEYS = {
   adapters: 'agent-harness-adapters',
   agents: 'agent-harness-agents',
-  /** Outputs-rail data for one agent — `[agentOutputs, baseUrl, agentId]`. */
-  agentOutputs: 'agent-harness-agent-outputs',
-  /** Per-turn artifact-card files — `[agentTurnFiles, baseUrl, agentId, turnId]`. */
-  agentTurnFiles: 'agent-harness-agent-turn-files',
-  /** Single-file preview payload — `[filePreview, baseUrl, fileId]`. */
-  filePreview: 'agent-harness-file-preview',
 } as const
 
 export async function agentsFetch<T>(
@@ -96,7 +83,6 @@ export function useHarnessAgents(enabled = true) {
       )
       return {
         agents: data.agents ?? [],
-        gateway: data.gateway ?? null,
       }
     },
     enabled: Boolean(baseUrl) && !urlLoading && enabled,
@@ -111,7 +97,6 @@ export function useHarnessAgents(enabled = true) {
   return {
     agents: (query.data?.agents ?? []).map(mapHarnessAgentToEntry),
     harnessAgents: query.data?.agents ?? [],
-    gateway: query.data?.gateway ?? null,
     loading: query.isLoading || urlLoading,
     error: query.error ?? urlError,
     refetch: query.refetch,

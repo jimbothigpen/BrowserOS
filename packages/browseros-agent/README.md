@@ -86,8 +86,7 @@ bun run dev:setup
 bun run dev:watch
 ```
 
-`dev:watch` starts the server immediately. OpenClaw VM/image prewarm runs from
-the server startup path and pulls the configured GHCR image on demand.
+`dev:watch` starts the server and agent UI immediately.
 
 ### Environment Variables
 

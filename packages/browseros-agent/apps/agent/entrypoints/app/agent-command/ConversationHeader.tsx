@@ -14,13 +14,13 @@ import { cn } from '@/lib/utils'
 interface ConversationHeaderProps {
   agent: HarnessAgent | null
   fallbackName: string
-  fallbackAdapter: 'claude' | 'codex' | 'openclaw' | 'hermes' | 'unknown'
+  fallbackAdapter: 'claude' | 'codex' | 'hermes' | 'unknown'
   adapterHealth: AgentAdapterHealth | null
   backLabel: string
   backTarget: 'home' | 'page'
   onGoHome: () => void
   onPinToggle: (next: boolean) => void
-  /** Optional trailing slot — currently used for the Outputs rail toggle. */
+  /** Optional trailing slot for conversation-specific actions. */
   headerExtra?: ReactNode
 }
 

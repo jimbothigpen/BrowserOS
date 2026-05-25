@@ -53,7 +53,7 @@ export class MonitoringService {
       originalPrompt: input.originalPrompt,
       chatHistory: input.chatHistory,
       startedAt: new Date().toISOString(),
-      source: input.source ?? 'openclaw-agent-chat',
+      source: input.source ?? 'agent-chat',
     }
 
     await this.storage.writeContext(context)

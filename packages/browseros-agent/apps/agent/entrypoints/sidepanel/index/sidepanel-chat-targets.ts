@@ -107,7 +107,6 @@ function toAcpTargetForAgent(
 function formatAdapterName(adapter: HarnessAgentAdapter): string {
   if (adapter === 'claude') return 'Claude Code'
   if (adapter === 'codex') return 'Codex'
-  if (adapter === 'openclaw') return 'OpenClaw'
   if (adapter === 'hermes') return 'Hermes'
   return adapter
 }

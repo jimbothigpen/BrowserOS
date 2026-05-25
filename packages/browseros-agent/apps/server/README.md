@@ -82,12 +82,6 @@ The agent loop uses the [Vercel AI SDK](https://sdk.vercel.ai) to orchestrate mu
 
 The provider factory (`src/agent/provider-factory.ts`) creates AI SDK providers from runtime configuration, supporting hot-swapping between providers without restart.
 
-## Dependencies
-
-Notable runtime dependencies worth calling out:
-
-- **`@agentclientprotocol/sdk`** — Agent Client Protocol SDK. Powers the upcoming ACP bridge that drives chat, history, cancellation, and per-session realtime state by spawning `openclaw acp` as a child process and consuming JSON-RPC over stdio. Wiring code lands in `src/api/services/acp/` in subsequent commits.
-
 ## Directory Structure
 
 ```

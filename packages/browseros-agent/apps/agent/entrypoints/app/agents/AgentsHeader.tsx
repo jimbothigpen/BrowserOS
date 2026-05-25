@@ -6,10 +6,7 @@ interface AgentsHeaderProps {
   onCreateAgent: () => void
 }
 
-/**
- * Header for the agents page. Loose lifecycle controls that used to sit next to
- * the title moved into `GatewayStatusBar` because they're OpenClaw-specific.
- */
+/** Header for the agents page. */
 export const AgentsHeader: FC<AgentsHeaderProps> = ({ onCreateAgent }) => {
   return (
     <div className="rounded-xl border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
@@ -20,8 +17,8 @@ export const AgentsHeader: FC<AgentsHeaderProps> = ({ onCreateAgent }) => {
         <div className="flex-1">
           <h2 className="mb-1 font-semibold text-xl">Agents</h2>
           <p className="text-muted-foreground text-sm">
-            OpenClaw, Claude Code, and Codex agents — chat, schedule, and run
-            them in the background.
+            Claude Code, Codex, and Hermes agents — chat, schedule, and run them
+            in the background.
           </p>
         </div>
         <Button

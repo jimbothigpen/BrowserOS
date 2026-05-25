@@ -17,7 +17,6 @@ export const VM_TELEMETRY_EVENTS = {
   nerdctlWaitOk: 'vm.nerdctl_wait.ok',
   nerdctlWaitPoll: 'vm.nerdctl_wait.poll',
   nerdctlWaitTimeout: 'vm.nerdctl_wait.timeout',
-  migrationOpenClawMoved: 'vm.migration.openclaw_moved',
   limaSpawn: 'vm.lima.spawn',
   limaExit: 'vm.lima.exit',
   limaStderrChunk: 'vm.lima.stderr_chunk',

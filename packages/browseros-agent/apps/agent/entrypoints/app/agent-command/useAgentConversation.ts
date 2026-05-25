@@ -6,18 +6,16 @@ import {
   chatWithHarnessAgent,
   fetchActiveHarnessTurn,
 } from '@/entrypoints/app/agents/useAgents'
-import type { OpenClawChatHistoryMessage } from '@/entrypoints/app/agents/useOpenClaw'
 import type {
   AgentConversationTurn,
   AssistantPart,
-  ConversationTurnFile,
   ToolEntry,
   UserAttachmentPreview,
 } from '@/lib/agent-conversations/types'
-import { useInvalidateAgentOutputs } from '@/lib/agent-files'
 import type { ServerAttachmentPayload } from '@/lib/attachments'
 import { consumeSSEStream } from '@/lib/sse'
 import { buildToolLabel } from '@/lib/tool-labels'
+import type { AgentChatHistoryMessage } from './agent-chat-types'
 import { mapAgentHarnessToolStatus } from './agent-stream-events'
 
 export interface SendInput {
@@ -30,12 +28,9 @@ export interface SendInput {
 }
 
 interface UseAgentConversationOptions {
-  // The hook always speaks to the harness chat path now; the OpenClaw
-  // legacy /claw/agents/:id/chat surface was removed in Step 12. The
-  // option remains for forward-compatibility.
   runtime?: 'agent-harness'
   sessionKey?: string | null
-  history?: OpenClawChatHistoryMessage[]
+  history?: AgentChatHistoryMessage[]
   onComplete?: () => void
   onSessionKeyChange?: (sessionKey: string) => void
   /**
@@ -55,14 +50,8 @@ export function useAgentConversation(
 ) {
   const [turns, setTurns] = useState<AgentConversationTurn[]>([])
   const [streaming, setStreaming] = useState(false)
-  const invalidateAgentOutputs = useInvalidateAgentOutputs()
-  // Stable ref so the resume effect doesn't re-subscribe on every
-  // render (the hook's returned callable is freshly closured each
-  // time, but the underlying queryClient is stable).
-  const invalidateAgentOutputsRef = useRef(invalidateAgentOutputs)
-  invalidateAgentOutputsRef.current = invalidateAgentOutputs
   const sessionKeyRef = useRef(options.sessionKey ?? '')
-  const historyRef = useRef<OpenClawChatHistoryMessage[]>(options.history ?? [])
+  const historyRef = useRef<AgentChatHistoryMessage[]>(options.history ?? [])
   const textAccRef = useRef('')
   const thinkAccRef = useRef('')
   const streamAbortRef = useRef<AbortController | null>(null)
@@ -160,17 +149,6 @@ export function useAgentConversation(
     })
   }
 
-  const setProducedFilesOnCurrentTurn = (files: ConversationTurnFile[]) => {
-    setTurns((prev) => {
-      const last = prev[prev.length - 1]
-      if (!last) return prev
-      // Replace, don't merge: the server's diff is authoritative for
-      // the just-completed turn — duplicate events shouldn't grow the
-      // list, and a re-attribution should overwrite an earlier one.
-      return [...prev.slice(0, -1), { ...last, producedFiles: files }]
-    })
-  }
-
   const upsertAgentHarnessTool = (event: AgentHarnessStreamEvent) => {
     if (event.type !== 'tool_call') return
     const rawName = event.title || event.rawType || 'tool call'
@@ -226,9 +204,6 @@ export function useAgentConversation(
         break
       case 'tool_call':
         upsertAgentHarnessTool(event)
-        break
-      case 'produced_files':
-        setProducedFilesOnCurrentTurn(event.files)
         break
       case 'done':
         markCurrentTurnDone()
@@ -327,14 +302,9 @@ export function useAgentConversation(
         // When `cancelled` is true the next run will set these
         // itself, so resetting here would only cause a brief flicker.
         if (!cancelled && weStartedStream) {
-          const finishedTurnId = turnIdRef.current
           turnIdRef.current = null
           lastSeqRef.current = null
           setStreaming(false)
-          void invalidateAgentOutputsRef.current(
-            agentId,
-            finishedTurnId ?? undefined,
-          )
         }
       }
     }
@@ -375,12 +345,7 @@ export function useAgentConversation(
     })
   }
 
-  /**
-   * Pull session-key / turn-id off response headers and propagate to
-   * refs + the optimistic turn. Stamping `turnId` here lets the
-   * inline artifact card fall back to /files/turn/<id> on a resumed
-   * mount that missed the live `produced_files` event.
-   */
+  /** Pull session-key / turn-id off response headers and propagate to refs + the optimistic turn. */
   const applyResponseHeadersToTurn = (response: Response) => {
     const responseSessionKey =
       response.headers.get('X-Session-Key') ??
@@ -462,15 +427,10 @@ export function useAgentConversation(
       if (streamAbortRef.current === abortController) {
         streamAbortRef.current = null
       }
-      // Capture before nulling — the invalidation needs the turn id so
-      // useAgentTurnFiles consumers also flush, not just the agent-wide
-      // rail query.
-      const finishedTurnId = turnIdRef.current
       turnIdRef.current = null
       lastSeqRef.current = null
       onCompleteRef.current?.()
       setStreaming(false)
-      void invalidateAgentOutputs(agentId, finishedTurnId ?? undefined)
     }
   }
 

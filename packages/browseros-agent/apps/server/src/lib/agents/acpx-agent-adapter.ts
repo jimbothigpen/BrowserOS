@@ -5,7 +5,6 @@
  */
 
 import type { AgentDefinition } from './agent-types'
-import { prepareOpenClawContext } from './openclaw/prepare'
 import {
   prepareClaudeCodeContext,
   prepareCodexContext,
@@ -27,7 +26,6 @@ export interface PreparedAcpxAgentContext {
    * mcpServers resolves from inside the container.
    */
   browserosMcpHost?: string
-  openclawSessionKey: string | null
 }
 
 export interface PrepareAcpxAgentContextInput {
@@ -49,7 +47,6 @@ export interface AcpxAgentAdapter {
 const ADAPTERS: Record<AgentDefinition['adapter'], AcpxAgentAdapter> = {
   claude: { prepare: prepareClaudeCodeContext },
   codex: { prepare: prepareCodexContext },
-  openclaw: { prepare: prepareOpenClawContext },
   hermes: { prepare: prepareHermesContext },
 }
 

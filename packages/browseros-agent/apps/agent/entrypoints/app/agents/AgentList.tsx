@@ -116,7 +116,6 @@ function inferAdapterFromLabel(label: string): HarnessAgentAdapter | 'unknown' {
   const lower = label?.toLowerCase()
   if (lower === 'claude code') return 'claude'
   if (lower === 'codex') return 'codex'
-  if (lower === 'openclaw') return 'openclaw'
   if (lower === 'hermes') return 'hermes'
   return 'unknown'
 }

@@ -306,7 +306,7 @@ describe('MonitoringService lazy judge integration', () => {
     expect(calls[1]?.priorToolCalls[0]?.toolCallId).toBe('tool-a')
   })
 
-  it('prefers the single active OpenClaw chat session for unattributed MCP requests', async () => {
+  it('prefers the single active agent chat session for unattributed MCP requests', async () => {
     const service = new MonitoringService({
       judge: new LazyMonitoringJudgeService(),
     })
@@ -318,20 +318,20 @@ describe('MonitoringService lazy judge integration', () => {
       chatHistory: [{ role: 'user', content: 'summarize my inbox' }],
       source: 'debug',
     })
-    const openClawSession = await service.startSession({
+    const agentChatSession = await service.startSession({
       agentId: 'assistant',
-      sessionKey: 'session-openclaw',
+      sessionKey: 'session-agent-chat',
       originalPrompt: 'Do this again',
       chatHistory: [{ role: 'user', content: 'Click on the first product' }],
-      source: 'openclaw-agent-chat',
+      source: 'agent-chat',
     })
 
     createdRunDirs.add(debugSession.monitoringSessionId)
-    createdRunDirs.add(openClawSession.monitoringSessionId)
+    createdRunDirs.add(agentChatSession.monitoringSessionId)
 
     expect(service.resolveSessionForMcpRequest()).toEqual({
       agentId: 'assistant',
-      monitoringSessionId: openClawSession.monitoringSessionId,
+      monitoringSessionId: agentChatSession.monitoringSessionId,
     })
   })
 })

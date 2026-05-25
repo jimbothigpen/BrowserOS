@@ -55,22 +55,6 @@ const clients: ClientConfig[] = [
         2,
       ),
   },
-  {
-    id: 'openclaw',
-    name: 'OpenClaw',
-    type: 'json',
-    fileName: 'openclaw.json',
-    getSnippet: (url) =>
-      JSON.stringify(
-        {
-          mcpServers: {
-            browseros: { url },
-          },
-        },
-        null,
-        2,
-      ),
-  },
 ]
 
 const CopyButton: FC<{ text: string }> = ({ text }) => {

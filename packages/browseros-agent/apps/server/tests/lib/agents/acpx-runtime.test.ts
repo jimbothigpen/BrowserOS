@@ -597,16 +597,8 @@ just outer
       expect(unwrapBrowserosAcpUserMessage(outerOnly)).toBe('just outer')
     })
 
-    it('strips the openclaw single-line role envelope (regression: TKT-774 only matched the BrowserOS multi-line form)', () => {
-      // PR #924 (ACPX agent runtime adapters) introduced a second
-      // `<role>…</role>` prefix for openclaw — a single-line block
-      // distinct from the BrowserOS multi-line role. The original
-      // exact-prefix strip only matched the BrowserOS form, so user
-      // messages from openclaw agents were landing in
-      // /agents/:id/sessions/main/history with the envelope still
-      // attached. The strip must be adapter-agnostic: any
-      // `<role>…</role>` followed by a `<user_request>` block.
-      const wrapped = `<role>You are running inside BrowserOS through the OpenClaw ACP adapter. Use your OpenClaw identity, memory, and browser tools.</role>
+    it('strips an arbitrary single-line role envelope', () => {
+      const wrapped = `<role>You are running inside BrowserOS through an ACP adapter.</role>
 
 <user_request>
 Need another report this time as pdf, a comparison between both yahoo and google reports you created...
@@ -1108,114 +1100,6 @@ Use the BrowserOS MCP server for all browser tasks, including browsing the web, 
     expect(
       calls.filter((call) => call.method === 'createRuntime'),
     ).toHaveLength(2)
-  })
-
-  it('resolves the openclaw adapter to a lima/nerdctl exec command', async () => {
-    const calls: Array<{ method: string; input: unknown }> = []
-    const runtime = new AcpxRuntime({
-      cwd: '/tmp/browseros-acpx-runtime',
-      stateDir: '/tmp/browseros-acpx-state',
-      openclawGateway: {
-        getGatewayToken: () => 'test-token-abc',
-        getContainerName: () => 'browseros-openclaw-openclaw-gateway-1',
-        getLimaHomeDir: () => '/Users/dev/.browseros-dev/lima',
-        getLimactlPath: () => '/opt/homebrew/bin/limactl',
-        getVmName: () => 'browseros-vm',
-      },
-      runtimeFactory: (options) => {
-        calls.push({ method: 'createRuntime', input: options })
-        return createFakeAcpRuntime(calls)
-      },
-    })
-    const agent: AgentDefinition = {
-      id: 'main',
-      name: 'OpenClaw main',
-      adapter: 'openclaw',
-      permissionMode: 'approve-all',
-      sessionKey: 'agent:main:main',
-      createdAt: 1000,
-      updatedAt: 1000,
-    }
-
-    await collectStream(
-      await runtime.send({
-        agent,
-        sessionId: 'main',
-        sessionKey: agent.sessionKey,
-        message: 'hello',
-        permissionMode: 'approve-all',
-      }),
-    )
-
-    const runtimeOptions = getCreateRuntimeOptions(calls)
-    const command = runtimeOptions.agentRegistry.resolve('openclaw')
-    expect(command).toContain('env LIMA_HOME=/Users/dev/.browseros-dev/lima')
-    expect(command).toContain(
-      '/opt/homebrew/bin/limactl shell --workdir / browseros-vm --',
-    )
-    expect(command).toContain(
-      'nerdctl exec -i -e OPENCLAW_HIDE_BANNER=1 -e OPENCLAW_SUPPRESS_NOTES=1 browseros-openclaw-openclaw-gateway-1',
-    )
-    expect(command).toContain('openclaw acp --url ws://127.0.0.1:18789')
-    expect(command).not.toContain('--token')
-    // sessionKey routing: the bridge needs --session <key> to map newSession
-    // requests to the matching gateway agent (acpx does not forward
-    // sessionKey via ACP newSession params).
-    expect(command).toContain('--session agent:main:main')
-    // OpenClaw's bridge rejects newSession when mcpServers is non-empty
-    // because its provider tooling comes from the gateway, not from
-    // ACP-side MCP servers. The harness must suppress the BrowserOS HTTP
-    // MCP for openclaw runtimes while still wiring it for claude/codex.
-    expect(runtimeOptions.mcpServers).toEqual([])
-  })
-
-  it('rewrites non-harness OpenClaw session keys onto the gateway main agent', async () => {
-    const calls: Array<{ method: string; input: unknown }> = []
-    const runtime = new AcpxRuntime({
-      cwd: '/tmp/browseros-acpx-runtime',
-      stateDir: '/tmp/browseros-acpx-state',
-      openclawGateway: {
-        getGatewayToken: () => 'test-token-abc',
-        getContainerName: () => 'browseros-openclaw-openclaw-gateway-1',
-        getLimaHomeDir: () => '/Users/dev/.browseros-dev/lima',
-        getLimactlPath: () => '/opt/homebrew/bin/limactl',
-        getVmName: () => 'browseros-vm',
-      },
-      runtimeFactory: (options) => {
-        calls.push({ method: 'createRuntime', input: options })
-        return createFakeAcpRuntime(calls)
-      },
-    })
-    // Sidepanel sessionKey shape — no dedicated gateway agent has been
-    // provisioned for it, so the bridge needs to be redirected to the
-    // always-present `main` agent with the original key encoded as a
-    // channel suffix. Without this rewrite the bridge accepts newSession
-    // but the prompt hangs forever (no gateway agent matches the key).
-    const agent: AgentDefinition = {
-      id: 'sidepanel:c0ffee',
-      name: 'OpenClaw',
-      adapter: 'openclaw',
-      permissionMode: 'approve-all',
-      sessionKey: 'sidepanel:c0ffee:openclaw:default:medium',
-      createdAt: 1000,
-      updatedAt: 1000,
-    }
-
-    await collectStream(
-      await runtime.send({
-        agent,
-        sessionId: 'main',
-        sessionKey: agent.sessionKey,
-        message: 'hello',
-        permissionMode: 'approve-all',
-      }),
-    )
-
-    const runtimeOptions = getCreateRuntimeOptions(calls)
-    const command = runtimeOptions.agentRegistry.resolve('openclaw')
-    expect(command).toContain(
-      '--session agent:main:sidepanel-c0ffee-openclaw-default-medium',
-    )
   })
 
   it('sets Claude approve-all sessions to bypass permissions before starting a turn', async () => {

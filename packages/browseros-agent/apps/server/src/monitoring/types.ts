@@ -12,7 +12,7 @@ export interface MonitoringSessionContext {
   originalPrompt: string
   chatHistory: MonitoringChatTurn[]
   startedAt: string
-  source: 'openclaw-agent-chat' | 'debug'
+  source: 'agent-chat' | 'debug'
 }
 
 export type MonitoringToolCallSource = 'browser-tool' | 'klavis-tool'

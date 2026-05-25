@@ -3,8 +3,8 @@
  * Copyright 2025 BrowserOS
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Abstract base for container-backed agent runtimes (openclaw,
- * hermes). Extends `ManagedContainer` so subclasses keep all the
+ * Abstract base for container-backed agent runtimes. Extends
+ * `ManagedContainer` so subclasses keep all the
  * existing container plumbing (state machine, lifecycle lock, image
  * load, mount roots, exec gating); adds the runtime-layer surface on
  * top: descriptor, capability list, action dispatcher, status
@@ -35,9 +35,8 @@ export abstract class ContainerAgentRuntime
   abstract getPerAgentHomeDir(agentId: string): string
 
   /**
-   * Default capability list. Subclasses extend (e.g. OpenClaw adds
-   * `'gateway-control-plane'`) or filter (e.g. drop reset levels the
-   * subclass can't support yet).
+   * Default capability list. Subclasses extend or filter this for
+   * runtime-specific lifecycle support.
    */
   getCapabilities(): ReadonlyArray<RuntimeCapability> {
     return [

@@ -10,6 +10,7 @@ import { type BrowserOsDatabase, getDb } from '../db'
 import { type AgentDefinitionRow, agentDefinitions } from '../db/schema'
 import { logger } from '../logger'
 import {
+  isAgentAdapter,
   resolveDefaultModelId,
   resolveDefaultReasoningEffort,
 } from './agent-catalog'
@@ -31,7 +32,10 @@ export class DbAgentStore implements AgentStore {
       .from(agentDefinitions)
       .orderBy(desc(agentDefinitions.updatedAt))
       .all()
-    const agents = rows.map(toAgentDefinition)
+    const agents = rows.flatMap((row) => {
+      const agent = toAgentDefinition(row)
+      return agent ? [agent] : []
+    })
     logger.debug('Agent harness store listed agents', {
       count: agents.length,
       store: 'sqlite',
@@ -52,8 +56,7 @@ export class DbAgentStore implements AgentStore {
   async create(input: CreateAgentInput): Promise<AgentDefinition> {
     return this.withWriteLock(async () => {
       const now = Date.now()
-      const id =
-        input.adapter === 'openclaw' ? `oc-${randomUUID()}` : randomUUID()
+      const id = randomUUID()
       const row: AgentDefinitionRow = {
         id,
         name: input.name.trim(),
@@ -70,6 +73,8 @@ export class DbAgentStore implements AgentStore {
       }
       this.db.insert(agentDefinitions).values(row).run()
       const agent = toAgentDefinition(row)
+      if (!agent)
+        throw new Error(`created unsupported agent adapter ${row.adapter}`)
       logger.info('Agent harness store created agent', {
         agentId: agent.id,
         name: agent.name,
@@ -83,7 +88,7 @@ export class DbAgentStore implements AgentStore {
     })
   }
 
-  /** Backfills a harness record for gateway-side OpenClaw agents discovered during reconciliation. */
+  /** Inserts an existing agent id when importing records from another store. */
   async upsertExisting(input: {
     id: string
     name: string
@@ -112,6 +117,9 @@ export class DbAgentStore implements AgentStore {
       }
       this.db.insert(agentDefinitions).values(row).run()
       const agent = toAgentDefinition(row)
+      if (!agent) {
+        throw new Error(`backfilled unsupported agent adapter ${row.adapter}`)
+      }
       logger.info('Agent harness store backfilled agent', {
         agentId: agent.id,
         name: agent.name,
@@ -168,11 +176,20 @@ export class DbAgentStore implements AgentStore {
   }
 }
 
-function toAgentDefinition(row: AgentDefinitionRow): AgentDefinition {
+function toAgentDefinition(row: AgentDefinitionRow): AgentDefinition | null {
+  const adapter = row.adapter as unknown
+  if (!isAgentAdapter(adapter)) {
+    logger.warn('Agent harness store ignored unsupported adapter row', {
+      agentId: row.id,
+      adapter,
+      store: 'sqlite',
+    })
+    return null
+  }
   return {
     id: row.id,
     name: row.name,
-    adapter: row.adapter,
+    adapter,
     modelId: row.modelId,
     reasoningEffort: row.reasoningEffort,
     permissionMode: row.permissionMode,

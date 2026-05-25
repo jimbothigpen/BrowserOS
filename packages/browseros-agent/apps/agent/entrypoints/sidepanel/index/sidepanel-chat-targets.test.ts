@@ -66,18 +66,6 @@ const adapters: HarnessAdapterDescriptor[] = [
     models: [{ id: 'gpt-5.5', label: 'GPT-5.5', recommended: true }],
     reasoningEfforts: [{ id: 'medium', label: 'Medium', recommended: true }],
   },
-  {
-    id: 'openclaw',
-    name: 'OpenClaw',
-    defaultModelId: 'default',
-    defaultReasoningEffort: 'medium',
-    modelControl: 'best-effort',
-    models: [],
-    reasoningEfforts: [
-      { id: 'medium', label: 'Medium', recommended: true },
-      { id: 'high', label: 'High' },
-    ],
-  },
 ]
 
 const agents: HarnessAgent[] = [
@@ -92,17 +80,6 @@ const agents: HarnessAgent[] = [
     createdAt: timestamp,
     updatedAt: timestamp,
   },
-  {
-    id: 'agent-openclaw',
-    name: 'Research Claw',
-    adapter: 'openclaw',
-    modelId: 'default',
-    reasoningEffort: 'high',
-    permissionMode: 'approve-all',
-    sessionKey: 'agent:agent-openclaw:main',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  },
 ]
 
 describe('buildSidepanelChatTargets', () => {
@@ -113,7 +90,6 @@ describe('buildSidepanelChatTargets', () => {
       'browseros',
       'anthropic-sonnet',
       'agent-codex',
-      'agent-openclaw',
     ])
   })
 
@@ -128,24 +104,6 @@ describe('buildSidepanelChatTargets', () => {
       'browseros',
       'anthropic-sonnet',
     ])
-  })
-
-  it('uses the created OpenClaw agent name instead of a generic adapter target', () => {
-    const targets = buildSidepanelChatTargets({ providers, adapters, agents })
-    const openclaw = targets.find((target) => target.id === 'agent-openclaw')
-
-    expect(openclaw).toMatchObject({
-      kind: 'acp',
-      id: 'agent-openclaw',
-      agentId: 'agent-openclaw',
-      adapter: 'openclaw',
-      adapterName: 'OpenClaw',
-      modelId: 'default',
-      modelLabel: 'default',
-      name: 'Research Claw',
-      modelControl: 'best-effort',
-      reasoningEffort: 'high',
-    })
   })
 
   it('preserves adapter metadata for created agent targets', () => {

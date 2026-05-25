@@ -22,7 +22,7 @@ describe('VM errors', () => {
       new VmStateCorruptedError('corrupt'),
       new LimaCommandError('limactl start', 7, 'bad lima'),
       new ContainerCliError('nerdctl pull', 8, 'bad nerdctl'),
-      new ImageLoadError('openclaw:v1', 'bad image'),
+      new ImageLoadError('browseros-agent:v1', 'bad image'),
     ]
 
     for (const error of errors) {
@@ -59,7 +59,6 @@ describe('VM errors', () => {
       'nerdctlWaitOk',
       'nerdctlWaitPoll',
       'nerdctlWaitTimeout',
-      'migrationOpenClawMoved',
       'limaSpawn',
       'limaExit',
       'limaStderrChunk',
@@ -72,9 +71,6 @@ describe('VM errors', () => {
     expect(VM_TELEMETRY_EVENTS.ensureReadyStart).toBe('vm.ensure_ready.start')
     expect(VM_TELEMETRY_EVENTS.nerdctlWaitTimeout).toBe(
       'vm.nerdctl_wait.timeout',
-    )
-    expect(VM_TELEMETRY_EVENTS.migrationOpenClawMoved).toBe(
-      'vm.migration.openclaw_moved',
     )
   })
 })

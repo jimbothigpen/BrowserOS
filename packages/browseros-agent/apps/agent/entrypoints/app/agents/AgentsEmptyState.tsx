@@ -16,8 +16,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
       </div>
       <h3 className="mb-1 font-semibold">No agents yet</h3>
       <p className="mx-auto mb-4 max-w-sm text-muted-foreground text-sm">
-        Spin up an OpenClaw, Claude Code, or Codex agent to chat with, schedule,
-        or run in the background.
+        Spin up a Claude Code, Codex, or Hermes agent to chat with, schedule, or
+        run in the background.
       </p>
       <Button
         onClick={onCreateAgent}

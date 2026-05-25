@@ -37,11 +37,11 @@ describe('ContainerCli', () => {
     const sshPath = await fakeSsh({}, logPath)
     const cli = await createCli(sshPath, tempDir)
 
-    await expect(cli.imageExists('openclaw:v1')).resolves.toBe(true)
+    await expect(cli.imageExists('browseros-agent:v1')).resolves.toBe(true)
 
     const sshConfig = sshConfigPath(tempDir)
     await expect(readFile(logPath, 'utf8')).resolves.toContain(
-      `${sshPrefix(sshConfig)} 'nerdctl' 'image' 'inspect' 'openclaw:v1'`,
+      `${sshPrefix(sshConfig)} 'nerdctl' 'image' 'inspect' 'browseros-agent:v1'`,
     )
   })
 
@@ -49,18 +49,18 @@ describe('ContainerCli', () => {
     const sshPath = await fakeSsh({ stderr: 'missing', exit: 1 }, logPath)
     const cli = await createCli(sshPath, tempDir)
 
-    await expect(cli.imageExists('openclaw:v1')).resolves.toBe(false)
+    await expect(cli.imageExists('browseros-agent:v1')).resolves.toBe(false)
   })
 
   it('reads a container configured image ref', async () => {
     const sshPath = await fakeSsh(
-      { stdout: 'ghcr.io/openclaw/openclaw:2026.4.12\n' },
+      { stdout: 'ghcr.io/browseros/agent:2026.4.12\n' },
       logPath,
     )
     const cli = await createCli(sshPath, tempDir)
 
     await expect(cli.containerImageRef('gateway')).resolves.toBe(
-      'ghcr.io/openclaw/openclaw:2026.4.12',
+      'ghcr.io/browseros/agent:2026.4.12',
     )
 
     await expect(readFile(logPath, 'utf8')).resolves.toContain(
@@ -90,7 +90,7 @@ describe('ContainerCli', () => {
     const lines: string[] = []
 
     const error = await cli
-      .pullImage('openclaw:v1', (line) => lines.push(line))
+      .pullImage('browseros-agent:v1', (line) => lines.push(line))
       .catch((err) => err)
 
     expect(error).toBeInstanceOf(ContainerCliError)
@@ -106,14 +106,14 @@ describe('ContainerCli', () => {
 
     await cli.createContainer({
       name: 'gateway',
-      image: 'openclaw:v1',
+      image: 'browseros-agent:v1',
       restart: 'unless-stopped',
       ports: [{ hostIp: '127.0.0.1', hostPort: 18789, containerPort: 18789 }],
-      envFile: '/mnt/browseros/vm/openclaw/.env',
+      envFile: '/mnt/browseros/vm/agent/.env',
       env: { HOME: '/home/node', NODE_ENV: 'production' },
       mounts: [
         {
-          source: '/mnt/browseros/vm/openclaw',
+          source: '/mnt/browseros/vm/agent',
           target: '/home/node',
           readonly: true,
         },
@@ -134,16 +134,16 @@ describe('ContainerCli', () => {
         "'--name' 'gateway'",
         "'--restart' 'unless-stopped'",
         "'-p' '127.0.0.1:18789:18789'",
-        "'--env-file' '/mnt/browseros/vm/openclaw/.env'",
+        "'--env-file' '/mnt/browseros/vm/agent/.env'",
         "'-e' 'HOME=/home/node'",
         "'-e' 'NODE_ENV=production'",
-        "'-v' '/mnt/browseros/vm/openclaw:/home/node:ro'",
+        "'-v' '/mnt/browseros/vm/agent:/home/node:ro'",
         "'--add-host' 'host.containers.internal:192.168.5.2'",
         "'--health-cmd' 'curl -sf http://127.0.0.1:18789/healthz'",
         "'--health-interval' '30s'",
         "'--health-timeout' '10s'",
         "'--health-retries' '3'",
-        "'openclaw:v1' 'node' 'dist/index.js' 'gateway'",
+        "'browseros-agent:v1' 'node' 'dist/index.js' 'gateway'",
       ].join(' '),
     )
   })
@@ -179,7 +179,7 @@ describe('ContainerCli', () => {
         stdout: JSON.stringify({
           ID: 'abc123',
           Name: 'gateway',
-          Config: { Image: 'openclaw:v1' },
+          Config: { Image: 'browseros-agent:v1' },
           State: { Status: 'running', Running: true },
         }),
       },
@@ -190,7 +190,7 @@ describe('ContainerCli', () => {
     await expect(cli.inspectContainer('gateway')).resolves.toEqual({
       id: 'abc123',
       name: 'gateway',
-      image: 'openclaw:v1',
+      image: 'browseros-agent:v1',
       status: 'running',
       running: true,
     })
@@ -251,7 +251,7 @@ describe('ContainerCli', () => {
     const cli = await createCli(sshPath, tempDir)
 
     const error = await cli
-      .createContainer({ name: 'gateway', image: 'openclaw:v1' })
+      .createContainer({ name: 'gateway', image: 'browseros-agent:v1' })
       .catch((err) => err)
 
     expect(error).toBeInstanceOf(ContainerNameInUseError)
@@ -326,7 +326,7 @@ next=$((count + 1))
 printf '%s' "$next" > "${counterPath}"
 case "$count" in
   0)
-    printf '{"ID":"abc123","Name":"gateway","Config":{"Image":"openclaw:v1"},"State":{"Status":"exited","Running":false}}'
+    printf '{"ID":"abc123","Name":"gateway","Config":{"Image":"browseros-agent:v1"},"State":{"Status":"exited","Running":false}}'
     exit 0
     ;;
   *)

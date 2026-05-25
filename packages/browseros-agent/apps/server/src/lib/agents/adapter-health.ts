@@ -26,9 +26,6 @@ export interface AdapterHealth {
  * `<binary> --version` probe; container runtimes expose lifecycle
  * state via the same snapshot.
  *
- * OpenClaw still falls back to a permissive default until Phase 4
- * migrates it onto a runtime — its health currently comes from the
- * gateway lifecycle snapshot the harness already exposes.
  */
 export class AdapterHealthChecker {
   private readonly registry: AgentRuntimeRegistry
@@ -39,7 +36,13 @@ export class AdapterHealthChecker {
 
   async getHealth(adapter: AgentAdapter): Promise<AdapterHealth> {
     const runtime = this.registry.get(adapter)
-    if (!runtime) return openclawFallback(adapter)
+    if (!runtime) {
+      return {
+        healthy: false,
+        reason: `No runtime registered for "${adapter}"`,
+        checkedAt: Date.now(),
+      }
+    }
     if (runtime instanceof HostProcessAgentRuntime) await runtime.probeHealth()
     return runtimeSnapshotToHealth(runtime)
   }
@@ -54,14 +57,5 @@ function runtimeSnapshotToHealth(runtime: AgentRuntime): AdapterHealth {
     // regardless of health state. lastErrorAt is the fallback for
     // runtimes that don't emit probedAt yet (containers).
     checkedAt: snap.probedAt ?? snap.lastErrorAt ?? Date.now(),
-  }
-}
-
-function openclawFallback(adapter: AgentAdapter): AdapterHealth {
-  if (adapter === 'openclaw') return { healthy: true, checkedAt: Date.now() }
-  return {
-    healthy: false,
-    reason: `No runtime registered for "${adapter}"`,
-    checkedAt: Date.now(),
   }
 }

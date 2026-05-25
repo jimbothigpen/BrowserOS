@@ -10,21 +10,14 @@ import type { AgentLiveness } from './LivenessDot'
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const OC_UUID_PATTERN =
-  /^oc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 /**
- * The agent rail used to render whatever the gateway returned for `name`.
- * Post-migration that's frequently the agent's UUID — readable to nobody.
- * Prefer the explicit `name` when it differs meaningfully from the id;
- * otherwise fall back to a short prefix users can recognize on second
- * glance.
+ * Prefer the explicit name when it differs meaningfully from the id;
+ * otherwise fall back to a short id prefix.
  */
 export function displayName(agent: AgentListItem): string {
   const name = agent.name?.trim()
   const id = agent.agentId
   if (!name || name === id) {
-    if (OC_UUID_PATTERN.test(id)) return id.slice(0, 11) // "oc-XXXXXXXX"
     if (UUID_PATTERN.test(id)) return id.slice(0, 8)
     return id
   }
@@ -32,31 +25,16 @@ export function displayName(agent: AgentListItem): string {
 }
 
 export function canDelete(agent: AgentListItem): boolean {
-  // The gateway's protected `main` agent must not be deletable. The
-  // server enforces this too, but disabling the menu item avoids users
-  // hitting an opaque 400.
-  if (agent.agentId === 'main') return false
   return agent.canDelete
 }
 
-/**
- * Rename will be wired to a future `PATCH /agents/:id` endpoint. The
- * legacy `/claw/agents` create flow named the agent on the gateway via
- * the `name` field but the field isn't editable post-create today.
- */
 export function canRename(_agent: AgentListItem): boolean {
   return false
 }
 
-/**
- * The detail line carries the agent's workspace path. The `detail`
- * field on AgentListItem already holds it for OpenClaw entries
- * (`/home/node/.openclaw/workspace-...`); for harness agents it's the
- * synthetic `<adapter>:main` marker that's not informative — hide it.
- */
 export function workspaceLabel(agent: AgentListItem): string | null {
   if (!agent.detail) return null
-  if (/^(claude|codex|openclaw):main$/.test(agent.detail)) return null
+  if (/^(claude|codex|hermes):main$/.test(agent.detail)) return null
   return agent.detail
 }
 

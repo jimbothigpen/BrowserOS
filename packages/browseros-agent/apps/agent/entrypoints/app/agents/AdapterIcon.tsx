@@ -20,9 +20,6 @@ export const AdapterIcon: FC<AdapterIconProps> = ({ adapter, className }) => {
     case 'codex':
       // Codex — code-leaning, CPU mark.
       return <Cpu className={className} aria-label="Codex" />
-    case 'openclaw':
-      // OpenClaw — bot/automation framing.
-      return <Bot className={className} aria-label="OpenClaw" />
     case 'hermes':
       // Hermes — messenger god framing, wand evokes the agentic conjuring.
       return <Wand2 className={className} aria-label="Hermes" />
@@ -37,8 +34,6 @@ export function adapterLabel(adapter: HarnessAgentAdapter | 'unknown'): string {
       return 'Claude Code'
     case 'codex':
       return 'Codex'
-    case 'openclaw':
-      return 'OpenClaw'
     case 'hermes':
       return 'Hermes'
     default:

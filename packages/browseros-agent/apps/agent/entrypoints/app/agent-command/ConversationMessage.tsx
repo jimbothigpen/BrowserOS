@@ -22,26 +22,10 @@ import type {
   AgentConversationTurn,
   ToolEntry,
 } from '@/lib/agent-conversations/types'
-import { FileCardStrip } from './agent-conversation.file-card-strip'
 
 interface ConversationMessageProps {
   turn: AgentConversationTurn
   streaming: boolean
-  /**
-   * Forwarded to the inline file-card strip's "View" / "+N"
-   * button. Wired up by AgentCommandConversation so the strip can
-   * deep-link straight into the Outputs rail at the matching turn
-   * group. `null` here disables the strip's deep-link affordance
-   * — the cards still open the preview Sheet directly.
-   */
-  onOpenOutputsRail?: ((turnId?: string | null) => void) | null
-  /**
-   * Render only the trailing FileCardStrip for this turn — used
-   * when the turn's user / assistant text is already rendered
-   * elsewhere (e.g. by `ClawChatMessage` from persisted history)
-   * but the produced-files affordance would otherwise be lost.
-   */
-  stripOnly?: boolean
 }
 
 interface RenderEntry {
@@ -104,21 +88,8 @@ function ToolStatusIcon({ status }: { status: ToolEntry['status'] }) {
 export const ConversationMessage: FC<ConversationMessageProps> = ({
   turn,
   streaming,
-  onOpenOutputsRail,
-  stripOnly,
 }) => {
   const entries = useMemo(() => buildRenderEntries(turn), [turn])
-
-  if (stripOnly) {
-    if (!turn.producedFiles || turn.producedFiles.length === 0) return null
-    return (
-      <FileCardStrip
-        turnId={turn.turnId ?? null}
-        files={turn.producedFiles}
-        onOpenRail={onOpenOutputsRail ?? (() => {})}
-      />
-    )
-  }
 
   return (
     <div className="space-y-3">
@@ -213,14 +184,6 @@ export const ConversationMessage: FC<ConversationMessageProps> = ({
           </MessageContent>
         </Message>
       )}
-
-      {turn.producedFiles && turn.producedFiles.length > 0 ? (
-        <FileCardStrip
-          turnId={turn.turnId ?? null}
-          files={turn.producedFiles}
-          onOpenRail={onOpenOutputsRail ?? (() => {})}
-        />
-      ) : null}
 
       {!turn.done && turn.parts.length === 0 && streaming && (
         <div className="flex gap-2">

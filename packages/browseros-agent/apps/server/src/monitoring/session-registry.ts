@@ -72,12 +72,12 @@ export class MonitoringSessionRegistry {
       return { agentId, monitoringSessionId }
     }
 
-    const openClawSessions = activeSessions.filter(
-      (session) => session.source === 'openclaw-agent-chat',
+    const agentChatSessions = activeSessions.filter(
+      (session) => session.source === 'agent-chat',
     )
 
-    if (openClawSessions.length === 1) {
-      const [{ agentId, monitoringSessionId }] = openClawSessions
+    if (agentChatSessions.length === 1) {
+      const [{ agentId, monitoringSessionId }] = agentChatSessions
       return { agentId, monitoringSessionId }
     }
 

@@ -1,21 +1,12 @@
-import type { AgentEntry } from './useOpenClaw'
-
-export type HarnessAgentAdapter = 'claude' | 'codex' | 'openclaw' | 'hermes'
-
-/**
- * One file the harness attributed to the assistant turn that just
- * finished. Mirrors the server-side `ProducedFileEventEntry` shape so
- * the inline artifact card can render alongside the streamed text the
- * user just watched complete. Only present for openclaw adapter
- * turns; claude / codex don't produce these events in v1.
- */
-export interface HarnessProducedFile {
-  id: string
-  /** Workspace-relative POSIX path. */
-  path: string
-  size: number
-  mtimeMs: number
+export interface AgentEntry {
+  agentId: string
+  name: string
+  workspace: string
+  model?: unknown
+  source?: 'agent-harness'
 }
+
+export type HarnessAgentAdapter = 'claude' | 'codex' | 'hermes'
 
 export type AgentHarnessStreamEvent =
   | {
@@ -36,10 +27,6 @@ export type AgentHarnessStreamEvent =
       type: 'status'
       text: string
       rawType?: string
-    }
-  | {
-      type: 'produced_files'
-      files: HarnessProducedFile[]
     }
   | {
       type: 'done'
@@ -182,4 +169,18 @@ export function mapHarnessAgentToEntry(agent: HarnessAgent): AgentEntry {
     model: agent.modelId,
     source: 'agent-harness',
   }
+}
+
+export function getModelDisplayName(model: unknown): string | undefined {
+  if (!model) return undefined
+  if (typeof model === 'string') return model
+  if (
+    typeof model === 'object' &&
+    model !== null &&
+    'name' in model &&
+    typeof (model as { name?: unknown }).name === 'string'
+  ) {
+    return (model as { name: string }).name
+  }
+  return undefined
 }

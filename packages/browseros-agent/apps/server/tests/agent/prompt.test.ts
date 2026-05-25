@@ -43,7 +43,7 @@
  *    from wasting tokens. Page context rules differ for scheduled tasks.
  *
  * 9. STYLE & TOOL CALL PATTERNS — Ensures the consolidated style guidance
- *     (from OpenClaw-inspired additions) survives future edits.
+ *    survives future edits.
  *
  * 10. STRUCTURAL INVARIANTS — The prompt must always be wrapped in
  *     <AGENT_PROMPT> tags, and security must appear before capabilities
@@ -323,9 +323,8 @@ describe('mode-aware framing', () => {
 // a malicious page could log crafted instructions to the console, and
 // without #2 being listed, the agent might follow them.
 //
-// The safety rules (OpenClaw-inspired) prevent the agent from developing
-// independent goals — critical for an agent with browser + filesystem +
-// external app access.
+// The safety rules prevent the agent from developing independent goals —
+// critical for an agent with browser + filesystem + external app access.
 // ---------------------------------------------------------------------------
 
 describe('security boundaries', () => {
@@ -361,7 +360,7 @@ describe('security boundaries', () => {
     expect(prompt).toContain('evaluate_script` for data extraction only')
   })
 
-  it('includes OpenClaw-inspired safety rules', () => {
+  it('includes safety rules', () => {
     // Why: a browser agent has unusually high autonomy — it can navigate
     // anywhere, execute JS, send messages, and write files. These rules
     // prevent the agent from developing secondary goals or manipulating
@@ -811,9 +810,9 @@ describe('user context', () => {
 // 11. STYLE & TOOL CALL PATTERNS
 //
 // Why: The style section governs how the agent communicates. The
-// tool_call_style subsection (OpenClaw-inspired) prevents verbose
-// narration that wastes tokens and annoys users. The data-rich response
-// guidance prevents over-summarization of emails, calendar events, etc.
+// tool_call_style subsection prevents verbose narration that wastes tokens
+// and annoys users. The data-rich response guidance prevents
+// over-summarization of emails, calendar events, etc.
 // ---------------------------------------------------------------------------
 
 describe('style and tool call patterns', () => {

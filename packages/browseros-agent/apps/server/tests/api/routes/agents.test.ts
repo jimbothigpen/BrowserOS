@@ -288,7 +288,7 @@ describe('createAgentRoutes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...validCreatedAgentSidepanelBody(),
-        adapter: 'openclaw',
+        adapter: 'codex',
         modelId: 'ignored-client-model',
         reasoningEffort: 'ignored-client-effort',
         userSystemPrompt: 'Always be concise.',
@@ -689,14 +689,9 @@ function createFakeService(agents: AgentDefinition[]) {
         lastUsedAt: null,
       }))
     },
-    async getGatewayStatus() {
-      // No openclaw provisioner wired in tests → `null` mirrors what
-      // `AgentHarnessService.getGatewayStatus` does without one.
-      return null
-    },
     async createAgent(input: {
       name: string
-      adapter: 'claude' | 'codex' | 'openclaw' | 'hermes'
+      adapter: 'claude' | 'codex' | 'hermes'
       modelId?: string
       reasoningEffort?: string
     }) {
@@ -758,7 +753,8 @@ function createFakeService(agents: AgentDefinition[]) {
       }
       lastStartTurnInput = input
       const turn = registry.register(input.agentId, 'main')
-      const frames = registry.subscribe(turn.turnId, { fromSeq: -1 })!
+      const frames = registry.subscribe(turn.turnId, { fromSeq: -1 })
+      if (!frames) throw new Error('registered turn was not subscribable')
       // Push the canned events asynchronously so subscribers actually
       // receive them through the stream, mirroring real runtime fan-out.
       queueMicrotask(() => {
@@ -857,9 +853,6 @@ function createBlockingFakeService(agents: AgentDefinition[]) {
         lastUsedAt: null,
       }))
     },
-    async getGatewayStatus() {
-      return null
-    },
     async createAgent() {
       throw new Error('not used in this test')
     },
@@ -884,7 +877,8 @@ function createBlockingFakeService(agents: AgentDefinition[]) {
         throw new TurnAlreadyActiveError(input.agentId, existing.turnId)
       }
       const turn = registry.register(input.agentId, 'main')
-      const frames = registry.subscribe(turn.turnId, { fromSeq: -1 })!
+      const frames = registry.subscribe(turn.turnId, { fromSeq: -1 })
+      if (!frames) throw new Error('registered turn was not subscribable')
       void (async () => {
         await gate
         for (const event of events) registry.pushEvent(turn.turnId, event)

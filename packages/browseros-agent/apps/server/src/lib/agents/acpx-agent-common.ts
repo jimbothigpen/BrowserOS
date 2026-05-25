@@ -85,7 +85,6 @@ export async function finishBrowserosManagedContext(input: {
     commandIdentity,
     useBrowserosMcp: true,
     browserosMcpHost: input.browserosMcpHost,
-    openclawSessionKey: null,
   }
 }
 

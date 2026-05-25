@@ -12,11 +12,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { EXIT_CODES } from '@browseros/shared/constants/exit-codes'
 import { createHttpServer } from './api/server'
-import {
-  configureOpenClawService,
-  configureVmRuntime,
-  getOpenClawService,
-} from './api/services/openclaw/openclaw-service'
 import { CdpBackend } from './browser/backends/cdp'
 import { Browser } from './browser/browser'
 import type { ServerConfig } from './config'
@@ -58,7 +53,6 @@ export class Application {
     })
 
     const resourcesDir = path.resolve(this.config.resourcesDir)
-    configureVmRuntime({ resourcesDir })
     configureClaudeRuntime()
     configureCodexRuntime()
     await this.initCoreServices()
@@ -124,32 +118,6 @@ export class Application {
 
     this.logStartupSummary()
 
-    // OpenClaw is best-effort — a failure here must not crash the server.
-    // The container runtime constructor throws synchronously on non-darwin
-    // (e.g. Linux CI runners), and the .catch() on tryAutoStart() only
-    // handles async throws inside auto-start. Wrap both in try/catch so the
-    // process keeps running even when OpenClaw can't initialize at all.
-    try {
-      const openClawService = configureOpenClawService({
-        browserosServerPort: this.config.serverPort,
-        resourcesDir,
-      })
-      void openClawService.prewarm().catch((err) =>
-        logger.warn('OpenClaw prewarm failed', {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      )
-      void openClawService.tryAutoStart().catch((err) =>
-        logger.warn('OpenClaw auto-start failed', {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      )
-    } catch (err) {
-      logger.warn('OpenClaw configuration failed, continuing without it', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-
     startHermesRuntimeBestEffort({ resourcesDir })
 
     metrics.log('http_server.started', { version: VERSION })
@@ -157,9 +125,6 @@ export class Application {
 
   stop(reason?: string): void {
     logger.info('Shutting down server...', { reason })
-    getOpenClawService()
-      .shutdown()
-      .catch(() => {})
     getHermesRuntime()
       ?.executeAction({ type: 'stop' })
       .catch(() => {})

@@ -13,7 +13,7 @@ import { OAUTH_MCP_SERVERS } from '../lib/clients/klavis/oauth-mcp-servers'
  * - Expanded role to cover full capability surface
  * - Added unified tool catalog section (capabilities)
  * - Added tool selection strategy
- * - Added safety rules (OpenClaw-inspired)
+ * - Added safety rules
  * - Expanded security to cover all untrusted data sources
  * - Workspace-gated filesystem: tools only available when user selects directory
  * - Expanded error recovery per tool category

@@ -17,6 +17,5 @@ export const PATHS = {
   TOOL_OUTPUT_DIR_NAME: 'tool-output',
   SOUL_FILE_NAME: 'SOUL.md',
   SERVER_CONFIG_FILE_NAME: 'server.json',
-  OPENCLAW_DIR_NAME: 'openclaw',
   SESSION_RETENTION_DAYS: 30,
 } as const

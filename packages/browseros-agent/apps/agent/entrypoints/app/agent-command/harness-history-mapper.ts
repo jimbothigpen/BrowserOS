@@ -4,7 +4,7 @@ import type {
   AgentHistoryPageResponse,
   BrowserOSChatHistoryItem,
   BrowserOSChatHistoryToolCall,
-} from './claw-chat-types'
+} from './agent-chat-types'
 
 export function mapHarnessHistoryPage(
   page: HarnessAgentHistoryPage,

@@ -4,7 +4,10 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { OPENCLAW_IMAGE } from '@browseros/shared/constants/openclaw'
+import {
+  HERMES_AGENT_NAME,
+  HERMES_IMAGE,
+} from '@browseros/shared/constants/hermes'
 import type { ContainerCli } from '../../../src/lib/container/container-cli'
 import { ImageLoader } from '../../../src/lib/container/image-loader'
 import { ContainerCliError, ImageLoadError } from '../../../src/lib/vm/errors'
@@ -14,31 +17,31 @@ describe('ImageLoader', () => {
     const cli = new FakeContainerCli([true])
     const loader = new ImageLoader(cli as never)
 
-    await loader.ensureImageLoaded(OPENCLAW_IMAGE)
+    await loader.ensureImageLoaded(HERMES_IMAGE)
 
     expect(cli.pullCalls).toEqual([])
-    expect(cli.existsCalls).toEqual([OPENCLAW_IMAGE])
+    expect(cli.existsCalls).toEqual([HERMES_IMAGE])
   })
 
   it('pulls a missing image and verifies it exists', async () => {
     const cli = new FakeContainerCli([false, true])
     const loader = new ImageLoader(cli as never)
 
-    await loader.ensureImageLoaded(OPENCLAW_IMAGE)
+    await loader.ensureImageLoaded(HERMES_IMAGE)
 
-    expect(cli.pullCalls).toEqual([OPENCLAW_IMAGE])
-    expect(cli.existsCalls).toEqual([OPENCLAW_IMAGE, OPENCLAW_IMAGE])
+    expect(cli.pullCalls).toEqual([HERMES_IMAGE])
+    expect(cli.existsCalls).toEqual([HERMES_IMAGE, HERMES_IMAGE])
   })
 
-  it('loads the OpenClaw agent image by manifest name', async () => {
+  it('loads the Hermes agent image by manifest name', async () => {
     const cli = new FakeContainerCli([false, true])
     const loader = new ImageLoader(cli as never)
 
-    await expect(loader.ensureAgentImageLoaded('openclaw')).resolves.toBe(
-      OPENCLAW_IMAGE,
-    )
+    await expect(
+      loader.ensureAgentImageLoaded(HERMES_AGENT_NAME),
+    ).resolves.toBe(HERMES_IMAGE)
 
-    expect(cli.pullCalls).toEqual([OPENCLAW_IMAGE])
+    expect(cli.pullCalls).toEqual([HERMES_IMAGE])
   })
 
   it('throws ImageLoadError for unknown agent names', async () => {
@@ -55,7 +58,7 @@ describe('ImageLoader', () => {
     const cli = new FakeContainerCli([false, false])
     const loader = new ImageLoader(cli as never)
 
-    await expect(loader.ensureImageLoaded(OPENCLAW_IMAGE)).rejects.toThrow(
+    await expect(loader.ensureImageLoaded(HERMES_IMAGE)).rejects.toThrow(
       ImageLoadError,
     )
   })
@@ -66,7 +69,7 @@ describe('ImageLoader', () => {
     const loader = new ImageLoader(cli as never)
 
     const error = await loader
-      .ensureImageLoaded(OPENCLAW_IMAGE)
+      .ensureImageLoaded(HERMES_IMAGE)
       .catch((err) => err)
 
     expect(error).toBeInstanceOf(ImageLoadError)

@@ -2,10 +2,6 @@
 
 Publishes BrowserOS release artifacts to R2 and owns the Lima VM template used by the server.
 
-OpenClaw images are no longer repackaged by BrowserOS. The server pulls
-`ghcr.io/openclaw/openclaw:<version>` directly into the BrowserOS Lima VM's
-rootless containerd cache using `nerdctl pull`.
-
 The BrowserOS VM is defined by a committed Lima template at `template/browseros-vm.yaml`. There is no custom disk build step; `limactl` consumes the template directly at runtime.
 
 ## Setup

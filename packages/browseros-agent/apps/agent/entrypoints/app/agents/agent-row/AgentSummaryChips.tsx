@@ -20,11 +20,8 @@ interface AgentSummaryChipsProps {
 }
 
 /**
- * Adapter / model / reasoning summary line. Always rendered (so OpenClaw
- * rows that fall back to defaults still expose what they're set up to do)
- * and surfaces adapter-health *only when unhealthy* — keeping the calm
- * default state silent and reserving visual noise for things the user
- * needs to act on.
+ * Adapter / model / reasoning summary line. Surfaces adapter health
+ * only when unhealthy, keeping the default state visually quiet.
  */
 export const AgentSummaryChips: FC<AgentSummaryChipsProps> = ({
   adapter,

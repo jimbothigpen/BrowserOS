@@ -33,10 +33,6 @@
       "types": "./src/constants/paths.ts",
       "default": "./src/constants/paths.ts"
     },
-    "./constants/openclaw": {
-      "types": "./src/constants/openclaw.ts",
-      "default": "./src/constants/openclaw.ts"
-    },
     "./constants/hermes": {
       "types": "./src/constants/hermes.ts",
       "default": "./src/constants/hermes.ts"

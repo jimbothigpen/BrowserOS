@@ -18,7 +18,7 @@ import {
 import {
   type AgentEntry,
   getModelDisplayName,
-} from '@/entrypoints/app/agents/useOpenClaw'
+} from '@/entrypoints/app/agents/agent-harness-types'
 import { cn } from '@/lib/utils'
 
 interface AgentSelectorProps {

@@ -1,18 +1,26 @@
-import type { OpenClawChatHistoryMessage } from '@/entrypoints/app/agents/useOpenClaw'
 import type { AgentConversationTurn } from '@/lib/agent-conversations/types'
-import type { ProducedFilesRailGroup } from '@/lib/agent-files'
 
-export type ClawChatRole = 'user' | 'assistant'
+export interface AgentChatHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
 
-export type ClawChatSource = 'user-chat' | 'cron' | 'hook' | 'channel' | 'other'
+export type AgentChatRole = 'user' | 'assistant'
 
-export interface BrowserOSOpenClawSession {
+export type AgentChatSource =
+  | 'user-chat'
+  | 'cron'
+  | 'hook'
+  | 'channel'
+  | 'other'
+
+export interface BrowserOSAgentSession {
   key: string
   updatedAt: number
   sessionId: string
   agentId: string
   kind: string
-  source: ClawChatSource
+  source: AgentChatSource
   status?: string
   totalTokens?: number
   model?: string
@@ -48,12 +56,12 @@ export interface BrowserOSChatHistoryAttachment {
 
 export interface BrowserOSChatHistoryItem {
   id: string
-  role: ClawChatRole
+  role: AgentChatRole
   text: string
   timestamp?: number
   messageSeq: number
   sessionKey: string
-  source: ClawChatSource
+  source: AgentChatSource
   costUsd?: number
   tokensIn?: number
   tokensOut?: number
@@ -65,7 +73,7 @@ export interface BrowserOSChatHistoryItem {
 export interface AgentHistoryPageResponse {
   agentId: string
   sessionKey: string | null
-  session: BrowserOSOpenClawSession | null
+  session: BrowserOSAgentSession | null
   items: BrowserOSChatHistoryItem[]
   page: {
     cursor?: string
@@ -74,13 +82,13 @@ export interface AgentHistoryPageResponse {
   }
 }
 
-export type ClawChatMessageStatus =
+export type AgentChatMessageStatus =
   | 'historical'
   | 'sending'
   | 'streaming'
   | 'error'
 
-export type ClawChatMessagePart =
+export type AgentChatMessagePart =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string; duration?: number }
   | {
@@ -103,24 +111,24 @@ export type ClawChatMessagePart =
     }
   | { type: 'meta'; label: string; value: string }
 
-export interface ClawChatMessage {
+export interface AgentChatMessage {
   id: string
-  role: ClawChatRole
+  role: AgentChatRole
   sessionKey: string
   timestamp?: number
-  source?: ClawChatSource
+  source?: AgentChatSource
   messageSeq?: number
-  status?: ClawChatMessageStatus
-  parts: ClawChatMessagePart[]
+  status?: AgentChatMessageStatus
+  parts: AgentChatMessagePart[]
   costUsd?: number
   tokensIn?: number
   tokensOut?: number
 }
 
-export function mapHistoryItemToClawMessage(
+export function mapHistoryItemToAgentMessage(
   item: BrowserOSChatHistoryItem,
-): ClawChatMessage {
-  const parts: ClawChatMessagePart[] = []
+): AgentChatMessage {
+  const parts: AgentChatMessagePart[] = []
 
   // Attachments first — they belong above the text in user messages and
   // never appear on assistant messages today (assistant images come back
@@ -193,7 +201,7 @@ export function mapHistoryItemToClawMessage(
 
 export function flattenHistoryPages(
   pages: AgentHistoryPageResponse[],
-): ClawChatMessage[] {
+): AgentChatMessage[] {
   return pages
     .flatMap((page) => page.items)
     .sort((a, b) => {
@@ -202,12 +210,12 @@ export function flattenHistoryPages(
       }
       return a.messageSeq - b.messageSeq
     })
-    .map(mapHistoryItemToClawMessage)
+    .map(mapHistoryItemToAgentMessage)
 }
 
-export function buildChatHistoryFromClawMessages(
-  messages: ClawChatMessage[],
-): OpenClawChatHistoryMessage[] {
+export function buildChatHistoryFromAgentMessages(
+  messages: AgentChatMessage[],
+): AgentChatHistoryMessage[] {
   return messages
     .map((message) => {
       const content = message.parts
@@ -219,49 +227,23 @@ export function buildChatHistoryFromClawMessages(
 
       return content ? { role: message.role, content } : null
     })
-    .filter((message): message is OpenClawChatHistoryMessage =>
-      Boolean(message),
-    )
+    .filter((message): message is AgentChatHistoryMessage => Boolean(message))
 }
 
 const TURN_HISTORY_MATCH_WINDOW_MS = 5_000
 
 export function filterTurnsPersistedInHistory(
   turns: AgentConversationTurn[],
-  historyMessages: ClawChatMessage[],
+  historyMessages: AgentChatMessage[],
 ): AgentConversationTurn[] {
   return turns.filter(
     (turn) => !isTurnPersistedInHistory(turn, historyMessages),
   )
 }
 
-/**
- * Persisted turns that still carry `producedFiles` — once history
- * reloads, the assistant text is rendered by `ClawChatMessage` and
- * the optimistic turn is filtered out by
- * `filterTurnsPersistedInHistory`. The historical message has no
- * `producedFiles` field (history items don't carry that), so the
- * inline file-card strip would vanish on history reload.
- *
- * Returning these here lets the caller render a strip-only entry
- * after the corresponding history bubble — full message stays as
- * the persisted history pair, but the produced-files affordance
- * survives.
- */
-export function selectStripOnlyTurns(
-  turns: AgentConversationTurn[],
-  historyMessages: ClawChatMessage[],
-): AgentConversationTurn[] {
-  return turns.filter(
-    (turn) =>
-      Boolean(turn.producedFiles && turn.producedFiles.length > 0) &&
-      isTurnPersistedInHistory(turn, historyMessages),
-  )
-}
-
 function isTurnPersistedInHistory(
   turn: AgentConversationTurn,
-  historyMessages: ClawChatMessage[],
+  historyMessages: AgentChatMessage[],
 ): boolean {
   if (!turn.done) return false
 
@@ -276,20 +258,20 @@ function isTurnPersistedInHistory(
       (message) =>
         message.role === 'user' &&
         isHistoryMessageAfter(message, minTimestamp) &&
-        getClawMessageText(message) === userText,
+        getAgentMessageText(message) === userText,
     )
   const assistantPersisted = historyMessages.some(
     (message) =>
       message.role === 'assistant' &&
       isHistoryMessageAfter(message, minTimestamp) &&
-      getClawMessageText(message) === assistantText,
+      getAgentMessageText(message) === assistantText,
   )
 
   return userPersisted && assistantPersisted
 }
 
 function isHistoryMessageAfter(
-  message: ClawChatMessage,
+  message: AgentChatMessage,
   minTimestamp: number,
 ): boolean {
   return message.timestamp == null || message.timestamp >= minTimestamp
@@ -303,66 +285,10 @@ function getTurnAssistantText(turn: AgentConversationTurn): string {
     .trim()
 }
 
-function getClawMessageText(message: ClawChatMessage): string {
+function getAgentMessageText(message: AgentChatMessage): string {
   return message.parts
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
     .join('')
     .trim()
-}
-
-function firstNonBlankLine(value: string): string {
-  for (const raw of value.split('\n')) {
-    const trimmed = raw.trim()
-    if (trimmed) return trimmed
-  }
-  return ''
-}
-
-/**
- * Map each assistant history message to the produced-files group
- * that came from its turn. Match key is `group.turnPrompt` (first
- * non-blank line of the user prompt that initiated the turn) vs.
- * the first non-blank line of the user message that immediately
- * preceded this assistant message — the same shape the server
- * emits when storing turnPrompt.
- *
- * Walks history forward (oldest-first per `flattenHistoryPages`)
- * and consumes groups in chronological order. A group can only
- * match once — if two turns share the same prompt the earlier
- * one wins, and the later assistant message stays unassociated
- * (those land back in `tailStripGroups` at the conversation tail).
- */
-export function mapHistoryToProducedFilesGroups(
-  historyMessages: ClawChatMessage[],
-  groups: ReadonlyArray<ProducedFilesRailGroup>,
-): {
-  byAssistantMessageId: Map<string, ProducedFilesRailGroup>
-  unmatched: ProducedFilesRailGroup[]
-} {
-  const byAssistantMessageId = new Map<string, ProducedFilesRailGroup>()
-  if (groups.length === 0) {
-    return { byAssistantMessageId, unmatched: [] }
-  }
-  // Oldest-first so the iteration order matches history.
-  const remaining = [...groups].sort((a, b) => a.createdAt - b.createdAt)
-
-  let pendingPrompt: string | null = null
-  for (const message of historyMessages) {
-    if (message.role === 'user') {
-      pendingPrompt = firstNonBlankLine(getClawMessageText(message))
-      continue
-    }
-    if (message.role !== 'assistant' || !pendingPrompt) continue
-    const matchIndex = remaining.findIndex(
-      (group) => group.turnPrompt === pendingPrompt,
-    )
-    if (matchIndex >= 0) {
-      const [match] = remaining.splice(matchIndex, 1)
-      byAssistantMessageId.set(message.id, match)
-    }
-    pendingPrompt = null
-  }
-
-  return { byAssistantMessageId, unmatched: remaining }
 }

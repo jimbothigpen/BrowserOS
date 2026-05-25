@@ -4,9 +4,7 @@ import type { HarnessAgent } from './agent-harness-types'
  * Stable ordering for index-shaped agent surfaces (the `/agents` rail
  * and the chat-screen rail at `/agents/:agentId`). Pinned rows float
  * to the top, then recency desc, with never-used agents falling to
- * the bottom in id-stable order. The gateway's `main` agent gets
- * seed-pinned to the top of the never-used group so a fresh install
- * has an obvious starting point even before the user has used it.
+ * the bottom in id-stable order.
  *
  * NOT the same rule as the home grid (`orderHomeAgents`): home is
  * action-shaped — active-turn floats to the top — so users can
@@ -20,11 +18,6 @@ export function orderAgentsByPinThenRecency(
     const aPinned = a.pinned ?? false
     const bPinned = b.pinned ?? false
     if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-    const aSeed = a.id === 'main' && (a.lastUsedAt ?? null) === null
-    const bSeed = b.id === 'main' && (b.lastUsedAt ?? null) === null
-    if (aSeed && !bSeed) return -1
-    if (!aSeed && bSeed) return 1
 
     const aValue = a.lastUsedAt ?? Number.NEGATIVE_INFINITY
     const bValue = b.lastUsedAt ?? Number.NEGATIVE_INFINITY
@@ -45,11 +38,6 @@ export function compareAgentsByPinThenRecency<
   T extends { pinned: boolean; lastUsedAt: number | null; id: string },
 >(a: T, b: T): number {
   if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-
-  const aSeed = a.id === 'main' && a.lastUsedAt === null
-  const bSeed = b.id === 'main' && b.lastUsedAt === null
-  if (aSeed && !bSeed) return -1
-  if (!aSeed && bSeed) return 1
 
   const aValue = a.lastUsedAt ?? Number.NEGATIVE_INFINITY
   const bValue = b.lastUsedAt ?? Number.NEGATIVE_INFINITY

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import type {
+  AgentEntry,
   HarnessAdapterDescriptor,
   HarnessAgent,
 } from '@/entrypoints/app/agents/agent-harness-types'
@@ -12,7 +13,6 @@ import {
   useAgentAdapters,
   useHarnessAgents,
 } from '@/entrypoints/app/agents/useAgents'
-import type { AgentEntry } from '@/entrypoints/app/agents/useOpenClaw'
 import { ImportDataHint } from '@/entrypoints/newtab/index/ImportDataHint'
 import { SignInHint } from '@/entrypoints/newtab/index/SignInHint'
 import { useActiveHint } from '@/entrypoints/newtab/index/useActiveHint'
@@ -93,11 +93,10 @@ function RecentThreads({
 export const AgentCommandHome: FC = () => {
   const navigate = useNavigate()
   const activeHint = useActiveHint()
-  // The conversation input still consumes the merged AgentEntry list
-  // from the layout context (handles legacy /claw/agents entries that
-  // haven't yet been backfilled into the harness store). The Recent
-  // Agents grid below reads the richer harness payload directly.
-  const { agents: legacyAgents, status } = useAgentCommandData()
+  // The conversation input consumes the compact AgentEntry list from
+  // the layout context. The Recent Agents grid below reads the richer
+  // harness payload directly.
+  const { agents: legacyAgents } = useAgentCommandData()
   const { harnessAgents } = useHarnessAgents()
   const { adapters } = useAgentAdapters()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
@@ -145,11 +144,8 @@ export const AgentCommandHome: FC = () => {
   const selectedAgent = legacyAgents.find(
     (agent) => agent.agentId === selectedAgentId,
   )
-  const selectedAgentReady = selectedAgent
-    ? selectedAgent.source === 'agent-harness' || status?.status === 'running'
-    : false
-  const selectedAgentStatus =
-    selectedAgent?.source === 'agent-harness' ? 'running' : status?.status
+  const selectedAgentReady = Boolean(selectedAgent)
+  const selectedAgentStatus = selectedAgent ? 'running' : undefined
   const selectedAgentName =
     selectedAgent?.name ?? orderedAgents[0]?.name ?? 'your agent'
 

@@ -23,22 +23,22 @@ import {
 } from '@/components/ai-elements/task'
 import { cn } from '@/lib/utils'
 import type {
-  ClawChatMessagePart,
-  ClawChatMessage as ClawChatMessageType,
-} from './claw-chat-types'
+  AgentChatMessagePart,
+  AgentChatMessage as AgentChatMessageType,
+} from './agent-chat-types'
 
 function formatCost(usd: number): string {
   if (usd < 0.005) return `$${usd.toFixed(4)}`
   return `$${usd.toFixed(2)}`
 }
 
-type ToolCallPart = Extract<ClawChatMessagePart, { type: 'tool-call' }>
-type AttachmentPart = Extract<ClawChatMessagePart, { type: 'attachment' }>
+type ToolCallPart = Extract<AgentChatMessagePart, { type: 'tool-call' }>
+type AttachmentPart = Extract<AgentChatMessagePart, { type: 'attachment' }>
 
 interface RenderEntry {
   kind: 'text' | 'reasoning' | 'meta' | 'task' | 'attachments'
   partIndex: number
-  part?: ClawChatMessagePart
+  part?: AgentChatMessagePart
   tools?: ToolCallPart[]
   attachments?: AttachmentPart[]
 }
@@ -48,7 +48,7 @@ interface RenderEntry {
  * collapsible and all attachment parts into a single attachment strip at
  * their respective first-appearance positions. Other parts render in place.
  */
-function buildRenderEntries(parts: ClawChatMessagePart[]): RenderEntry[] {
+function buildRenderEntries(parts: AgentChatMessagePart[]): RenderEntry[] {
   const entries: RenderEntry[] = []
   const tools: ToolCallPart[] = []
   const attachments: AttachmentPart[] = []
@@ -92,11 +92,11 @@ function ToolStatusIcon({ status }: { status: ToolCallPart['status'] }) {
   return <XCircle className="size-3.5 shrink-0 text-destructive" />
 }
 
-interface ClawChatMessageProps {
-  message: ClawChatMessageType
+interface AgentChatMessageProps {
+  message: AgentChatMessageType
 }
 
-export const ClawChatMessage: FC<ClawChatMessageProps> = ({ message }) => {
+export const AgentChatMessage: FC<AgentChatMessageProps> = ({ message }) => {
   const messageText = message.parts
     .filter((p) => p.type === 'text')
     .map((p) => p.text)

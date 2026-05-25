@@ -31,10 +31,6 @@ import type {
   AgentHistoryEntry,
   AgentHistoryToolCall,
 } from './agent-types'
-import {
-  type OpenclawGatewayAccessor,
-  resolveOpenclawAcpCommand,
-} from './openclaw/acp-command'
 import { getHermesRuntime } from './runtime'
 import type {
   AgentHistoryPage,
@@ -46,8 +42,6 @@ import type {
   AgentStreamEvent,
 } from './types'
 
-export type { OpenclawGatewayAccessor } from './openclaw/acp-command'
-
 const CLAUDE_ACP_ADAPTER_COMMAND =
   'npx -y @agentclientprotocol/claude-agent-acp@^0.31.0'
 const CODEX_ACP_ADAPTER_COMMAND = 'npx -y @zed-industries/codex-acp@^0.12.0'
@@ -57,11 +51,6 @@ type AcpxRuntimeOptions = {
   browserosDir?: string
   stateDir?: string
   browserosServerPort?: number
-  /**
-   * Required for adapter='openclaw' agents; harmless when absent for
-   * claude/codex (their adapters spawn their own CLI binaries).
-   */
-  openclawGateway?: OpenclawGatewayAccessor
   runtimeFactory?: (options: AcpRuntimeOptions) => AcpxCoreRuntime
 }
 
@@ -73,7 +62,6 @@ interface PreparedRuntimeContext {
   commandIdentity: string
   useBrowserosMcp: boolean
   browserosMcpHost?: string
-  openclawSessionKey: string | null
 }
 
 export class AcpxRuntime implements AgentRuntime {
@@ -81,7 +69,6 @@ export class AcpxRuntime implements AgentRuntime {
   private readonly browserosDir: string
   private readonly stateDir: string
   private readonly browserosServerPort: number
-  private readonly openclawGateway: OpenclawGatewayAccessor | null
   private readonly runtimeFactory: (
     options: AcpRuntimeOptions,
   ) => AcpxCoreRuntime
@@ -97,7 +84,6 @@ export class AcpxRuntime implements AgentRuntime {
       join(this.browserosDir, 'agents', 'acpx')
     this.browserosServerPort =
       options.browserosServerPort ?? DEFAULT_PORTS.server
-    this.openclawGateway = options.openclawGateway ?? null
     this.sessionStore = createRuntimeStore({ stateDir: this.stateDir })
     this.runtimeFactory = options.runtimeFactory ?? createAcpRuntime
   }
@@ -183,7 +169,6 @@ export class AcpxRuntime implements AgentRuntime {
       commandIdentity: prepared.commandIdentity,
       useBrowserosMcp: prepared.useBrowserosMcp,
       browserosMcpHost: prepared.browserosMcpHost,
-      openclawSessionKey: prepared.openclawSessionKey,
     })
 
     return createAcpxEventStream(runtime, input, {
@@ -231,7 +216,6 @@ export class AcpxRuntime implements AgentRuntime {
       commandIdentity: prepared.commandIdentity,
       useBrowserosMcp: prepared.useBrowserosMcp,
       browserosMcpHost: prepared.browserosMcpHost,
-      openclawSessionKey: prepared.openclawSessionKey,
     }
   }
 
@@ -243,7 +227,6 @@ export class AcpxRuntime implements AgentRuntime {
     commandIdentity: string
     useBrowserosMcp: boolean
     browserosMcpHost?: string
-    openclawSessionKey: string | null
   }): AcpxCoreRuntime {
     const mcpHost = input.browserosMcpHost ?? '127.0.0.1'
     const key = JSON.stringify({
@@ -253,7 +236,6 @@ export class AcpxRuntime implements AgentRuntime {
       commandIdentity: input.commandIdentity,
       useBrowserosMcp: input.useBrowserosMcp,
       browserosMcpHost: mcpHost,
-      openclawSessionKey: input.openclawSessionKey,
     })
     const existing = this.runtimes.get(key)
     if (existing) return existing
@@ -262,8 +244,6 @@ export class AcpxRuntime implements AgentRuntime {
       cwd: input.cwd,
       sessionStore: this.sessionStore,
       agentRegistry: createBrowserosAgentRegistry({
-        openclawGateway: this.openclawGateway,
-        openclawSessionKey: input.openclawSessionKey,
         commandEnv: input.commandEnv,
       }),
       mcpServers: input.useBrowserosMcp
@@ -282,7 +262,6 @@ export class AcpxRuntime implements AgentRuntime {
       browserosMcpHost: mcpHost,
       commandIdentity: input.commandIdentity,
       useBrowserosMcp: input.useBrowserosMcp,
-      openclawSessionKey: input.openclawSessionKey,
     })
     return runtime
   }
@@ -468,11 +447,6 @@ export function unwrapBrowserosAcpUserMessage(raw: string): string {
 
 function stripOuterRoleEnvelope(value: string): string {
   // Any `<role>…</role>\n\n<user_request>\n…\n</user_request>` envelope.
-  // Adapter-agnostic so both the BrowserOS multi-line role block and the
-  // openclaw single-line role block get unwrapped. TKT-774's exact-prefix
-  // match only covered the BrowserOS form, so the openclaw envelope
-  // (added when openclaw moved to its own prepare step) was landing
-  // unwrapped in history payloads.
   const match = value.match(
     /^<role\b[^>]*>[\s\S]*?<\/role>\n\n<user_request>\n([\s\S]*?)\n<\/user_request>$/,
   )
@@ -673,8 +647,6 @@ function createBrowserosMcpServers(
 }
 
 function createBrowserosAgentRegistry(input: {
-  openclawGateway: OpenclawGatewayAccessor | null
-  openclawSessionKey: string | null
   commandEnv: Record<string, string>
 }): AcpRuntimeOptions['agentRegistry'] {
   const registry = createAgentRegistry()
@@ -685,21 +657,6 @@ function createBrowserosAgentRegistry(input: {
     },
     resolve(agentName) {
       const lower = agentName.trim().toLowerCase()
-
-      if (lower === 'openclaw') {
-        if (!input.openclawGateway) {
-          // Fall back to acpx's built-in `openclaw` adapter, which assumes
-          // a host-side openclaw binary. BrowserOS doesn't install one on
-          // the host, so this branch will fail at spawn time with a
-          // descriptive error — the harness should be wired with a
-          // gateway accessor.
-          return registry.resolve(agentName)
-        }
-        return resolveOpenclawAcpCommand(
-          input.openclawGateway,
-          input.openclawSessionKey,
-        )
-      }
 
       if (lower === 'hermes') {
         const runtime = getHermesRuntime()

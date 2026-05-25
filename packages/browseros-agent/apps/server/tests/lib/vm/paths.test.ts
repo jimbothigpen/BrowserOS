@@ -7,11 +7,6 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { PATHS } from '@browseros/shared/constants/paths'
-import {
-  getLegacyOpenClawDir,
-  getOpenClawDir,
-} from '../../../src/lib/browseros-dir'
 import {
   detectArch,
   getContainerdSocketPath,
@@ -53,9 +48,6 @@ describe('VM paths', () => {
 
     expect(getLimaHomeDir()).toBe(join(homedir(), '.browseros', 'lima'))
     expect(getVmStateDir()).toBe(join(homedir(), '.browseros', 'vm'))
-    expect(getOpenClawDir()).toBe(
-      join(homedir(), '.browseros', 'vm', 'openclaw'),
-    )
   })
 
   it('uses development VM directories below .browseros-dev', () => {
@@ -64,18 +56,6 @@ describe('VM paths', () => {
 
     expect(getLimaHomeDir()).toBe(join(homedir(), '.browseros-dev', 'lima'))
     expect(getVmStateDir()).toBe(join(homedir(), '.browseros-dev', 'vm'))
-    expect(getOpenClawDir()).toBe(
-      join(homedir(), '.browseros-dev', 'vm', 'openclaw'),
-    )
-  })
-
-  it('keeps the legacy OpenClaw directory addressable for migration', () => {
-    process.env.NODE_ENV = 'production'
-    delete process.env.BROWSEROS_DIR
-
-    expect(getLegacyOpenClawDir()).toBe(
-      join(homedir(), PATHS.BROWSEROS_DIR_NAME, PATHS.OPENCLAW_DIR_NAME),
-    )
   })
 
   it('builds VM storage paths', () => {
@@ -90,8 +70,8 @@ describe('VM paths', () => {
   it('translates mounted host paths into guest paths', () => {
     const root = '/Users/foo/.browseros'
 
-    expect(hostPathToGuest('/Users/foo/.browseros/vm/openclaw/x', root)).toBe(
-      '/mnt/browseros/vm/openclaw/x',
+    expect(hostPathToGuest('/Users/foo/.browseros/vm/state/x', root)).toBe(
+      '/mnt/browseros/vm/state/x',
     )
   })
 

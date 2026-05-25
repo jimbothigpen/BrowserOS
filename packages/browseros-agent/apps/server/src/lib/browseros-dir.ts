@@ -27,14 +27,6 @@ export function getSessionsDir(): string {
   return join(getBrowserosDir(), PATHS.SESSIONS_DIR_NAME)
 }
 
-export function getOpenClawDir(): string {
-  return join(getVmStateDir(), PATHS.OPENCLAW_DIR_NAME)
-}
-
-export function getLegacyOpenClawDir(): string {
-  return join(getBrowserosDir(), PATHS.OPENCLAW_DIR_NAME)
-}
-
 export function getCacheDir(): string {
   return join(getBrowserosDir(), PATHS.CACHE_DIR_NAME)
 }

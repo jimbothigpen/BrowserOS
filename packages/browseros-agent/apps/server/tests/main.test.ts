@@ -49,47 +49,6 @@ describe('Application.start', () => {
     expect(loggerError).not.toHaveBeenCalled()
   })
 
-  it('starts OpenClaw prewarm without blocking HTTP startup', async () => {
-    const { Application, createHttpServer, openClawService } =
-      await setupApplicationTest()
-    let resolvePrewarm: () => void = () => {}
-    const pendingPrewarm = new Promise<void>((resolve) => {
-      resolvePrewarm = resolve
-    })
-    openClawService.prewarm.mockImplementation(() => pendingPrewarm)
-
-    const app = new Application(config)
-    const startPromise = app.start()
-    const completedBeforePrewarm = await Promise.race([
-      startPromise.then(() => true),
-      Bun.sleep(25).then(() => false),
-    ])
-    resolvePrewarm()
-    await startPromise
-
-    expect(completedBeforePrewarm).toBe(true)
-    expect(createHttpServer).toHaveBeenCalledTimes(1)
-    expect(openClawService.prewarm).toHaveBeenCalledTimes(1)
-    expect(openClawService.tryAutoStart).toHaveBeenCalledTimes(1)
-  })
-
-  it('logs and continues when OpenClaw prewarm fails', async () => {
-    const { Application, createHttpServer, loggerWarn, openClawService } =
-      await setupApplicationTest()
-    openClawService.prewarm.mockImplementation(async () => {
-      throw new Error('registry offline')
-    })
-    const app = new Application(config)
-
-    await app.start()
-    await Bun.sleep(0)
-
-    expect(createHttpServer).toHaveBeenCalledTimes(1)
-    expect(loggerWarn).toHaveBeenCalledWith('OpenClaw prewarm failed', {
-      error: 'registry offline',
-    })
-  })
-
   it('stores the database below the BrowserOS directory instead of the execution directory', async () => {
     const originalBrowserosDir = process.env.BROWSEROS_DIR
     process.env.BROWSEROS_DIR = '/tmp/browseros-dogfood'
@@ -118,9 +77,6 @@ async function setupApplicationTest() {
   const apiServer = await import('../src/api/server')
   const browserModule = await import('../src/browser/browser')
   const cdpModule = await import('../src/browser/backends/cdp')
-  const openclawService = await import(
-    '../src/api/services/openclaw/openclaw-service'
-  )
   const runtimeModule = await import('../src/lib/agents/runtime')
   const browserosDir = await import('../src/lib/browseros-dir')
   const dbModule = await import('../src/lib/db')
@@ -176,24 +132,6 @@ async function setupApplicationTest() {
   spyOn(sentryModule.Sentry, 'setUser').mockImplementation(() => {})
   spyOn(sentryModule.Sentry, 'captureException').mockImplementation(() => {})
 
-  const prewarm = mock(async () => {})
-  const tryAutoStart = mock(async () => {})
-
-  spyOn(openclawService, 'configureVmRuntime').mockImplementation(
-    () =>
-      ({
-        prewarm,
-        tryAutoStart,
-      }) as never,
-  )
-  spyOn(openclawService, 'configureOpenClawService').mockImplementation(
-    () =>
-      ({
-        prewarm,
-        tryAutoStart,
-      }) as never,
-  )
-
   const hermesExecuteAction = mock(async () => {})
   const fakeHermesRuntime = { executeAction: hermesExecuteAction } as never
   spyOn(runtimeModule, 'configureHermesRuntime').mockImplementation(
@@ -219,7 +157,6 @@ async function setupApplicationTest() {
     loggerInfo,
     loggerWarn,
     initializeDb,
-    openClawService: { prewarm, tryAutoStart },
     hermesService: { executeAction: hermesExecuteAction },
   }
 }

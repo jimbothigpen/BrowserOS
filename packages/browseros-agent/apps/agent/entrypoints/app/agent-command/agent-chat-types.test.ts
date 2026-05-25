@@ -3,11 +3,11 @@ import type { AgentConversationTurn } from '@/lib/agent-conversations/types'
 import {
   type AgentHistoryPageResponse,
   type BrowserOSChatHistoryItem,
-  buildChatHistoryFromClawMessages,
+  buildChatHistoryFromAgentMessages,
   filterTurnsPersistedInHistory,
   flattenHistoryPages,
-  mapHistoryItemToClawMessage,
-} from './claw-chat-types'
+  mapHistoryItemToAgentMessage,
+} from './agent-chat-types'
 
 function historyItem(
   overrides: Partial<BrowserOSChatHistoryItem>,
@@ -37,9 +37,9 @@ function page(items: BrowserOSChatHistoryItem[]): AgentHistoryPageResponse {
   }
 }
 
-describe('claw-chat-types', () => {
-  it('maps backend history items into text-first ClawChat messages', () => {
-    const message = mapHistoryItemToClawMessage(
+describe('agent-chat-types', () => {
+  it('maps backend history items into text-first AgentChat messages', () => {
+    const message = mapHistoryItemToAgentMessage(
       historyItem({
         id: 'session-1:1',
         role: 'assistant',
@@ -96,8 +96,8 @@ describe('claw-chat-types', () => {
     ])
   })
 
-  it('builds OpenClaw chat history from text message parts only', () => {
-    const history = buildChatHistoryFromClawMessages([
+  it('builds agent chat history from text message parts only', () => {
+    const history = buildChatHistoryFromAgentMessages([
       {
         id: 'user-1',
         role: 'user',
