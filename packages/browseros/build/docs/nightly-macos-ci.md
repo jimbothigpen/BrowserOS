@@ -117,8 +117,8 @@ branch in GitHub's native branch picker, then set inputs:
 - `commit_version`: commit and push the bumped version files
 - `upload_to_r2`: publish to R2/CDN after packaging, enabled by default
 
-Manual dispatch is restricted to the release-core maintainers. Scheduled nightly
-runs are not actor-gated.
+Manual dispatch requires approval through the `release-core` environment.
+Scheduled nightly runs bypass that approval job and run automatically.
 
 The DMG is always uploaded as a run artifact when packaging succeeds.
 
