@@ -16,6 +16,7 @@ import { SignInHint } from '@/entrypoints/newtab/index/SignInHint'
 import { useActiveHint } from '@/entrypoints/newtab/index/useActiveHint'
 import {
   buildSidepanelChatTargets,
+  persistSidepanelChatTargetSelection,
   resolveSidepanelChatTarget,
 } from '@/entrypoints/sidepanel/index/sidepanel-chat-targets'
 import { toProviderOption } from '@/entrypoints/sidepanel/index/useChatSessionRequest'
@@ -125,7 +126,7 @@ export const AgentCommandHome: FC = () => {
     [harnessAgents],
   )
 
-  const handleSend = (input: ConversationInputSendInput) => {
+  const handleSend = async (input: ConversationInputSendInput) => {
     if (!selectedProvider) return
     const route = routeHomeSend(selectedProvider, input.text)
     if (!route) return
@@ -143,9 +144,15 @@ export const AgentCommandHome: FC = () => {
       navigate(route.path)
       return
     }
-    // LLM target: mirror the sidepanel — selecting a provider makes it the
-    // default, which the in-tab chat at /home/chat restores on mount.
-    void setDefaultProvider(route.providerId)
+    // LLM target → /home/chat. That chat resolves its provider from the shared
+    // chat-target selection (preferred over the global default), so persist
+    // this pick there before navigating; also set it as the default to mirror
+    // the sidepanel's behaviour.
+    const target = targets.find(
+      (entry) => entry.kind === 'llm' && entry.id === route.providerId,
+    )
+    await persistSidepanelChatTargetSelection(target)
+    await setDefaultProvider(route.providerId)
     navigate(route.path)
   }
 
