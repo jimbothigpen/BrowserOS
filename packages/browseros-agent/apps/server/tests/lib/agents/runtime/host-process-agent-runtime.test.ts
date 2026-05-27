@@ -4,8 +4,12 @@
  */
 
 import { describe, expect, it, mock } from 'bun:test'
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { delimiter, join } from 'node:path'
 import {
   ActionNotSupportedError,
+  buildHostProcessProbeEnv,
   HostProcessAgentRuntime,
   type HostProcessAgentRuntimeDeps,
   type RuntimeStatusSnapshot,
@@ -191,6 +195,48 @@ describe('HostProcessAgentRuntime', () => {
       })
       await r.probeHealth()
       expect(spawnProbe.mock.calls[0]?.[0]).toEqual(['custom-bin', '-V'])
+    })
+
+    it('passes probeEnv overrides to the spawned version probe', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'host-probe-'))
+      try {
+        const bin = join(dir, 'fake-cli')
+        await writeFile(bin, '#!/bin/sh\necho from-probe-env\n')
+        await chmod(bin, 0o755)
+        const r = new TestRuntime({
+          binaryName: 'fake-cli',
+          probeEnv: { PATH: dir },
+        })
+        await r.probeHealth()
+        const snap = r.getStatusSnapshot()
+        expect(snap.state).toBe('cli_present')
+        expect(snap.details?.binaryVersion).toBe('from-probe-env')
+      } finally {
+        await rm(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('builds a macOS GUI-safe probe PATH', () => {
+      const env = buildHostProcessProbeEnv({
+        env: { HOME: '/Users/tester', PATH: '/base/bin' },
+        platform: 'darwin',
+      })
+      expect(env?.PATH.split(delimiter).slice(0, 5)).toEqual([
+        '/Users/tester/.local/bin',
+        '/Users/tester/.bun/bin',
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        '/base/bin',
+      ])
+    })
+
+    it('leaves non-macOS probe env unchanged', () => {
+      expect(
+        buildHostProcessProbeEnv({
+          env: { HOME: '/home/tester', PATH: '/base/bin' },
+          platform: 'linux',
+        }),
+      ).toBeUndefined()
     })
   })
 

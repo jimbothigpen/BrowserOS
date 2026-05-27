@@ -11,6 +11,7 @@
  */
 
 import { logger } from '../../logger'
+import { buildMacosAcpAdapterPath } from '../bundled-bun'
 import type { AgentRuntime } from './agent-runtime'
 import { ActionNotSupportedError } from './errors'
 import type {
@@ -37,10 +38,27 @@ export interface HostProcessAgentRuntimeDeps {
     cmd: ReadonlyArray<string>,
     timeoutMs: number,
   ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
+  /** Environment overrides for the version probe subprocess. */
+  probeEnv?: NodeJS.ProcessEnv
 }
 
 const DEFAULT_PROBE_CACHE_MS = 5 * 60 * 1000
 const DEFAULT_PROBE_TIMEOUT_MS = 2_000
+
+export function buildHostProcessProbeEnv(
+  input: { env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform } = {},
+): NodeJS.ProcessEnv | undefined {
+  const platform = input.platform ?? process.platform
+  if (platform !== 'darwin') return undefined
+  const env = input.env ?? process.env
+  return {
+    ...env,
+    PATH: buildMacosAcpAdapterPath({
+      basePath: env.PATH,
+      home: env.HOME,
+    }),
+  }
+}
 
 export abstract class HostProcessAgentRuntime implements AgentRuntime {
   abstract readonly descriptor: RuntimeDescriptor & { kind: 'host-process' }
@@ -218,9 +236,13 @@ export abstract class HostProcessAgentRuntime implements AgentRuntime {
     timeoutMs: number,
   ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
     if (this.deps.spawnProbe) return this.deps.spawnProbe(cmd, timeoutMs)
+    const env = this.deps.probeEnv
+      ? { ...process.env, ...this.deps.probeEnv }
+      : buildHostProcessProbeEnv()
     const proc = Bun.spawn(cmd as string[], {
       stdout: 'pipe',
       stderr: 'pipe',
+      env,
     })
     const timer = setTimeout(() => {
       try {
