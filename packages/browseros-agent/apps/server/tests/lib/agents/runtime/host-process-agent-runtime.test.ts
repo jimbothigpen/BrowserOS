@@ -230,6 +230,35 @@ describe('HostProcessAgentRuntime', () => {
       ])
     })
 
+    it('keeps macOS PATH enrichment as the probeEnv base', () => {
+      const env = buildHostProcessProbeEnv({
+        env: { HOME: '/Users/tester', PATH: '/base/bin' },
+        platform: 'darwin',
+        overrides: { DEBUG_PROBE: '1' },
+      })
+      expect(env?.DEBUG_PROBE).toBe('1')
+      expect(env?.PATH?.split(delimiter).slice(0, 5)).toEqual([
+        '/Users/tester/.local/bin',
+        '/Users/tester/.bun/bin',
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        '/base/bin',
+      ])
+    })
+
+    it('layers probeEnv over process env on non-macOS', () => {
+      const env = buildHostProcessProbeEnv({
+        env: { HOME: '/home/tester', PATH: '/base/bin' },
+        platform: 'linux',
+        overrides: { DEBUG_PROBE: '1' },
+      })
+      expect(env).toEqual({
+        HOME: '/home/tester',
+        PATH: '/base/bin',
+        DEBUG_PROBE: '1',
+      })
+    })
+
     it('leaves non-macOS probe env unchanged', () => {
       expect(
         buildHostProcessProbeEnv({
