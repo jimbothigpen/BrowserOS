@@ -3,7 +3,7 @@ import {
   PROXY_PORT_MAX,
   PROXY_PORT_MIN,
   parseProxyPort,
-} from './ServerPortEditor.helpers'
+} from './server-port-editor.helpers'
 
 describe('parseProxyPort', () => {
   it('accepts a valid in-range port', () => {

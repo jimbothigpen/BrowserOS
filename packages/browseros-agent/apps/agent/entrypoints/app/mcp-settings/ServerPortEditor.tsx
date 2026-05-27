@@ -1,5 +1,5 @@
 import { Loader2, Pencil } from 'lucide-react'
-import { type FC, useEffect, useState } from 'react'
+import { type FC, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,14 +11,12 @@ import {
 } from '@/components/ui/popover'
 import { getBrowserOSAdapter } from '@/lib/browseros/adapter'
 import { Capabilities, Feature } from '@/lib/browseros/capabilities'
+import { getProxyPort } from '@/lib/browseros/helpers'
 import { BROWSEROS_PREFS } from '@/lib/browseros/prefs'
 import { MCP_PROXY_PORT_CHANGED_EVENT } from '@/lib/constants/analyticsEvents'
-import { sendServerMessage } from '@/lib/messaging/server/serverMessages'
 import { track } from '@/lib/metrics/track'
-import { PROXY_PORT_MIN, parseProxyPort } from './ServerPortEditor.helpers'
-
-const HEALTH_CHECK_TIMEOUT_MS = 60_000
-const HEALTH_CHECK_INTERVAL_MS = 2_000
+import { waitForServerHealth } from './server-health'
+import { PROXY_PORT_MIN, parseProxyPort } from './server-port-editor.helpers'
 
 interface ServerPortEditorProps {
   onPortChanged?: () => void
@@ -26,40 +24,11 @@ interface ServerPortEditorProps {
 
 async function readCurrentPort(): Promise<number> {
   try {
-    const pref = await getBrowserOSAdapter().getPref(BROWSEROS_PREFS.PROXY_PORT)
-    if (pref?.value && typeof pref.value === 'number') {
-      return pref.value
-    }
+    return await getProxyPort()
   } catch {
-    // BrowserOS API not available — fall back to the default port
+    // Pref unset or BrowserOS API unavailable — fall back to the default port
+    return PROXY_PORT_MIN
   }
-  return PROXY_PORT_MIN
-}
-
-// Poll the local health endpoint until the server comes back on the new port
-// or we give up. checkHealth resolves the URL from the live proxy_port pref,
-// so it automatically targets the port we just wrote.
-async function waitForServerHealth(): Promise<boolean> {
-  const startTime = Date.now()
-  return new Promise((resolve) => {
-    const check = async () => {
-      if (Date.now() - startTime >= HEALTH_CHECK_TIMEOUT_MS) {
-        resolve(false)
-        return
-      }
-      try {
-        const result = await sendServerMessage('checkHealth', undefined)
-        if (result.healthy) {
-          resolve(true)
-          return
-        }
-      } catch {
-        // keep polling until the timeout
-      }
-      setTimeout(check, HEALTH_CHECK_INTERVAL_MS)
-    }
-    setTimeout(check, HEALTH_CHECK_INTERVAL_MS)
-  })
 }
 
 /**
@@ -78,6 +47,14 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
   const [currentPort, setCurrentPort] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -99,6 +76,7 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
     if (next) {
       setError(null)
       const port = await readCurrentPort()
+      if (!isMountedRef.current) return
       setCurrentPort(port)
       setValue(String(port))
     }
@@ -124,8 +102,10 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
         throw new Error('Failed to update port')
       }
       const healthy = await waitForServerHealth()
+      // Bail if the settings page unmounted mid-poll — don't poke a stale tree.
+      if (!isMountedRef.current) return
       if (healthy) {
-        track(MCP_PROXY_PORT_CHANGED_EVENT)
+        track(MCP_PROXY_PORT_CHANGED_EVENT, { port: result.port })
         setCurrentPort(result.port)
         toast.success('Server port updated', {
           description: `MCP clients now connect on port ${result.port}.`,
@@ -134,13 +114,14 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
         setOpen(false)
       } else {
         setError(
-          'Server did not respond. Please quit and restart the browser, then try again.',
+          "Port saved, but the server didn't restart in time. Quit and relaunch the browser to apply it.",
         )
       }
     } catch (err) {
+      if (!isMountedRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to update port')
     } finally {
-      setIsSaving(false)
+      if (isMountedRef.current) setIsSaving(false)
     }
   }
 
@@ -177,6 +158,7 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
               autoFocus
               value={value}
               aria-invalid={!parsed.ok && value.trim() !== ''}
+              aria-describedby={error ? 'proxy-port-error' : undefined}
               disabled={isSaving}
               onChange={(e) => {
                 setValue(e.target.value)
@@ -186,7 +168,11 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
                 if (e.key === 'Enter' && canSave) handleSave()
               }}
             />
-            {error && <p className="text-destructive text-xs">{error}</p>}
+            {error && (
+              <p id="proxy-port-error" className="text-destructive text-xs">
+                {error}
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button
