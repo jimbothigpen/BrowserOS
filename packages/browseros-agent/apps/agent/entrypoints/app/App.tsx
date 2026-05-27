@@ -111,7 +111,6 @@ export const App: FC = () => {
                       variant="page"
                       backPath="/agents"
                       agentPathPrefix="/agents"
-                      createAgentPath="/agents"
                     />
                   }
                 />

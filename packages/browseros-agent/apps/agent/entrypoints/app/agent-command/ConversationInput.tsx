@@ -20,22 +20,24 @@ import {
   useRef,
   useState,
 } from 'react'
+import { ChatProviderSelector } from '@/components/chat/ChatProviderSelector'
+import type { Provider } from '@/components/chat/chatComponentTypes'
 import { AppSelector } from '@/components/elements/AppSelector'
 import { TabPickerPopover } from '@/components/elements/tab-picker-popover'
 import { WorkspaceSelector } from '@/components/elements/workspace-selector'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import type { AgentEntry } from '@/entrypoints/app/agents/agent-harness-types'
 import { McpServerIcon } from '@/entrypoints/app/connect-mcp/McpServerIcon'
 import { useGetUserMCPIntegrations } from '@/entrypoints/app/connect-mcp/useGetUserMCPIntegrations'
 import { type StagedAttachment, stageAttachments } from '@/lib/attachments'
 import { Feature } from '@/lib/browseros/capabilities'
 import { useCapabilities } from '@/lib/browseros/useCapabilities'
+import { BrowserOSIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
+import type { ProviderType } from '@/lib/llm-providers/types'
 import { useMcpServers } from '@/lib/mcp/mcpServerStorage'
 import { cn } from '@/lib/utils'
 import { useVoiceInput } from '@/lib/voice/useVoiceInput'
 import { useWorkspace } from '@/lib/workspace/use-workspace'
-import { AgentSelector } from './AgentSelector'
 
 export interface ConversationInputSendInput {
   text: string
@@ -43,11 +45,14 @@ export interface ConversationInputSendInput {
 }
 
 interface ConversationInputProps {
-  agents: AgentEntry[]
-  selectedAgentId: string | null
-  onSelectAgent: (agent: AgentEntry) => void
   onSend: (input: ConversationInputSendInput) => void
-  onCreateAgent?: () => void
+  /**
+   * Merged provider/agent picker shown only on the `home` variant. Lets the
+   * composer target either an LLM provider (BrowserOS, etc.) or a named agent.
+   */
+  providers?: Provider[]
+  selectedProvider?: Provider | null
+  onSelectProvider?: (provider: Provider) => void
   streaming: boolean
   disabled?: boolean
   status?: string
@@ -174,26 +179,22 @@ function VoiceButton({
  * conversation).
  */
 function CalmContextControls({
-  agents,
-  onCreateAgent,
-  onSelectAgent,
-  selectedAgentId,
+  providers,
+  selectedProvider,
+  onSelectProvider,
   selectedTabs,
   onToggleTab,
   showAgentSelector,
-  status,
   onAttachClick,
   attachDisabled,
   attachmentsEnabled,
 }: {
-  agents: AgentEntry[]
-  onCreateAgent?: () => void
-  onSelectAgent: (agent: AgentEntry) => void
-  selectedAgentId: string | null
+  providers?: Provider[]
+  selectedProvider?: Provider | null
+  onSelectProvider?: (provider: Provider) => void
   selectedTabs: chrome.tabs.Tab[]
   onToggleTab: (tab: chrome.tabs.Tab) => void
   showAgentSelector: boolean
-  status?: string
   onAttachClick: () => void
   attachDisabled: boolean
   attachmentsEnabled: boolean
@@ -215,16 +216,30 @@ function CalmContextControls({
 
   return (
     <div className="mx-3 flex items-center gap-1 border-border/60 border-t border-dashed py-2">
-      {showAgentSelector ? (
+      {showAgentSelector &&
+      providers &&
+      selectedProvider &&
+      onSelectProvider ? (
         <>
-          <AgentSelector
-            agents={agents}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={onSelectAgent}
-            onCreateAgent={onCreateAgent}
-            status={status}
-            triggerVariant="pill"
-          />
+          <ChatProviderSelector
+            providers={providers}
+            selectedProvider={selectedProvider}
+            onSelectProvider={onSelectProvider}
+          >
+            <button
+              type="button"
+              className={cn(
+                'inline-flex h-6 max-w-[200px] items-center gap-1.5 rounded-full border border-border bg-accent/40 pr-2 pl-2.5 text-[11.5px] text-foreground transition-colors',
+                'hover:border-border hover:bg-accent/70 data-[state=open]:border-border data-[state=open]:bg-accent/70',
+              )}
+            >
+              <TargetPillIcon provider={selectedProvider} />
+              <span className="truncate font-medium font-mono text-[11.5px] tracking-[-0.01em]">
+                {selectedProvider.name}
+              </span>
+              <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+            </button>
+          </ChatProviderSelector>
           <span
             aria-hidden="true"
             className="mx-1 inline-block h-3.5 w-px shrink-0 bg-border"
@@ -346,14 +361,12 @@ function ConversationShell({ children }: { children: ReactNode }) {
 }
 
 export const ConversationInput: FC<ConversationInputProps> = ({
-  agents,
-  selectedAgentId,
-  onSelectAgent,
   onSend,
-  onCreateAgent,
+  providers,
+  selectedProvider,
+  onSelectProvider,
   streaming,
   disabled,
-  status,
   placeholder,
   attachmentsEnabled = true,
   variant = 'conversation',
@@ -369,9 +382,6 @@ export const ConversationInput: FC<ConversationInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const voice = useVoiceInput()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const selectedAgent = agents.find(
-    (agent) => agent.agentId === selectedAgentId,
-  )
   const isConversation = variant === 'conversation'
 
   const stageFiles = async (files: File[]) => {
@@ -565,7 +575,7 @@ export const ConversationInput: FC<ConversationInputProps> = ({
                 voice.isTranscribing
                   ? 'Transcribing...'
                   : (placeholder ??
-                    `Message ${selectedAgent?.name ?? 'agent'}...`)
+                    `Message ${selectedProvider?.name ?? 'agent'}...`)
               }
               disabled={disabled || voice.isTranscribing}
               className={cn(
@@ -611,14 +621,12 @@ export const ConversationInput: FC<ConversationInputProps> = ({
           </div>
         ) : null}
         <CalmContextControls
-          agents={agents}
-          onCreateAgent={onCreateAgent}
-          onSelectAgent={onSelectAgent}
-          selectedAgentId={selectedAgentId}
+          providers={providers}
+          selectedProvider={selectedProvider}
+          onSelectProvider={onSelectProvider}
           selectedTabs={selectedTabs}
           onToggleTab={toggleTab}
           showAgentSelector={variant === 'home'}
-          status={status}
           onAttachClick={openFilePicker}
           attachDisabled={attachments.length >= 10 || isStaging || !!disabled}
           attachmentsEnabled={attachmentsEnabled}
@@ -717,4 +725,10 @@ function BotInputIcon({ variant }: { variant: 'home' | 'conversation' }) {
       <Bot className="h-4 w-4" />
     </div>
   )
+}
+
+function TargetPillIcon({ provider }: { provider: Provider }) {
+  if (provider.kind === 'acp') return <Bot className="size-3" />
+  if (provider.type === 'browseros') return <BrowserOSIcon size={12} />
+  return <ProviderIcon type={provider.type as ProviderType} size={12} />
 }

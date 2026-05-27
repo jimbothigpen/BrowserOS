@@ -1,11 +1,9 @@
-import { Plus } from 'lucide-react'
 import { type FC, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
+import type { Provider } from '@/components/chat/chatComponentTypes'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import type {
-  AgentEntry,
   HarnessAdapterDescriptor,
   HarnessAgent,
 } from '@/entrypoints/app/agents/agent-harness-types'
@@ -16,35 +14,22 @@ import {
 import { ImportDataHint } from '@/entrypoints/newtab/index/ImportDataHint'
 import { SignInHint } from '@/entrypoints/newtab/index/SignInHint'
 import { useActiveHint } from '@/entrypoints/newtab/index/useActiveHint'
+import {
+  buildSidepanelChatTargets,
+  resolveSidepanelChatTarget,
+} from '@/entrypoints/sidepanel/index/sidepanel-chat-targets'
+import { toProviderOption } from '@/entrypoints/sidepanel/index/useChatSessionRequest'
+import { useLlmProviders } from '@/lib/llm-providers/useLlmProviders'
 import { AgentCardDock } from './AgentCardDock'
-import { useAgentCommandData } from './agent-command-layout'
 import {
   ConversationInput,
   type ConversationInputSendInput,
 } from './ConversationInput'
 import { orderHomeAgents } from './home-agent-card.helpers'
+import { routeHomeSend } from './home-compose.helpers'
 import { setPendingInitialMessage } from './pending-initial-message'
 
-function EmptyAgentsState({ onOpenAgents }: { onOpenAgents: () => void }) {
-  return (
-    <Card className="border-border/60 bg-card/90 shadow-sm">
-      <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
-        <div className="flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-          <Plus className="size-5" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="font-semibold text-lg">No agents yet</h2>
-          <p className="max-w-md text-muted-foreground text-sm leading-6">
-            Create an agent to start using BrowserOS as an agent-first new tab.
-          </p>
-        </div>
-        <Button variant="outline" onClick={onOpenAgents} className="rounded-xl">
-          Create agent
-        </Button>
-      </CardContent>
-    </Card>
-  )
-}
+const MANAGE_AGENTS_PATH = '/settings/ai?section=claude'
 
 function RecentThreads({
   activeAgentId,
@@ -93,118 +78,126 @@ function RecentThreads({
 export const AgentCommandHome: FC = () => {
   const navigate = useNavigate()
   const activeHint = useActiveHint()
-  // The conversation input consumes the compact AgentEntry list from
-  // the layout context. The Recent Agents grid below reads the richer
-  // harness payload directly.
-  const { agents: legacyAgents } = useAgentCommandData()
+  const {
+    providers: llmProviders,
+    defaultProviderId,
+    setDefaultProvider,
+  } = useLlmProviders()
   const { harnessAgents } = useHarnessAgents()
   const { adapters } = useAgentAdapters()
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(
+    null,
+  )
+
+  const targets = useMemo(
+    () =>
+      buildSidepanelChatTargets({
+        providers: llmProviders,
+        adapters,
+        agents: harnessAgents,
+      }),
+    [llmProviders, adapters, harnessAgents],
+  )
+  const providerOptions = useMemo(
+    () => targets.map(toProviderOption),
+    [targets],
+  )
+
+  // Default the picker to the user's default LLM provider (BrowserOS out of the
+  // box) so the composer works with zero agents. Re-resolve if the current
+  // selection disappears (e.g. its provider/agent was removed).
+  useEffect(() => {
+    if (targets.length === 0) return
+    const stillValid =
+      selectedProvider &&
+      providerOptions.some(
+        (option) =>
+          option.id === selectedProvider.id &&
+          option.kind === selectedProvider.kind,
+      )
+    if (stillValid) return
+    const fallback = resolveSidepanelChatTarget({ targets, defaultProviderId })
+    setSelectedProvider(fallback ? toProviderOption(fallback) : null)
+  }, [targets, providerOptions, selectedProvider, defaultProviderId])
 
   const orderedAgents = useMemo(
     () => orderHomeAgents(harnessAgents),
     [harnessAgents],
   )
 
-  useEffect(() => {
-    if (legacyAgents.length === 0) {
-      if (selectedAgentId) setSelectedAgentId(null)
+  const handleSend = (input: ConversationInputSendInput) => {
+    if (!selectedProvider) return
+    const route = routeHomeSend(selectedProvider, input.text)
+    if (!route) return
+    if (route.kind === 'acp') {
+      // Stash text + attachments in the in-memory registry. Text also travels
+      // in `?q=` so a hard refresh / shareable URL still works for text-only
+      // prompts; attachments are registry-only (a multi-MB dataUrl can't ride
+      // a URL param). The chat screen prefers the registry when both exist.
+      setPendingInitialMessage({
+        agentId: route.agentId,
+        text: input.text,
+        attachments: input.attachments,
+        createdAt: Date.now(),
+      })
+      navigate(route.path)
       return
     }
-    if (
-      !selectedAgentId ||
-      !legacyAgents.some((agent) => agent.agentId === selectedAgentId)
-    ) {
-      setSelectedAgentId(legacyAgents[0].agentId)
-    }
-  }, [legacyAgents, selectedAgentId])
-
-  const handleSend = (input: ConversationInputSendInput) => {
-    if (!selectedAgentId) return
-    // Stash text + attachments in the in-memory registry. Text also
-    // travels in `?q=` so a hard refresh / shareable URL still works
-    // for text-only prompts; attachments are registry-only because a
-    // multi-megabyte dataUrl can't ride a URL search param. The chat
-    // screen prefers the registry when both are present.
-    setPendingInitialMessage({
-      agentId: selectedAgentId,
-      text: input.text,
-      attachments: input.attachments,
-      createdAt: Date.now(),
-    })
-    navigate(
-      `/home/agents/${selectedAgentId}?q=${encodeURIComponent(input.text)}`,
-    )
+    // LLM target: mirror the sidepanel — selecting a provider makes it the
+    // default, which the in-tab chat at /home/chat restores on mount.
+    void setDefaultProvider(route.providerId)
+    navigate(route.path)
   }
-
-  const handleSelectAgent = (agent: AgentEntry) => {
-    setSelectedAgentId(agent.agentId)
-  }
-
-  const selectedAgent = legacyAgents.find(
-    (agent) => agent.agentId === selectedAgentId,
-  )
-  const selectedAgentReady = Boolean(selectedAgent)
-  const selectedAgentStatus = selectedAgent ? 'running' : undefined
-  const selectedAgentName =
-    selectedAgent?.name ?? orderedAgents[0]?.name ?? 'your agent'
-
-  const hasAgents = legacyAgents.length > 0
 
   return (
     <div className="min-h-full px-4 py-6">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-        {hasAgents ? (
+        <div className="flex flex-col items-center gap-5 pt-[max(10vh,24px)] text-center">
+          <div className="space-y-3">
+            <h1 className="font-semibold text-[clamp(2.25rem,4.5vw,3.5rem)] leading-[1.08] tracking-[-0.025em] [text-wrap:balance]">
+              What should your agent{' '}
+              <span className="font-medium text-[var(--accent-orange)] italic">
+                work on
+              </span>{' '}
+              next?
+            </h1>
+            <p className="mx-auto max-w-2xl text-muted-foreground text-sm leading-6 [text-wrap:pretty]">
+              Pick BrowserOS AI or any agent, then start a task — all without
+              leaving this tab.
+            </p>
+          </div>
+
+          <div className="w-full max-w-3xl">
+            <ConversationInput
+              variant="home"
+              providers={providerOptions}
+              selectedProvider={selectedProvider}
+              onSelectProvider={setSelectedProvider}
+              onSend={handleSend}
+              streaming={false}
+              disabled={!selectedProvider}
+              attachmentsEnabled={true}
+              placeholder={
+                selectedProvider
+                  ? `Ask ${selectedProvider.name} to handle a task...`
+                  : 'Loading providers...'
+              }
+            />
+          </div>
+        </div>
+
+        {orderedAgents.length > 0 ? (
           <>
-            <div className="flex flex-col items-center gap-5 pt-[max(10vh,24px)] text-center">
-              <div className="space-y-3">
-                <h1 className="font-semibold text-[clamp(2.25rem,4.5vw,3.5rem)] leading-[1.08] tracking-[-0.025em] [text-wrap:balance]">
-                  What should your agent{' '}
-                  <span className="font-medium text-[var(--accent-orange)] italic">
-                    work on
-                  </span>{' '}
-                  next?
-                </h1>
-                <p className="mx-auto max-w-2xl text-muted-foreground text-sm leading-6 [text-wrap:pretty]">
-                  Start a task, continue a thread, or hand off to a different
-                  agent — all without leaving this tab.
-                </p>
-              </div>
-
-              <div className="w-full max-w-3xl">
-                <ConversationInput
-                  variant="home"
-                  agents={legacyAgents}
-                  selectedAgentId={selectedAgentId}
-                  onSelectAgent={handleSelectAgent}
-                  onSend={handleSend}
-                  onCreateAgent={() => navigate('/agents')}
-                  streaming={false}
-                  disabled={!selectedAgentReady}
-                  status={selectedAgentStatus}
-                  attachmentsEnabled={true}
-                  placeholder={
-                    selectedAgentReady
-                      ? `Ask ${selectedAgentName} to handle a task...`
-                      : 'Agent runtime is not running...'
-                  }
-                />
-              </div>
-            </div>
-
             <Separator />
-
             <RecentThreads
-              activeAgentId={selectedAgentId}
+              activeAgentId={selectedProvider?.agentId ?? null}
               agents={orderedAgents}
               adapters={adapters}
-              onOpenAgents={() => navigate('/agents')}
+              onOpenAgents={() => navigate(MANAGE_AGENTS_PATH)}
               onSelectAgent={(agentId) => navigate(`/home/agents/${agentId}`)}
             />
           </>
-        ) : (
-          <EmptyAgentsState onOpenAgents={() => navigate('/agents')} />
-        )}
+        ) : null}
       </div>
 
       {activeHint === 'signin' ? <SignInHint /> : null}
