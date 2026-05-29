@@ -51,6 +51,10 @@ interface ScreencastSession {
   // nothing — a late subscriber would see "live" status with a blank
   // canvas forever. Cache the last frame and replay it on subscribe.
   lastFrame: ScreencastFrameMessage | null
+  // Set true once stopSession runs, so a concurrent subscribe()
+  // continuation can detect that its session reference was torn down
+  // mid-flight and retry against a fresh one.
+  disposed: boolean
 }
 
 export interface SubscribeHandle {
@@ -75,35 +79,45 @@ export class ScreencastManager {
     pageId: number | null,
     ws: Subscriber,
   ): Promise<SubscribeHandle> {
-    const resolved = await this.resolve(windowId, pageId)
-    const session = await this.getOrStartSession(resolved, windowId, pageId)
-    // The route's onClose can fire while subscribe's awaits are in
-    // flight; it sees `handle === null` and skips unsubscribe. Without
-    // this guard we'd add a dead ws to subscribers, broadcast would
-    // skip it forever, and stopSession would never run.
-    if (ws.readyState !== WS_OPEN) {
-      this.stopIfIdle(session)
+    // Retry loop: when two subscribers share a pendingStart and the
+    // first one's ws closes mid-flight, its continuation runs first
+    // and synchronously stops the session. The second continuation
+    // would otherwise add ws to the disposed session — connected
+    // status sent, but no live frames ever arrive (frame listener
+    // already removed). Re-run getOrStartSession to bind to a fresh
+    // session.
+    for (;;) {
+      const resolved = await this.resolve(windowId, pageId)
+      const session = await this.getOrStartSession(resolved, windowId, pageId)
+      // Route's onClose can fire while these awaits are in flight; it
+      // sees `handle === null` and skips unsubscribe. Without this
+      // guard we'd add a dead ws to subscribers and stopSession would
+      // never run.
+      if (ws.readyState !== WS_OPEN) {
+        this.stopIfIdle(session)
+        return { targetId: session.targetId }
+      }
+      if (session.disposed) continue
+      session.subscribers.add(ws)
+      this.send(ws, {
+        type: 'status',
+        status: 'connected',
+        windowId,
+        pageId: pageId ?? undefined,
+        url: session.url,
+      })
+      if (session.lastFrame) {
+        this.send(ws, session.lastFrame)
+      } else {
+        void this.primeWithScreenshot(session, ws).catch((err) => {
+          logger.warn('primeWithScreenshot failed', {
+            targetId: session.targetId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+      }
       return { targetId: session.targetId }
     }
-    session.subscribers.add(ws)
-    this.send(ws, {
-      type: 'status',
-      status: 'connected',
-      windowId,
-      pageId: pageId ?? undefined,
-      url: session.url,
-    })
-    if (session.lastFrame) {
-      this.send(ws, session.lastFrame)
-    } else {
-      void this.primeWithScreenshot(session, ws).catch((err) => {
-        logger.warn('primeWithScreenshot failed', {
-          targetId: session.targetId,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-    }
-    return { targetId: session.targetId }
   }
 
   unsubscribe(handle: SubscribeHandle, ws: Subscriber): void {
@@ -176,6 +190,7 @@ export class ScreencastManager {
       url: resolved.url,
       unsubscribeFrame: () => undefined,
       lastFrame: null,
+      disposed: false,
     }
     session.unsubscribeFrame = resolved.session.Page.on(
       'screencastFrame',
@@ -229,6 +244,7 @@ export class ScreencastManager {
   private async stopSession(targetId: string): Promise<void> {
     const session = this.sessions.get(targetId)
     if (!session) return
+    session.disposed = true
     this.sessions.delete(targetId)
     session.unsubscribeFrame()
     try {
