@@ -200,7 +200,7 @@ func DefaultProductionEnv() ProductionEnv {
 		Server: map[string]string{
 			"BROWSEROS_CONFIG_URL": "https://llm.browseros.com/api/browseros-server/config",
 			"POSTHOG_API_KEY":      "",
-			"SENTRY_DSN":           "https://08d37194d0cfaed69687c3803216daa4@o4510545525932032.ingest.us.sentry.io/4510545527111680",
+			"SENTRY_DSN":           "",
 			"R2_ACCOUNT_ID":        "",
 			"R2_ACCESS_KEY_ID":     "",
 			"R2_SECRET_ACCESS_KEY": "",
