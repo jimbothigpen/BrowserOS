@@ -4,9 +4,9 @@ import { eq } from 'drizzle-orm'
 import { settings } from '../../db/schema/settings.sql.js'
 import type { DB } from '../../db/types.js'
 import { connectWithTimeout } from '../settings/browseros.js'
-import { restoreElectronFocus } from './electron-focus.js'
 
-// The whole app shares one BrowserOS window. Per-surface (employee,
+// The company runs inside the BrowserOS Chromium server, so it shares the
+// user's already-open window — it never creates one. Per-surface (employee,
 // channel) state collapses into a single windowId persisted on the
 // `settings` row. Each surface gets a tab group inside this one window
 // (see tab-group.ts) so cookies + login state are shared across
@@ -33,7 +33,6 @@ interface WindowInfo {
 }
 
 type WindowsListResult = { windows: WindowInfo[]; count?: number }
-type CreateWindowResult = { window: WindowInfo }
 
 function scopeHeaders(): Record<string, string> {
   return {
@@ -70,26 +69,21 @@ async function isWindowAlive(
   return Boolean(structured?.windows.find((w) => w.windowId === windowId))
 }
 
-async function createWindow(
-  client: Client,
-  visibility: AppWindowVisibility,
-): Promise<number> {
-  const result =
-    visibility === 'hidden'
-      ? await client.callTool({
-          name: 'create_hidden_window',
-          arguments: {},
-        })
-      : await client.callTool({ name: 'create_window', arguments: {} })
-  await restoreElectronFocus()
-  const structured = result.structuredContent as CreateWindowResult | undefined
-  const id = structured?.window.windowId
-  if (typeof id !== 'number') {
+// Attach to the window the user already has open — prefer a visible one,
+// fall back to the first. The company never creates a window (it's part of
+// the same browser). Throws when the browser reports none, which the caller
+// surfaces rather than papering over with a create.
+async function resolveExistingWindow(client: Client): Promise<number> {
+  const result = await client.callTool({ name: 'list_windows', arguments: {} })
+  const structured = result.structuredContent as WindowsListResult | undefined
+  const windows = structured?.windows ?? []
+  const target = windows.find((w) => w.isVisible) ?? windows[0]
+  if (!target) {
     throw new Error(
-      'BrowserOS create_window did not return a windowId in structuredContent',
+      'No BrowserOS window available to attach to — expected the running browser to have at least one open window',
     )
   }
-  return id
+  return target.windowId
 }
 
 async function readSettingsRow(
@@ -134,9 +128,10 @@ export async function getAppWindowId(db: DB): Promise<number | null> {
 }
 
 /**
- * Idempotent resolve-or-create for the single app window. Stored id
- * alive upstream → reuse. Missing or dead → create fresh in the
- * persisted visibility mode and write the new id.
+ * Idempotent resolve for the shared app window. A still-alive persisted id
+ * is reused; a missing or dead one is re-resolved from the user's open
+ * windows via list_windows. Never creates a window — the company is part of
+ * the same browser.
  */
 export async function ensureAppWindow(
   db: DB,
@@ -147,10 +142,9 @@ export async function ensureAppWindow(
     if (stored !== null && (await isWindowAlive(client, stored))) {
       return stored
     }
-    const visibility = await getAppWindowVisibility(db)
-    const created = await createWindow(client, visibility)
-    await writeSettingsRow(db, APP_WINDOW_ID_SETTING_KEY, String(created))
-    return created
+    const resolved = await resolveExistingWindow(client)
+    await writeSettingsRow(db, APP_WINDOW_ID_SETTING_KEY, String(resolved))
+    return resolved
   })
 }
 
