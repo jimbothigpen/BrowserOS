@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { AcpxRuntime } from '../../../lib/agents/acpx/runtime'
+import {
+  AcpxRuntime,
+  unwrapBrowserosAcpUserMessage,
+} from '../../../lib/agents/acpx/runtime'
 import type { AgentDefinition } from '../../../lib/agents/agent-types'
 import {
   getHermesHarnessHostDir,
@@ -595,7 +598,14 @@ export class AgentHarnessService {
     sessionId: 'main' = 'main',
   ): ActiveTurnInfo | null {
     const turn = this.turnRegistry.getActiveFor(agentId, sessionId)
-    return turn ? this.turnRegistry.describe(turn.turnId) : null
+    if (!turn) return null
+    const info = this.turnRegistry.describe(turn.turnId)
+    if (!info?.prompt) return info
+    // Chat UIs that attach to an in-flight turn render this prompt as the
+    // user bubble (new-tab agent view). Strip the browser-context /
+    // <USER_QUERY> scaffolding so it shows only the user's question —
+    // same read-time unwrap getHistory applies.
+    return { ...info, prompt: unwrapBrowserosAcpUserMessage(info.prompt) }
   }
 
   /**

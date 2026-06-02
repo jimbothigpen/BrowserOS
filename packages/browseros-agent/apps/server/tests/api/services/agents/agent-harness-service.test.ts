@@ -14,6 +14,7 @@ import {
 } from '../../../../src/api/services/agents/agent-harness-service'
 import type { AgentDefinition } from '../../../../src/lib/agents/agent-types'
 import type { AgentStore } from '../../../../src/lib/agents/storage/agent-store'
+import { TurnRegistry } from '../../../../src/lib/agents/turns/active-turn-registry'
 import type {
   AgentRuntime,
   AgentStreamEvent,
@@ -455,7 +456,55 @@ describe('AgentHarnessService', () => {
       expect(agents).toHaveLength(0)
     })
   })
+
+  it('strips browser-context scaffolding from the active-turn prompt', () => {
+    const { registry, service } = serviceWithRegistry()
+    registry.register('agent-1', 'main', {
+      prompt: [
+        '## Browser Context',
+        '**Window ID:** 1995357486',
+        '**Active Tab:** Tab 1995357512 (Page ID: 3) - "BrowserOS" (chrome://newtab/)',
+        '',
+        '---',
+        '',
+        '<USER_QUERY>',
+        'Open amazon.com in current tab and add sensodyne toothpaste to cart',
+        '</USER_QUERY>',
+      ].join('\n'),
+    })
+
+    expect(service.getActiveTurn('agent-1')?.prompt).toBe(
+      'Open amazon.com in current tab and add sensodyne toothpaste to cart',
+    )
+  })
+
+  it('passes a null active-turn prompt through unchanged', () => {
+    const { registry, service } = serviceWithRegistry()
+    registry.register('agent-1', 'main', { prompt: null })
+
+    expect(service.getActiveTurn('agent-1')?.prompt).toBeNull()
+  })
+
+  it('leaves an already-clean active-turn prompt unchanged', () => {
+    const { registry, service } = serviceWithRegistry()
+    registry.register('agent-1', 'main', { prompt: 'plain question' })
+
+    expect(service.getActiveTurn('agent-1')?.prompt).toBe('plain question')
+  })
 })
+
+function serviceWithRegistry(): {
+  registry: TurnRegistry
+  service: AgentHarnessService
+} {
+  const registry = new TurnRegistry()
+  const service = new AgentHarnessService({
+    agentStore: createAgentStore([]) as AgentStore,
+    runtime: stubRuntime(),
+    turnRegistry: registry,
+  })
+  return { registry, service }
+}
 
 async function withHermesBrowserosDir<T>(
   run: (input: {
