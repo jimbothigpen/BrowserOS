@@ -31,7 +31,7 @@ func ResetHardToUpstream(ctx context.Context, repoPath string, r Runner) error {
 }
 
 // EnsureBranch moves the configured dogfood checkout onto its target branch before update work runs.
-func EnsureBranch(ctx context.Context, repoPath string, branch string, r Runner) error {
+func EnsureBranch(ctx context.Context, repoPath string, branch string, r Runner, force bool) error {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
 		return nil
@@ -42,6 +42,9 @@ func EnsureBranch(ctx context.Context, repoPath string, branch string, r Runner)
 	}
 	if current == branch {
 		return nil
+	}
+	if force {
+		return r.Run(ctx, repoPath, "git", "switch", "--force", branch)
 	}
 	return r.Run(ctx, repoPath, "git", "switch", branch)
 }

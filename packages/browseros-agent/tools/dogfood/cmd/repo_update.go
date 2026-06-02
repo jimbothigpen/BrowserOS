@@ -30,7 +30,7 @@ func updateConfiguredRepo(ctx context.Context, cfg config.Config, runner pipelin
 	if err := pipeline.Fetch(ctx, cfg.RepoPath, runner); err != nil {
 		return err
 	}
-	if err := pipeline.EnsureBranch(ctx, cfg.RepoPath, cfg.Branch, runner); err != nil {
+	if err := pipeline.EnsureBranch(ctx, cfg.RepoPath, cfg.Branch, runner, opts.Force); err != nil {
 		return err
 	}
 	if opts.ResetToUpstream {

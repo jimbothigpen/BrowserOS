@@ -186,7 +186,10 @@ func prepareStartCheckout(ctx context.Context, cfg config.Config, runner pipelin
 		return false, err
 	}
 	if !dirty {
-		return false, pipeline.EnsureBranch(ctx, cfg.RepoPath, cfg.Branch, runner)
+		if err := pipeline.EnsureBranch(ctx, cfg.RepoPath, cfg.Branch, runner, false); err != nil {
+			return false, fmt.Errorf("switch to configured branch %s failed; run `browseros-dogfood pull` first if the branch is not available locally: %w", cfg.Branch, err)
+		}
+		return false, nil
 	}
 	current := pipeline.Branch(cfg.RepoPath, runner)
 	if current != cfg.Branch {

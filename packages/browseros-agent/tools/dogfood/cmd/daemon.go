@@ -359,20 +359,6 @@ func (d *dogfoodDaemon) scheduleRestart(pull bool, force bool) error {
 	if force && !pull {
 		return fmt.Errorf("--force requires --pull")
 	}
-	if pull && !force {
-		cfg, err := loadConfig()
-		if err != nil {
-			return err
-		}
-		runner := pipeline.ExecRunner{}
-		dirty, err := pipeline.Dirty(cfg.RepoPath, runner)
-		if err != nil {
-			return err
-		}
-		if dirty {
-			return fmt.Errorf("checkout has uncommitted changes; commit or stash them, or use --force to reset to upstream")
-		}
-	}
 	return d.scheduleOperation("restarting", func() error {
 		if pull {
 			cfg, err := loadConfig()

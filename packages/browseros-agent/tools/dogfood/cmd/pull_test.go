@@ -61,7 +61,7 @@ func TestUpdateConfiguredRepoFetchesSwitchesAndResetsWhenRequested(t *testing.T)
 	want := []string{
 		"git fetch --prune",
 		"git branch --show-current",
-		"git switch dogfood",
+		"git switch --force dogfood",
 		"git reset --hard @{upstream}",
 	}
 	if got := strings.Join(r.commands, "\n"); got != strings.Join(want, "\n") {
@@ -70,23 +70,29 @@ func TestUpdateConfiguredRepoFetchesSwitchesAndResetsWhenRequested(t *testing.T)
 }
 
 type recordingRunner struct {
-	commands []string
-	output   map[string]string
-	err      error
+	commands      []string
+	output        map[string]string
+	err           error
+	commandErrors map[string]error
 }
 
 func (r *recordingRunner) Run(ctx context.Context, dir string, args ...string) error {
-	r.commands = append(r.commands, strings.Join(args, " "))
+	cmd := strings.Join(args, " ")
+	r.commands = append(r.commands, cmd)
+	if err := r.commandErrors[cmd]; err != nil {
+		return err
+	}
 	return r.err
 }
 
 func (r *recordingRunner) OutputRun(dir string, args ...string) (string, error) {
-	r.commands = append(r.commands, strings.Join(args, " "))
+	cmd := strings.Join(args, " ")
+	r.commands = append(r.commands, cmd)
 	if r.err != nil {
 		return "", r.err
 	}
 	if r.output == nil {
 		return "", errors.New("missing output")
 	}
-	return r.output[strings.Join(args, " ")], nil
+	return r.output[cmd], nil
 }
