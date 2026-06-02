@@ -368,6 +368,37 @@ class BuildManifestTest(unittest.TestCase):
         self.assertIn("uploaded_by", manifest)
 
 
+class PackagedAgentCliContractTest(unittest.TestCase):
+    def test_server_resource_keys_match_storage_upload_keys(self) -> None:
+        manifest_path = (
+            Path(__file__).resolve().parents[3]
+            / "browseros-agent"
+            / "scripts"
+            / "build"
+            / "config"
+            / "server-prod-resources.json"
+        )
+        manifest = json.loads(manifest_path.read_text())
+        actual_keys = {
+            f"artifacts/vendor/{resource['source']['key']}"
+            for resource in manifest["resources"]
+            if resource["source"]["type"] == "r2"
+            and (
+                resource["source"]["key"].startswith("third_party/codex/")
+                or resource["source"]["key"].startswith("third_party/claude-code/")
+            )
+        }
+        expected_keys = {
+            f"{storage.CODEX_R2_PREFIX}/{storage._platform_binary_object_name('codex', platform.target)}"
+            for platform in storage.CODEX_PLATFORMS
+        } | {
+            f"{storage.CLAUDE_CODE_R2_PREFIX}/{storage._platform_binary_object_name('claude', platform.target)}"
+            for platform in storage.CLAUDE_CODE_PLATFORMS
+        }
+
+        self.assertEqual(actual_keys, expected_keys)
+
+
 class ProcessArchTest(unittest.TestCase):
     """Covers download + sha verify + extract + upload in one pass."""
 
