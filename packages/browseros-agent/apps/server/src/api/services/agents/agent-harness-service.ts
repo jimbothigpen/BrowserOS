@@ -8,7 +8,11 @@ import {
   AcpxRuntime,
   unwrapBrowserosAcpUserMessage,
 } from '../../../lib/agents/acpx/runtime'
-import type { AgentDefinition } from '../../../lib/agents/agent-types'
+import {
+  type AgentDefinition,
+  type AgentSessionId,
+  MAIN_AGENT_SESSION_ID,
+} from '../../../lib/agents/agent-types'
 import {
   getHermesHarnessHostDir,
   writeHermesPerAgentProvider,
@@ -322,9 +326,16 @@ export class AgentHarnessService {
         lastError: outcome.error,
       })
     } else {
-      // Successful turn — drop the in-memory entry. Liveness will be
-      // derived from the session record's `lastUsedAt` on next read.
-      this.activity.delete(agentId)
+      // Successful turn — clear working only when no other session is still
+      // running for this agent.
+      if (this.turnRegistry.hasActiveForAgent(agentId)) {
+        this.activity.set(agentId, {
+          status: 'working',
+          lastEventAt: Date.now(),
+        })
+      } else {
+        this.activity.delete(agentId)
+      }
     }
     // The queue drain runs on every turn-end (success or failure) so
     // a queued message is the next thing to run. Fire-and-forget; any
@@ -527,9 +538,12 @@ export class AgentHarnessService {
     return this.agentStore.get(agentId)
   }
 
-  async getHistory(agentId: string): Promise<AgentHistoryPage> {
+  async getHistory(
+    agentId: string,
+    sessionId: AgentSessionId = MAIN_AGENT_SESSION_ID,
+  ): Promise<AgentHistoryPage> {
     const agent = await this.requireAgent(agentId)
-    return this.runtime.getHistory({ agent, sessionId: 'main' })
+    return this.runtime.getHistory({ agent, sessionId })
   }
 
   /**
@@ -542,18 +556,20 @@ export class AgentHarnessService {
    */
   async startTurn(input: {
     agentId: string
+    sessionId?: AgentSessionId
     message: string
     attachments?: ReadonlyArray<{ mediaType: string; data: string }>
     cwd?: string
   }): Promise<{ turnId: string; frames: ReadableStream<TurnFrame> }> {
     const agent = await this.requireAgent(input.agentId)
+    const sessionId = input.sessionId ?? MAIN_AGENT_SESSION_ID
 
-    const existing = this.turnRegistry.getActiveFor(agent.id, 'main')
+    const existing = this.turnRegistry.getActiveFor(agent.id, sessionId)
     if (existing) {
       throw new TurnAlreadyActiveError(agent.id, existing.turnId)
     }
 
-    const turn = this.turnRegistry.register(agent.id, 'main', {
+    const turn = this.turnRegistry.register(agent.id, sessionId, {
       prompt: input.message,
     })
     this.notifyTurnStarted(agent.id)
@@ -595,7 +611,7 @@ export class AgentHarnessService {
    */
   getActiveTurn(
     agentId: string,
-    sessionId: 'main' = 'main',
+    sessionId: AgentSessionId = MAIN_AGENT_SESSION_ID,
   ): ActiveTurnInfo | null {
     const turn = this.turnRegistry.getActiveFor(agentId, sessionId)
     if (!turn) return null
@@ -615,12 +631,16 @@ export class AgentHarnessService {
    */
   cancelTurn(input: {
     agentId: string
+    sessionId?: AgentSessionId
     turnId?: string
     reason?: string
   }): boolean {
     const turnId =
       input.turnId ??
-      this.turnRegistry.getActiveFor(input.agentId, 'main')?.turnId
+      this.turnRegistry.getActiveFor(
+        input.agentId,
+        input.sessionId ?? MAIN_AGENT_SESSION_ID,
+      )?.turnId
     if (!turnId) return false
     return this.turnRegistry.cancel(turnId, input.reason)
   }
@@ -634,6 +654,7 @@ export class AgentHarnessService {
    */
   async send(input: {
     agentId: string
+    sessionId?: AgentSessionId
     message: string
     attachments?: ReadonlyArray<{ mediaType: string; data: string }>
     cwd?: string
@@ -658,6 +679,7 @@ export class AgentHarnessService {
     turnId: string,
     agent: AgentDefinition,
     input: {
+      sessionId?: AgentSessionId
       message: string
       attachments?: ReadonlyArray<{ mediaType: string; data: string }>
       cwd?: string
@@ -665,12 +687,13 @@ export class AgentHarnessService {
   ): Promise<void> {
     const turn = this.turnRegistry.get(turnId)
     if (!turn) return
+    const sessionId = turn.sessionId
     let lastErrorMessage: string | undefined
 
     try {
       const upstream = await this.runtime.send({
         agent,
-        sessionId: 'main',
+        sessionId,
         sessionKey: agent.sessionKey,
         message: input.message,
         attachments: input.attachments,

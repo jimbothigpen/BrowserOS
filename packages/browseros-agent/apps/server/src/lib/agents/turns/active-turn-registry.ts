@@ -186,6 +186,14 @@ export class TurnRegistry {
     return undefined
   }
 
+  /** True when any session for the agent still has a running turn. */
+  hasActiveForAgent(agentId: string): boolean {
+    for (const turn of this.turns.values()) {
+      if (turn.status === 'running' && turn.agentId === agentId) return true
+    }
+    return false
+  }
+
   describe(turnId: string): ActiveTurnInfo | null {
     const turn = this.turns.get(turnId)
     if (!turn) return null
