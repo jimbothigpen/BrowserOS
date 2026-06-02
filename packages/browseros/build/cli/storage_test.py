@@ -219,12 +219,26 @@ class ExtractBunFileTest(unittest.TestCase):
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr("bun-darwin-aarch64/README.md", b"missing")
 
-            with self.assertRaisesRegex(RuntimeError, "bun binary not found"):
+            with self.assertRaisesRegex(RuntimeError, "bun not found in Bun zip"):
                 storage._extract_bun_file(zip_path, tmp_path / "bun")
+
+    def test_raises_with_requested_binary_name_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            zip_path = tmp_path / "bun.zip"
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("bun-windows-x64-baseline/README.md", b"missing")
+
+            with self.assertRaisesRegex(RuntimeError, r"bun\.exe not found"):
+                storage._extract_bun_file(
+                    zip_path,
+                    tmp_path / "bun.exe",
+                    binary_name="bun.exe",
+                )
 
 
 class BunTargetTest(unittest.TestCase):
-    def test_target_matrix_matches_server_build_targets(self) -> None:
+    def test_bun_targets_have_expected_fields(self) -> None:
         self.assertEqual(
             [
                 (target.internal, target.upstream, target.r2_name, target.binary_name)

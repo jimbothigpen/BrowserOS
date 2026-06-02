@@ -420,7 +420,7 @@ def _extract_bun_file(zip_path: Path, dest: Path, binary_name: str = "bun") -> N
                     out.write(chunk)
             dest.chmod(0o755)
             return
-    raise RuntimeError("bun binary not found in Bun zip")
+    raise RuntimeError(f"{binary_name} not found in Bun zip")
 
 
 def _logical_lima_path(member_name: str) -> str:
