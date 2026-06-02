@@ -59,6 +59,12 @@ export interface AgentActivity {
   lastUsedAt: number | null
 }
 
+type SessionActivity = {
+  status: 'working' | 'error'
+  lastEventAt: number
+  lastError?: string
+}
+
 export interface AgentDefinitionWithActivity extends AgentDefinition {
   status: AgentLiveness
   lastUsedAt: number | null
@@ -93,6 +99,10 @@ const ZERO_BUCKETS = (): number[] =>
  * enrichment time; no timer cleanup necessary.
  */
 const ASLEEP_THRESHOLD_MS = 15 * 60 * 1000
+
+function activityKey(agentId: string, sessionId: AgentSessionId): string {
+  return `${agentId}\u0000${sessionId}`
+}
 
 /**
  * Per-turn event the harness emits to subscribers. Lets services that
@@ -135,10 +145,7 @@ export class AgentHarnessService {
   // `lastUsedAt` survives via the acpx session record's `lastUsedAt`,
   // and an idle/asleep agent post-restart will read fine from the
   // record's timestamp without ever flipping to `working`).
-  private readonly activity = new Map<
-    string,
-    { status: 'working' | 'error'; lastEventAt: number; lastError?: string }
-  >()
+  private readonly activity = new Map<string, SessionActivity>()
 
   constructor(
     deps: {
@@ -212,7 +219,9 @@ export class AgentHarnessService {
     ])
     const now = Date.now()
     return agents.map((agent) => {
-      const live = this.activity.get(agent.id)
+      const live = this.activity.get(
+        activityKey(agent.id, MAIN_AGENT_SESSION_ID),
+      )
       const snapshot = snapshots.get(agent.id) ?? null
       const lastUsedAt = snapshot?.lastUsedAt ?? null
       const activeTurn = this.turnRegistry.getActiveFor(agent.id, 'main')
@@ -309,32 +318,40 @@ export class AgentHarnessService {
     }
   }
 
-  /** Mark `agentId` as actively running a turn. */
-  notifyTurnStarted(agentId: string): void {
-    this.activity.set(agentId, { status: 'working', lastEventAt: Date.now() })
+  /** Mark an agent session as actively running a turn. */
+  notifyTurnStarted(
+    agentId: string,
+    sessionId: AgentSessionId = MAIN_AGENT_SESSION_ID,
+  ): void {
+    this.activity.set(activityKey(agentId, sessionId), {
+      status: 'working',
+      lastEventAt: Date.now(),
+    })
   }
 
-  /** Clear the working flag. `error` keeps the row badged as needing attention. */
+  /** Clear the session working flag. `error` keeps that session badged as needing attention. */
   notifyTurnEnded(
     agentId: string,
+    sessionId: AgentSessionId = MAIN_AGENT_SESSION_ID,
     outcome: { ok: boolean; error?: string } = { ok: true },
   ): void {
+    const key = activityKey(agentId, sessionId)
     if (!outcome.ok) {
-      this.activity.set(agentId, {
+      this.activity.set(key, {
         status: 'error',
         lastEventAt: Date.now(),
         lastError: outcome.error,
       })
     } else {
-      // Successful turn — clear working only when no other session is still
-      // running for this agent.
-      if (this.turnRegistry.hasActiveForAgent(agentId)) {
-        this.activity.set(agentId, {
+      // Successful turn — clear working only when this same session has no
+      // remaining running turn.
+      if (this.turnRegistry.getActiveFor(agentId, sessionId)) {
+        this.activity.set(key, {
           status: 'working',
           lastEventAt: Date.now(),
         })
       } else {
-        this.activity.delete(agentId)
+        this.activity.delete(key)
       }
     }
     // The queue drain runs on every turn-end (success or failure) so
@@ -572,7 +589,7 @@ export class AgentHarnessService {
     const turn = this.turnRegistry.register(agent.id, sessionId, {
       prompt: input.message,
     })
-    this.notifyTurnStarted(agent.id)
+    this.notifyTurnStarted(agent.id, sessionId)
     this.emitTurnLifecycle(agent, { type: 'turn_started' })
 
     // Kick off the runtime call in the background. The per-turn
@@ -745,7 +762,7 @@ export class AgentHarnessService {
         })
       }
     } finally {
-      this.notifyTurnEnded(agent.id, {
+      this.notifyTurnEnded(agent.id, sessionId, {
         ok: lastErrorMessage === undefined,
         error: lastErrorMessage,
       })

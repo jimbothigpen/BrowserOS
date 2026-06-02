@@ -295,6 +295,58 @@ describe('AgentHarnessService', () => {
     expect(listed[0]?.status).toBe('error')
   })
 
+  it('does not show sidepanel session errors on the main activity row', async () => {
+    const sessionId = '00000000-0000-4000-8000-000000000001'
+    const agent: AgentDefinition = {
+      id: 'agent-1',
+      name: 'Review bot',
+      adapter: 'codex',
+      modelId: 'gpt-5.5',
+      reasoningEffort: 'medium',
+      permissionMode: 'approve-all',
+      sessionKey: 'agent:agent-1:main',
+      createdAt: 1000,
+      updatedAt: 1000,
+    }
+    const runtime: AgentRuntime = {
+      async status() {
+        return { state: 'ready' }
+      },
+      async listSessions() {
+        return []
+      },
+      async getHistory(input) {
+        return {
+          agentId: input.agent.id,
+          sessionId: input.sessionId,
+          items: [],
+        }
+      },
+      async send() {
+        return new ReadableStream<AgentStreamEvent>({
+          start(controller) {
+            controller.enqueue({ type: 'error', message: 'sidepanel failed' })
+            controller.close()
+          },
+        })
+      },
+    }
+    const service = new AgentHarnessService({
+      agentStore: createAgentStore([agent]) as AgentStore,
+      runtime,
+    })
+
+    const turn = await service.startTurn({
+      agentId: agent.id,
+      sessionId,
+      message: 'sidepanel turn',
+    })
+    await collectFrameStream(turn.frames)
+    const listed = await service.listAgentsWithActivity()
+    expect(listed[0]?.status).toBe('idle')
+    expect(listed[0]?.lastError).toBeNull()
+  })
+
   it('runs concurrent turns for different sessions and blocks duplicates per session', async () => {
     const sessionId = '00000000-0000-4000-8000-000000000001'
     const agent: AgentDefinition = {
@@ -340,7 +392,7 @@ describe('AgentHarnessService', () => {
     held.release('main')
     await collectFrameStream(main.frames)
     let listed = await service.listAgentsWithActivity()
-    expect(listed[0]?.status).toBe('working')
+    expect(listed[0]?.status).toBe('idle')
 
     held.release(sessionId)
     await collectFrameStream(sidepanel.frames)

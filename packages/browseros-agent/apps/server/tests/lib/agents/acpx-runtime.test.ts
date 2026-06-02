@@ -358,7 +358,7 @@ describe('AcpxRuntime', () => {
     expect(history.items.at(0)?.text).toBe('uuid conversation')
   })
 
-  it('reads row snapshots from latest agent activity across sessions', async () => {
+  it('reads row snapshots from the requested session only', async () => {
     const browserosDir = await mkdtemp(
       join(tmpdir(), 'browseros-acpx-browseros-'),
     )
@@ -367,7 +367,15 @@ describe('AcpxRuntime', () => {
     const sessionStore = createRuntimeStore({ stateDir })
     const agent = makeAgent({ id: 'agent-1', adapter: 'codex' })
     const sidepanelSession = '00000000-0000-4000-8000-000000000001'
+    const mainRuntimeSessionKey = 'agent:agent-1:main:abc123abc123abcd'
     const sidepanelRuntimeSessionKey = `agent:agent-1:${sidepanelSession}:def456def456def0`
+    await createLatestRuntimeStateForTest({
+      browserosDir,
+      agentId: agent.id,
+      sessionId: 'main',
+      runtimeSessionKey: mainRuntimeSessionKey,
+      updateAgentLatest: false,
+    })
     await createLatestRuntimeStateForTest({
       browserosDir,
       agentId: agent.id,
@@ -375,6 +383,13 @@ describe('AcpxRuntime', () => {
       runtimeSessionKey: sidepanelRuntimeSessionKey,
       updateAgentLatest: true,
     })
+    await sessionStore.save(
+      makeSessionRecord({
+        key: mainRuntimeSessionKey,
+        cwd: join(browserosDir, 'agents', 'harness', 'workspace'),
+        userText: 'main message',
+      }),
+    )
     await sessionStore.save(
       makeSessionRecord({
         key: sidepanelRuntimeSessionKey,
@@ -391,7 +406,7 @@ describe('AcpxRuntime', () => {
       sessionId: 'main',
     })
 
-    expect(snapshot?.lastUserMessage).toBe('latest sidepanel message')
+    expect(snapshot?.lastUserMessage).toBe('main message')
   })
 
   it('maps persisted acpx session records into rich history entries', async () => {

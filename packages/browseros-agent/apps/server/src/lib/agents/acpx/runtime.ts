@@ -219,23 +219,6 @@ export class AcpxRuntime implements AgentRuntime {
     return (await this.sessionStore.load(agent.sessionKey)) ?? null
   }
 
-  private async loadLatestAgentSessionRecord(
-    agent: AgentPromptInput['agent'],
-  ): Promise<AcpSessionRecord | null> {
-    const paths = resolveAgentRuntimePaths({
-      browserosDir: this.browserosDir,
-      agentId: agent.id,
-    })
-    const latestForAgent = await loadLatestRuntimeState(paths.runtimeStatePath)
-    if (latestForAgent) {
-      const latestRecord = await this.sessionStore.load(
-        latestForAgent.runtimeSessionKey,
-      )
-      if (latestRecord) return latestRecord
-    }
-    return this.loadSessionRecord(agent, MAIN_AGENT_SESSION_ID)
-  }
-
   private async prepareRuntimeContext(
     input: AgentPromptInput,
     cwdOverride: string | null,
