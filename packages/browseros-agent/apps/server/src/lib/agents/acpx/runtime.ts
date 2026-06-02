@@ -45,7 +45,10 @@ import {
   shellQuote,
   wrapCommandWithEnv,
 } from './runtime-context'
-import { loadLatestRuntimeState } from './runtime-state'
+import {
+  type LatestRuntimeState,
+  loadLatestRuntimeState,
+} from './runtime-state'
 
 type AcpxRuntimeOptions = {
   cwd?: string
@@ -207,6 +210,7 @@ export class AcpxRuntime implements AgentRuntime {
   private async loadSessionRecord(
     agent: AgentPromptInput['agent'],
     sessionId: AgentSessionId,
+    latestForAgentHint?: LatestRuntimeState | null,
   ): Promise<AcpSessionRecord | null> {
     const paths = resolveAgentRuntimePaths({
       browserosDir: this.browserosDir,
@@ -225,7 +229,10 @@ export class AcpxRuntime implements AgentRuntime {
 
     if (sessionId !== MAIN_AGENT_SESSION_ID) return null
 
-    const latestForAgent = await loadLatestRuntimeState(paths.runtimeStatePath)
+    const latestForAgent =
+      latestForAgentHint === undefined
+        ? await loadLatestRuntimeState(paths.runtimeStatePath)
+        : latestForAgentHint
     if (latestForAgent?.sessionId === MAIN_AGENT_SESSION_ID) {
       const latestRecord = await this.sessionStore.load(
         latestForAgent.runtimeSessionKey,
@@ -258,6 +265,7 @@ export class AcpxRuntime implements AgentRuntime {
     const mainRecord = await this.loadSessionRecord(
       agent,
       MAIN_AGENT_SESSION_ID,
+      latestForAgent,
     )
     return mainRecord
       ? { sessionId: MAIN_AGENT_SESSION_ID, record: mainRecord }

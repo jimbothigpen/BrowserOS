@@ -254,9 +254,7 @@ describe('createAgentRoutes', () => {
       body: JSON.stringify({ message: 'hi' }),
     })
 
-    // Yield so the first request reaches startTurn before the second
-    // arrives.
-    await new Promise((r) => setTimeout(r, 5))
+    await blocking._waitForStarted()
 
     const second = await blockingRoute.request('/agents/agent-1/chat', {
       method: 'POST',
@@ -267,7 +265,9 @@ describe('createAgentRoutes', () => {
     const body = await second.json()
     expect(body).toMatchObject({ error: 'Turn already active' })
     expect(typeof body.turnId).toBe('string')
-    expect(body.attachUrl).toContain(`turnId=${body.turnId}`)
+    expect(body.attachUrl).toBe(
+      `/agents/agent-1/chat/stream?turnId=${body.turnId}`,
+    )
 
     // Unblock and drain the first.
     blocking._unblock()
@@ -301,7 +301,7 @@ describe('createAgentRoutes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: 'hi' }),
     })
-    await new Promise((r) => setTimeout(r, 5))
+    await blocking._waitForStarted()
 
     const active = await blockingRoute.request('/agents/agent-1/chat/active')
     expect(active.status).toBe(200)
@@ -352,7 +352,7 @@ describe('createAgentRoutes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: 'hi' }),
     })
-    await new Promise((r) => setTimeout(r, 5))
+    await blocking._waitForStarted()
 
     const active = await route.request(
       `/agents/agent-1/sessions/${sessionId}/chat/active`,
@@ -398,7 +398,7 @@ describe('createAgentRoutes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: 'hi' }),
     })
-    await new Promise((r) => setTimeout(r, 5))
+    await blocking._waitForStarted()
 
     const cancel = await blockingRoute.request('/agents/agent-1/chat/cancel', {
       method: 'POST',
@@ -656,24 +656,27 @@ describe('createAgentRoutes', () => {
       createAgentRoutes({ service: blocking }),
     )
 
+    const requestBody = validCreatedAgentSidepanelBody()
     const first = route.request('/agents/agent-1/sidepanel/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validCreatedAgentSidepanelBody()),
+      body: JSON.stringify(requestBody),
     })
-    await new Promise((r) => setTimeout(r, 5))
+    await blocking._waitForStarted()
 
     const second = await route.request('/agents/agent-1/sidepanel/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validCreatedAgentSidepanelBody()),
+      body: JSON.stringify(requestBody),
     })
 
     expect(second.status).toBe(409)
     const body = await second.json()
     expect(body).toMatchObject({ error: 'Turn already active' })
     expect(typeof body.turnId).toBe('string')
-    expect(body.attachUrl).toContain(`turnId=${body.turnId}`)
+    expect(body.attachUrl).toBe(
+      `/agents/agent-1/sessions/${requestBody.conversationId}/chat/stream?turnId=${body.turnId}`,
+    )
 
     blocking._unblock()
     await (await first).text()
@@ -707,7 +710,7 @@ describe('createAgentRoutes', () => {
         conversationId: firstSessionId,
       }),
     })
-    await new Promise((r) => setTimeout(r, 5))
+    await blocking._waitForStarted()
 
     const second = await route.request('/agents/agent-1/sidepanel/chat', {
       method: 'POST',
@@ -730,6 +733,10 @@ describe('createAgentRoutes', () => {
       }),
     })
     expect(duplicate.status).toBe(409)
+    const duplicateBody = await duplicate.json()
+    expect(duplicateBody.attachUrl).toBe(
+      `/agents/agent-1/sessions/${firstSessionId}/chat/stream?turnId=${duplicateBody.turnId}`,
+    )
 
     blocking._unblock()
     const firstResponse = await first
@@ -1180,10 +1187,28 @@ function createBlockingFakeService(agents: AgentDefinition[]) {
     { type: 'done', stopReason: 'end_turn' },
   ]
   let unblock: () => void = () => {}
+  let startedCount = 0
   const cancelCalls: Array<{ agentId: string; reason?: string }> = []
+  const startedWaiters: Array<{ count: number; resolve: () => void }> = []
   const gate = new Promise<void>((resolve) => {
     unblock = resolve
   })
+  const notifyStarted = () => {
+    startedCount += 1
+    for (let index = startedWaiters.length - 1; index >= 0; index -= 1) {
+      const waiter = startedWaiters[index]
+      if (waiter && startedCount >= waiter.count) {
+        startedWaiters.splice(index, 1)
+        waiter.resolve()
+      }
+    }
+  }
+  const waitForStarted = (count = 1) =>
+    startedCount >= count
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => {
+          startedWaiters.push({ count, resolve })
+        })
 
   return {
     async listAgents() {
@@ -1234,6 +1259,7 @@ function createBlockingFakeService(agents: AgentDefinition[]) {
         throw new TurnAlreadyActiveError(input.agentId, existing.turnId)
       }
       const turn = registry.register(input.agentId, sessionId)
+      notifyStarted()
       const frames = registry.subscribe(turn.turnId, { fromSeq: -1 })
       if (!frames) throw new Error('registered turn was not subscribable')
       void (async () => {
@@ -1278,6 +1304,7 @@ function createBlockingFakeService(agents: AgentDefinition[]) {
       return []
     },
     _unblock: () => unblock(),
+    _waitForStarted: waitForStarted,
     _cancelCalls: cancelCalls,
   }
 }

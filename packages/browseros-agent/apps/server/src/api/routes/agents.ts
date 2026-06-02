@@ -210,7 +210,11 @@ export function createAgentRoutes(deps: AgentRouteDeps = {}) {
               {
                 error: 'Turn already active',
                 turnId: err.turnId,
-                attachUrl: `/agents/${agent.id}/chat/stream?turnId=${err.turnId}`,
+                attachUrl: buildChatStreamAttachUrl({
+                  agentId: agent.id,
+                  sessionId: parsed.agentSessionId,
+                  turnId: err.turnId,
+                }),
               },
               409,
             )
@@ -511,7 +515,11 @@ async function startChatTurnResponse(
         {
           error: 'Turn already active',
           turnId: err.turnId,
-          attachUrl: `/agents/${input.agentId}/sessions/${input.sessionId}/chat/stream?turnId=${err.turnId}`,
+          attachUrl: buildChatStreamAttachUrl({
+            agentId: input.agentId,
+            sessionId: input.sessionId,
+            turnId: err.turnId,
+          }),
         },
         409,
       )
@@ -523,6 +531,23 @@ async function startChatTurnResponse(
     sessionId: input.sessionId,
     turnId: started.turnId,
   })
+}
+
+/**
+ * Builds the stream URL clients attach to after a 409, keeping the legacy
+ * main-session route while using scoped routes for sidepanel conversations.
+ */
+function buildChatStreamAttachUrl(input: {
+  agentId: string
+  sessionId: AgentSessionId
+  turnId: string
+}): string {
+  const agentId = encodeURIComponent(input.agentId)
+  const turnId = encodeURIComponent(input.turnId)
+  if (input.sessionId === MAIN_AGENT_SESSION_ID) {
+    return `/agents/${agentId}/chat/stream?turnId=${turnId}`
+  }
+  return `/agents/${agentId}/sessions/${encodeURIComponent(input.sessionId)}/chat/stream?turnId=${turnId}`
 }
 
 function streamExistingTurn(

@@ -750,7 +750,6 @@ export class AgentHarnessService {
     turnId: string,
     agent: AgentDefinition,
     input: {
-      sessionId?: AgentSessionId
       message: string
       attachments?: ReadonlyArray<{ mediaType: string; data: string }>
       cwd?: string
