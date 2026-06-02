@@ -164,7 +164,7 @@ export interface HarnessHistoryToolCall {
 export interface HarnessHistoryEntry {
   id: string
   agentId: string
-  sessionId: 'main'
+  sessionId: string
   role: 'user' | 'assistant'
   text: string
   createdAt: number
@@ -174,7 +174,7 @@ export interface HarnessHistoryEntry {
 
 export interface HarnessAgentHistoryPage {
   agentId: string
-  sessionId: 'main'
+  sessionId: string
   items: HarnessHistoryEntry[]
 }
 

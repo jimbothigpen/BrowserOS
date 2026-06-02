@@ -262,7 +262,7 @@ export async function attachToHarnessTurn(
 export interface HarnessActiveTurnInfo {
   turnId: string
   agentId: string
-  sessionId: 'main'
+  sessionId: string
   status: 'running' | 'done' | 'error' | 'cancelled'
   lastSeq: number
   startedAt: number
@@ -316,11 +316,12 @@ export async function cancelHarnessTurn(
 
 export async function fetchHarnessAgentHistory(
   agentId: string,
+  sessionId = 'main',
 ): Promise<HarnessAgentHistoryPage> {
   const baseUrl = await getAgentServerUrl()
   return agentsFetch<HarnessAgentHistoryPage>(
     baseUrl,
-    `/${encodeURIComponent(agentId)}/sessions/main/history`,
+    `/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/history`,
   )
 }
 
