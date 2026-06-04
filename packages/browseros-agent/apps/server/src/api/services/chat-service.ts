@@ -5,13 +5,13 @@
  */
 
 import { createAgentUIStreamResponse, type UIMessage } from 'ai'
+import { isAcpProvider } from '../../agent/acp-providers'
 import { AiSdkAgent } from '../../agent/ai-sdk-agent'
 import { formatUserMessage } from '../../agent/format-message'
 import {
   filterValidMessages,
   sanitizeMessagesForToolset,
 } from '../../agent/message-validation'
-import { isAcpProvider } from '../../agent/provider-factory'
 import type { AgentSession, SessionStore } from '../../agent/session-store'
 import type { ResolvedAgentConfig } from '../../agent/types'
 import type { Browser } from '../../browser/browser'

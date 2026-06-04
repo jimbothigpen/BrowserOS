@@ -20,13 +20,10 @@ import { createCodexFetch } from '../lib/clients/oauth/codex-fetch'
 import { createCopilotFetch } from '../lib/clients/oauth/copilot-fetch'
 import { logger } from '../lib/logger'
 import { createOpenRouterCompatibleFetch } from '../lib/openrouter-fetch'
+import { ACP_PROVIDER_TYPES, isAcpProvider } from './acp-providers'
 import type { ResolvedAgentConfig } from './types'
 
-const ACP_PROVIDER_TYPES = new Set<string>([
-  LLM_PROVIDERS.CLAUDE_CODE,
-  LLM_PROVIDERS.CODEX,
-  LLM_PROVIDERS.ACP_CUSTOM,
-])
+export { isAcpProvider }
 
 const BUILT_IN_ACP_AGENT_BY_PROVIDER: Record<string, string> = {
   [LLM_PROVIDERS.CLAUDE_CODE]: 'claude',
@@ -87,10 +84,6 @@ async function createAcpLanguageModel(
     // it and the spawned agent process outlives the conversation.
     close: () => provider.close(),
   }
-}
-
-export function isAcpProvider(provider: string): boolean {
-  return ACP_PROVIDER_TYPES.has(provider)
 }
 
 type ProviderFactory = (
