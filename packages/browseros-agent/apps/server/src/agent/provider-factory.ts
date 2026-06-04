@@ -66,8 +66,13 @@ async function createAcpLanguageModel(
     agentId,
     workspacePath,
     agentRegistryOverrides,
+    mcpServers: config.acpMcpServers,
   })
   return provider.languageModel() as LanguageModel
+}
+
+export function isAcpProvider(provider: string): boolean {
+  return ACP_PROVIDER_TYPES.has(provider)
 }
 
 type ProviderFactory = (

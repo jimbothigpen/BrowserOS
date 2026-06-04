@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import type { LLMProvider } from '@browseros/shared/schemas/llm'
+import type { McpServerSpec } from '../lib/agents/acpx-provider/buildAcpxProvider'
 
 export interface ProviderConfig {
   provider: LLMProvider
@@ -60,4 +61,9 @@ export interface ResolvedAgentConfig {
   /** Fixed cwd the user picked at provider-create time. Used as-is for
    *  ACP-backed providers; ignored for model-backed ones. */
   acpFixedWorkspacePath?: string
+  /** MCP servers exposed to the spawned ACP agent. Computed at request
+   *  time from BrowserOS's own /mcp URL plus the user's custom MCP
+   *  servers in browserContext. Only consumed by the ACP factory
+   *  branch; model-backed factories ignore it. */
+  acpMcpServers?: McpServerSpec[]
 }

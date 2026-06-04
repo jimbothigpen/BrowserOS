@@ -33,7 +33,7 @@ import {
   normalizeMessagesForModel,
 } from './message-normalization'
 import { buildSystemPrompt } from './prompt'
-import { createLanguageModel } from './provider-factory'
+import { createLanguageModel, isAcpProvider } from './provider-factory'
 import { readSoulPrompt } from './soul-prompt'
 import { buildBrowserToolSet } from './tool-adapter'
 import type { ResolvedAgentConfig } from './types'
@@ -87,6 +87,15 @@ export class AiSdkAgent {
       })
     }
 
+    // ACP-backed providers (Claude Code, Codex, custom ACP) reach tools
+    // exclusively through the MCP boundary acpx-ai-provider sets up; the
+    // ai-sdk `tools` argument never crosses the ACP wire. Skip every
+    // tool-set builder and every server-side MCP client connection on
+    // this branch. The spawned agent dials BrowserOS's own /mcp route
+    // (and any user-configured MCP servers) directly via the
+    // mcpServers config on ResolvedAgentConfig.
+    const useMcpBoundaryOnly = isAcpProvider(config.resolvedConfig.provider)
+
     // Build browser tools from the unified tool registry
     const originPageId = config.browserContext?.activeTab?.pageId
     const toolContext: ToolContext = {
@@ -97,7 +106,9 @@ export class AiSdkAgent {
         originPageId,
       },
     }
-    const allBrowserTools = buildBrowserToolSet(config.registry, toolContext)
+    const allBrowserTools = useMcpBoundaryOnly
+      ? {}
+      : buildBrowserToolSet(config.registry, toolContext)
     const browserTools = config.resolvedConfig.chatMode
       ? Object.fromEntries(
           Object.entries(allBrowserTools).filter(([name]) =>
@@ -105,7 +116,7 @@ export class AiSdkAgent {
           ),
         )
       : allBrowserTools
-    if (config.resolvedConfig.chatMode) {
+    if (config.resolvedConfig.chatMode && !useMcpBoundaryOnly) {
       logger.info('Chat mode enabled, restricting to read-only browser tools', {
         allowedTools: Array.from(CHAT_MODE_ALLOWED_TOOLS),
       })
@@ -114,15 +125,18 @@ export class AiSdkAgent {
     // Get Klavis tools from shared background handle (no per-session connection).
     // Only expose when user has enabled servers — matches old per-session gating.
     const klavisTools =
+      !useMcpBoundaryOnly &&
       config.klavisRef?.handle &&
       config.browserContext?.enabledMcpServers?.length
         ? buildKlavisToolSet(config.klavisRef.handle)
         : {}
 
     // Connect custom (non-Klavis) MCP servers per-session
-    const specs = await buildMcpServerSpecs({
-      browserContext: config.browserContext,
-    })
+    const specs = useMcpBoundaryOnly
+      ? []
+      : await buildMcpServerSpecs({
+          browserContext: config.browserContext,
+        })
     const { clients, tools: customMcpTools } = await createMcpClients(specs)
     const collidingToolNames = Object.keys(customMcpTools).filter(
       (name) => name in klavisTools,
@@ -170,9 +184,14 @@ export class AiSdkAgent {
       }
     }
 
-    // Add filesystem tools — skip in chat mode (read-only) and when no workspace is selected
+    // Add filesystem tools — skip in chat mode (read-only), when no
+    // workspace is selected, and for ACP providers (Claude Code and
+    // Codex ship their own filesystem tools; double-registering would
+    // collide on tool names and yield stale-snapshot behaviour).
     const filesystemTools =
-      !config.resolvedConfig.chatMode && config.resolvedConfig.workingDir
+      !useMcpBoundaryOnly &&
+      !config.resolvedConfig.chatMode &&
+      config.resolvedConfig.workingDir
         ? buildFilesystemToolSet(config.resolvedConfig.workingDir)
         : {}
     const tools = {

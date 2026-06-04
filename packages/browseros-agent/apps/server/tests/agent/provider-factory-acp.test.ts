@@ -98,6 +98,30 @@ describe('createLanguageModel — ACP providers', () => {
   })
 })
 
+describe('createLanguageModel — ACP mcpServers forwarding', () => {
+  it('forwards acpMcpServers from ResolvedAgentConfig into buildAcpxProvider', async () => {
+    const servers = [
+      {
+        type: 'http' as const,
+        name: 'browseros',
+        url: 'http://127.0.0.1:9100/mcp',
+        headers: [{ name: 'X-BrowserOS-Scope-Id', value: 'conv-mcp-1' }],
+      },
+    ]
+    await createLanguageModel({
+      ...baseConfig(),
+      conversationId: 'conv-mcp-1',
+      acpMcpServers: servers,
+    } as never)
+    expect(lastBuildArgs?.mcpServers).toBe(servers as never)
+  })
+
+  it('leaves mcpServers undefined when acpMcpServers is not set', async () => {
+    await createLanguageModel(baseConfig() as never)
+    expect(lastBuildArgs?.mcpServers).toBeUndefined()
+  })
+})
+
 describe('createLanguageModel — non-ACP providers still work', () => {
   it('routes anthropic through the existing sync factory', async () => {
     const model = await createLanguageModel({

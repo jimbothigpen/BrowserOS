@@ -176,6 +176,7 @@ export async function createHttpServer(config: HttpServerConfig) {
         browserosId,
         klavisRef,
         aiSdkDevtoolsEnabled: config.aiSdkDevtoolsEnabled,
+        serverPort: port,
       }),
     )
     .route('/screencast', createScreencastRoute({ browser }))
