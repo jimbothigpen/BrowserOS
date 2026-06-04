@@ -55,6 +55,12 @@ export class AiSdkAgent {
     private _mcpClients: Array<{ close(): Promise<void> }>,
     private conversationId: string,
     private _toolNames: Set<string>,
+    /**
+     * ACP-provider teardown. Closes the spawned agent process and its
+     * persistent session record. Undefined for model-backed providers,
+     * where the LanguageModel owns no host-side state.
+     */
+    private _modelClose?: () => Promise<void>,
   ) {}
 
   /** Tool names registered on this agent — used to sanitize messages during session rebuilds. */
@@ -67,7 +73,9 @@ export class AiSdkAgent {
       config.resolvedConfig.contextWindowSize ??
       AGENT_LIMITS.DEFAULT_CONTEXT_WINDOW
 
-    const rawModel = await createLanguageModel(config.resolvedConfig)
+    const { model: rawModel, close: modelClose } = await createLanguageModel(
+      config.resolvedConfig,
+    )
     const isV3Model =
       typeof rawModel === 'object' &&
       rawModel !== null &&
@@ -288,6 +296,7 @@ export class AiSdkAgent {
       clients,
       config.resolvedConfig.conversationId,
       new Set(Object.keys(tools)),
+      modelClose,
     )
   }
 
@@ -314,6 +323,14 @@ export class AiSdkAgent {
   async dispose(): Promise<void> {
     for (const client of this._mcpClients) {
       await client.close().catch(() => {})
+    }
+    if (this._modelClose) {
+      await this._modelClose().catch((error: unknown) => {
+        logger.warn('LanguageModel close hook failed', {
+          conversationId: this.conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
     }
     logger.info('Agent disposed', { conversationId: this.conversationId })
   }

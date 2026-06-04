@@ -9,7 +9,13 @@ import { join } from 'node:path'
 
 let lastBuildArgs: Record<string, unknown> | null = null
 const fakeLanguageModel = { kind: 'fake-acp-model' }
-const fakeProvider = { languageModel: () => fakeLanguageModel }
+let closeCalls = 0
+const fakeProvider = {
+  languageModel: () => fakeLanguageModel,
+  close: async () => {
+    closeCalls += 1
+  },
+}
 
 mock.module('../../src/lib/agents/acpx-provider/buildAcpxProvider', () => ({
   buildAcpxProvider: async (opts: Record<string, unknown>) => {
@@ -31,14 +37,22 @@ function baseConfig(): Record<string, unknown> {
 
 beforeEach(() => {
   lastBuildArgs = null
+  closeCalls = 0
 })
 
 describe('createLanguageModel — ACP providers', () => {
   it('routes claude-code to buildAcpxProvider with agentId=claude', async () => {
-    const model = await createLanguageModel(baseConfig() as never)
+    const { model } = await createLanguageModel(baseConfig() as never)
     expect(model).toBe(fakeLanguageModel as never)
     expect(lastBuildArgs?.agentId).toBe('claude')
     expect(lastBuildArgs?.conversationId).toBe('conv-acp-1')
+  })
+
+  it('exposes a close hook that calls AcpxProvider.close()', async () => {
+    const { close } = await createLanguageModel(baseConfig() as never)
+    expect(typeof close).toBe('function')
+    await close?.()
+    expect(closeCalls).toBe(1)
   })
 
   it('routes codex to buildAcpxProvider with agentId=codex', async () => {
@@ -124,7 +138,7 @@ describe('createLanguageModel — ACP mcpServers forwarding', () => {
 
 describe('createLanguageModel — non-ACP providers still work', () => {
   it('routes anthropic through the existing sync factory', async () => {
-    const model = await createLanguageModel({
+    const result = await createLanguageModel({
       conversationId: 'conv-2',
       provider: 'anthropic',
       model: 'claude-sonnet-4-6',
@@ -132,7 +146,8 @@ describe('createLanguageModel — non-ACP providers still work', () => {
     } as never)
     // The model is whatever createAnthropic({apiKey})('claude-sonnet-4-6') returns.
     // We just need to confirm it's not the ACP fake and that no ACP factory call happened.
-    expect(model).not.toBe(fakeLanguageModel as never)
+    expect(result.model).not.toBe(fakeLanguageModel as never)
+    expect(result.close).toBeUndefined()
     expect(lastBuildArgs).toBeNull()
   })
 

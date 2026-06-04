@@ -53,7 +53,7 @@ function resolveAcpAgentId(config: ResolvedAgentConfig): string {
 
 async function createAcpLanguageModel(
   config: ResolvedAgentConfig,
-): Promise<LanguageModel> {
+): Promise<LanguageModelWithCleanup> {
   const agentId = resolveAcpAgentId(config)
   const workspacePath =
     config.acpFixedWorkspacePath ?? defaultAcpWorkspacePath(config.provider)
@@ -68,7 +68,12 @@ async function createAcpLanguageModel(
     agentRegistryOverrides,
     mcpServers: config.acpMcpServers,
   })
-  return provider.languageModel() as LanguageModel
+  return {
+    model: provider.languageModel() as LanguageModel,
+    // acpx-ai-provider's docs put close() ownership on the caller: skip
+    // it and the spawned agent process outlives the conversation.
+    close: () => provider.close(),
+  }
 }
 
 export function isAcpProvider(provider: string): boolean {
@@ -276,11 +281,23 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
   [LLM_PROVIDERS.QWEN_CODE]: createQwenCodeFactory,
 }
 
+export interface LanguageModelWithCleanup {
+  model: LanguageModel
+  /**
+   * Caller-owned teardown. Only set for providers that own a spawned
+   * process or persistent session (today: ACP providers via
+   * `acpx-ai-provider`); model-backed factories leave it undefined.
+   * `AiSdkAgent.dispose()` awaits this so the agent process exits with
+   * the conversation.
+   */
+  close?: () => Promise<void>
+}
+
 export async function createLanguageModel(
   config: ResolvedAgentConfig,
-): Promise<LanguageModel> {
+): Promise<LanguageModelWithCleanup> {
   if (shouldUseMockBrowserOSLLM(config)) {
-    return createMockBrowserOSLanguageModel()
+    return { model: createMockBrowserOSLanguageModel() }
   }
   const provider = config.provider as string
   if (ACP_PROVIDER_TYPES.has(provider)) {
@@ -288,5 +305,5 @@ export async function createLanguageModel(
   }
   const factory = PROVIDER_FACTORIES[provider]
   if (!factory) throw new Error(`Unknown provider: ${provider}`)
-  return factory(config)(config.model) as LanguageModel
+  return { model: factory(config)(config.model) as LanguageModel }
 }
