@@ -1,12 +1,38 @@
 import { useEffect, useMemo, useState } from 'react'
+import { importHarnessProviders } from './harnessMigration'
 import {
   createDefaultProvidersConfig,
   DEFAULT_PROVIDER_ID,
   defaultProviderIdStorage,
+  harnessMigrationCompleteStorage,
   loadProviders,
   providersStorage,
 } from './storage'
 import type { LlmProviderConfig } from './types'
+
+async function runHarnessMigrationOnce(
+  loaded: LlmProviderConfig[],
+): Promise<LlmProviderConfig[]> {
+  const alreadyMigrated = await harnessMigrationCompleteStorage.getValue()
+  if (alreadyMigrated) return loaded
+  try {
+    const result = await importHarnessProviders(loaded)
+    if (result.added.length === 0) {
+      if (result.hadCandidates) {
+        await harnessMigrationCompleteStorage.setValue(true)
+      }
+      return loaded
+    }
+    const merged = [...loaded, ...result.added]
+    await providersStorage.setValue(merged)
+    await harnessMigrationCompleteStorage.setValue(true)
+    return merged
+  } catch {
+    // The server may be unreachable mid-boot. Leave the flag unset so
+    // a later mount retries; never block initial provider load on this.
+    return loaded
+  }
+}
 
 /**
  * Hook return type
@@ -54,6 +80,8 @@ export function useLlmProviders(): UseLlmProvidersReturn {
           loadedProviders = createDefaultProvidersConfig()
           await providersStorage.setValue(loadedProviders)
         }
+
+        loadedProviders = await runHarnessMigrationOnce(loadedProviders)
 
         if (!loadedDefaultId) {
           loadedDefaultId = DEFAULT_PROVIDER_ID

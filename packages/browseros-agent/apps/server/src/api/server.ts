@@ -29,6 +29,7 @@ import { createCreditsRoutes } from './routes/credits'
 import { createHealthRoute } from './routes/health'
 import { createKlavisRoutes } from './routes/klavis'
 import { createMcpRoutes } from './routes/mcp'
+import { createMigrationsRoutes } from './routes/migrations'
 import { createMonitoringRoutes } from './routes/monitoring'
 import { createOAuthRoutes } from './routes/oauth'
 import { createProviderRoutes } from './routes/provider'
@@ -181,6 +182,7 @@ export async function createHttpServer(config: HttpServerConfig) {
     )
     .route('/screencast', createScreencastRoute({ browser }))
     .route('/agents', agentRoutes)
+    .route('/migrations', createMigrationsRoutes())
 
   // Error handler
   app.onError((err, c) => {

@@ -152,3 +152,14 @@ export const defaultProviderIdStorage = storage.defineItem<string>(
     fallback: DEFAULT_PROVIDER_ID,
   },
 )
+
+/**
+ * Flag set the first time the extension successfully drains the
+ * `/migrations/llm-providers` endpoint. Prevents re-importing the
+ * same harness rows on subsequent boots. Idempotency lives client-side
+ * so the server stays stateless.
+ */
+export const harnessMigrationCompleteStorage = storage.defineItem<boolean>(
+  'local:harness-migration-complete',
+  { fallback: false },
+)
