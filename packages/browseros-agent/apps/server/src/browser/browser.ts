@@ -12,6 +12,8 @@ import {
   buildContentMarkdownExpression,
   type ContentMarkdownOptions,
 } from './content-markdown'
+import type { PageInfo } from './core/pages'
+import { BrowserSession } from './core/session'
 import { type DomSearchResult, parseNodeAttributes } from './dom'
 import * as elements from './elements'
 import type { HistoryEntry } from './history'
@@ -23,21 +25,7 @@ import * as snapshot from './snapshot'
 import type { TabGroup } from './tab-groups'
 import * as tabGroups from './tab-groups'
 
-export interface PageInfo {
-  pageId: number
-  targetId: string
-  tabId: number
-  url: string
-  title: string
-  isActive: boolean
-  isLoading: boolean
-  loadProgress: number
-  isPinned: boolean
-  isHidden: boolean
-  windowId?: number
-  index?: number
-  groupId?: string
-}
+export type { PageInfo } from './core/pages'
 
 export interface WindowInfo {
   windowId: number
@@ -67,103 +55,31 @@ export interface SetWindowVisibilityResult {
   previousWindowId: number
 }
 
-interface TabInfo {
-  tabId: number
-  targetId: string
-  url: string
-  title: string
-  isActive: boolean
-  isLoading: boolean
-  loadProgress: number
-  isPinned: boolean
-  isHidden: boolean
-  windowId?: number
-  index?: number
-  groupId?: string
-}
-
-const EXCLUDED_URL_PREFIXES = [
-  'chrome-extension://',
-  // chrome://new-tab comes in this let's keep it
-  // 'chrome://',
-  'chrome-untrusted://',
-  'chrome-search://',
-  'devtools://',
-]
-
 export class Browser {
   private cdp: CdpBackend
   private consoleCollector: ConsoleCollector
-  private pages = new Map<number, PageInfo>()
-  private sessions = new Map<string, string>()
-  private nextPageId = 1
+  private core: BrowserSession
 
   constructor(cdp: CdpBackend) {
     this.cdp = cdp
     this.consoleCollector = new ConsoleCollector(cdp)
-    this.setupEventHandlers()
+    this.core = new BrowserSession(cdp, {
+      onSessionAttached: async (session, pageId, sessionId) => {
+        await session.Log.enable()
+        this.consoleCollector.attach(pageId, sessionId)
+      },
+      onPageDetached: (pageId) => {
+        this.consoleCollector.detach(pageId)
+      },
+    })
   }
 
   isCdpConnected(): boolean {
-    return this.cdp.isConnected()
+    return this.core.isConnected()
   }
-
-  private setupEventHandlers(): void {
-    this.cdp.Target.on('detachedFromTarget', (params) => {
-      if (params.sessionId) {
-        for (const [targetId, sid] of this.sessions) {
-          if (sid === params.sessionId) {
-            this.sessions.delete(targetId)
-            break
-          }
-        }
-      }
-    })
-  }
-
-  // --- Session management ---
 
   private async resolveSession(page: number): Promise<ProtocolApi> {
-    let info = this.pages.get(page)
-    if (!info) {
-      await this.listPages()
-      info = this.pages.get(page)
-    }
-    if (!info)
-      throw new Error(
-        `Unknown page ${page}. Use list_pages to see available pages.`,
-      )
-    const sessionId = await this.attachToPage(info.targetId, page)
-    return this.cdp.session(sessionId)
-  }
-
-  private async attachToPage(
-    targetId: string,
-    pageId: number,
-  ): Promise<string> {
-    const cached = this.sessions.get(targetId)
-    if (cached) return cached
-
-    const result = await this.cdp.Target.attachToTarget({
-      targetId,
-      flatten: true,
-    })
-
-    const sessionId = result.sessionId
-    const session = this.cdp.session(sessionId)
-
-    await Promise.all([
-      session.Page.enable(),
-      session.DOM.enable(),
-      session.Runtime.enable(),
-      session.Log.enable(),
-      session.Accessibility.enable(),
-    ])
-
-    this.sessions.set(targetId, sessionId)
-    this.consoleCollector.attach(pageId, sessionId)
-
-    return sessionId
+    return (await this.core.pages.getSession(page)).session
   }
 
   async getActivePageForWindow(windowId: number): Promise<{
@@ -171,18 +87,7 @@ export class Browser {
     session: ProtocolApi
     url: string
   }> {
-    const result = await this.cdp.Browser.getActiveTab({ windowId })
-    const tab = result.tab
-    if (!tab) {
-      throw new Error(`No active tab in window ${windowId}`)
-    }
-    const pageId = await this.ensurePageIdForTarget(tab.targetId)
-    const sessionId = await this.attachToPage(tab.targetId, pageId)
-    return {
-      targetId: tab.targetId,
-      session: this.cdp.session(sessionId),
-      url: tab.url,
-    }
+    return this.core.pages.getActiveSessionForWindow(windowId)
   }
 
   /** Resolve a Browser-internal pageId to a CDP session bound to its tab. */
@@ -191,177 +96,37 @@ export class Browser {
     session: ProtocolApi
     url: string
   }> {
-    let info = this.pages.get(pageId)
-    if (!info) {
-      await this.listPages()
-      info = this.pages.get(pageId)
-    }
-    if (!info) {
-      throw new Error(`Unknown page ${pageId}`)
-    }
-    const sessionId = await this.attachToPage(info.targetId, pageId)
-    return {
-      targetId: info.targetId,
-      session: this.cdp.session(sessionId),
-      url: info.url,
-    }
-  }
-
-  // Routes screencast attaches through the same attachToPage path agent
-  // tools use, so the session is registered with consoleCollector + the
-  // full domain enables. Without this, a screencast-first tab would
-  // cache a Page.enable-only session and later agent tool calls would
-  // short-circuit on the cached entry — silently dropping console logs.
-  private async ensurePageIdForTarget(targetId: string): Promise<number> {
-    for (const [pageId, info] of this.pages) {
-      if (info.targetId === targetId) return pageId
-    }
-    await this.listPages()
-    for (const [pageId, info] of this.pages) {
-      if (info.targetId === targetId) return pageId
-    }
-    throw new Error(`Could not resolve pageId for target ${targetId}`)
+    return this.core.pages.getSession(pageId)
   }
 
   // --- Pages ---
 
   async listPages(): Promise<PageInfo[]> {
-    const result = await this.cdp.Browser.getTabs({ includeHidden: true })
-    const tabs = (result.tabs as TabInfo[]).filter(
-      (t) => !EXCLUDED_URL_PREFIXES.some((prefix) => t.url.startsWith(prefix)),
-    )
-
-    const seenTargetIds = new Set<string>()
-
-    for (const tab of tabs) {
-      seenTargetIds.add(tab.targetId)
-
-      let found = false
-      for (const info of this.pages.values()) {
-        if (info.targetId === tab.targetId) {
-          info.url = tab.url
-          info.title = tab.title
-          info.tabId = tab.tabId
-          info.isActive = tab.isActive
-          info.isLoading = tab.isLoading
-          info.loadProgress = tab.loadProgress
-          info.isPinned = tab.isPinned
-          info.isHidden = tab.isHidden
-          // CDP omits windowId for hidden tabs, so preserve the
-          // value we cached when the tab was created via newPage —
-          // otherwise downstream filters (e.g. the tab picker
-          // scoped to a thread's hidden window) lose every entry.
-          info.windowId = tab.windowId ?? info.windowId
-          info.index = tab.index
-          info.groupId = tab.groupId
-          found = true
-          break
-        }
-      }
-
-      if (!found) {
-        const pageId = this.nextPageId++
-        this.pages.set(pageId, {
-          pageId,
-          targetId: tab.targetId,
-          tabId: tab.tabId,
-          url: tab.url,
-          title: tab.title,
-          isActive: tab.isActive,
-          isLoading: tab.isLoading,
-          loadProgress: tab.loadProgress,
-          isPinned: tab.isPinned,
-          isHidden: tab.isHidden,
-          windowId: tab.windowId,
-          index: tab.index,
-          groupId: tab.groupId,
-        })
-      }
-    }
-
-    for (const [pageId, info] of this.pages) {
-      if (!seenTargetIds.has(info.targetId)) {
-        this.consoleCollector.detach(pageId)
-        this.pages.delete(pageId)
-      }
-    }
-
-    return [...this.pages.values()].sort((a, b) => a.pageId - b.pageId)
+    return this.core.pages.list()
   }
 
   getTabIdForPage(pageId: number): number | undefined {
-    return this.pages.get(pageId)?.tabId
+    return this.core.pages.getTabId(pageId)
   }
 
   getPageInfo(pageId: number): PageInfo | undefined {
-    return this.pages.get(pageId)
+    return this.core.pages.getInfo(pageId)
   }
 
   async refreshPageInfo(pageId: number): Promise<PageInfo | undefined> {
-    let info = this.pages.get(pageId)
-    if (!info) {
-      await this.listPages()
-      info = this.pages.get(pageId)
-    }
-    if (!info) return undefined
-
-    try {
-      const result = await this.cdp.Browser.getTabInfo({ tabId: info.tabId })
-      const tab = result.tab as TabInfo
-      const updated: PageInfo = {
-        ...info,
-        targetId: tab.targetId,
-        tabId: tab.tabId,
-        url: tab.url,
-        title: tab.title,
-        isActive: tab.isActive,
-        isLoading: tab.isLoading,
-        loadProgress: tab.loadProgress,
-        isPinned: tab.isPinned,
-        isHidden: tab.isHidden,
-        windowId: tab.windowId,
-        index: tab.index,
-        groupId: tab.groupId,
-      }
-      this.pages.set(pageId, updated)
-      return updated
-    } catch {
-      await this.listPages()
-      return this.pages.get(pageId)
-    }
+    return this.core.pages.refresh(pageId)
   }
 
   async getSession(pageId: number): Promise<ProtocolApi | null> {
-    const info = this.pages.get(pageId)
-    if (!info) return null
-    const sessionId = this.sessions.get(info.targetId)
-    if (!sessionId) return null
-    return this.cdp.session(sessionId)
+    return this.core.pages.getAttachedSession(pageId)
   }
 
   async resolveTabIds(tabIds: number[]): Promise<Map<number, number>> {
-    await this.listPages()
-    const tabToPage = new Map<number, number>()
-    for (const info of this.pages.values()) {
-      if (tabIds.includes(info.tabId)) {
-        tabToPage.set(info.tabId, info.pageId)
-      }
-    }
-    return tabToPage
+    return this.core.pages.resolveTabIds(tabIds)
   }
 
   async getActivePage(): Promise<PageInfo | null> {
-    const result = await this.cdp.Browser.getActiveTab()
-
-    if (!result.tab) return null
-
-    await this.listPages()
-
-    for (const info of this.pages.values()) {
-      if (info.targetId === (result.tab as TabInfo).targetId) return info
-    }
-
-    return null
+    return this.core.pages.getActive()
   }
 
   private async resolveWindowIdForNewPage(opts?: {
@@ -369,7 +134,15 @@ export class Browser {
     windowId?: number
   }): Promise<number | undefined> {
     if (!opts?.hidden) {
-      return opts?.windowId
+      if (opts?.windowId !== undefined) return opts.windowId
+
+      const windows = await this.listWindows()
+      const visibleWindow =
+        windows.find((window) => window.isVisible && window.isActive) ??
+        windows.find((window) => window.isVisible)
+      if (visibleWindow) return visibleWindow.windowId
+
+      return (await this.createWindow({ hidden: false })).windowId
     }
 
     if (opts.windowId !== undefined) {
@@ -399,54 +172,14 @@ export class Browser {
     opts?: { hidden?: boolean; background?: boolean; windowId?: number },
   ): Promise<number> {
     const windowId = await this.resolveWindowIdForNewPage(opts)
-    const createResult = await this.cdp.Browser.createTab({
-      url,
-      ...(opts?.background !== undefined && { background: opts.background }),
-      ...(windowId !== undefined && { windowId }),
+    return this.core.pages.newPage(url, {
+      background: opts?.background,
+      windowId,
     })
-
-    const tabId = (createResult.tab as TabInfo).tabId
-    let tabInfo: TabInfo | undefined
-    for (let i = 0; i < 10; i++) {
-      try {
-        const infoResult = await this.cdp.Browser.getTabInfo({ tabId })
-        tabInfo = infoResult.tab as TabInfo
-        break
-      } catch {
-        await new Promise((r) => setTimeout(r, 100))
-      }
-    }
-    if (!tabInfo) throw new Error(`Tab ${tabId} not found after creation`)
-
-    const pageId = this.nextPageId++
-    this.pages.set(pageId, {
-      pageId,
-      targetId: tabInfo.targetId,
-      tabId: tabInfo.tabId,
-      url: tabInfo.url || url,
-      title: tabInfo.title || '',
-      isActive: tabInfo.isActive,
-      isLoading: tabInfo.isLoading,
-      loadProgress: tabInfo.loadProgress,
-      isPinned: tabInfo.isPinned,
-      isHidden: tabInfo.isHidden,
-      windowId: tabInfo.windowId ?? windowId,
-      index: tabInfo.index,
-      groupId: tabInfo.groupId,
-    })
-    return pageId
   }
 
   async closePage(page: number): Promise<void> {
-    const info = this.pages.get(page)
-    if (!info)
-      throw new Error(
-        `Unknown page ${page}. Use list_pages to see available pages.`,
-      )
-    await this.cdp.Browser.closeTab({ tabId: info.tabId })
-    this.consoleCollector.detach(page)
-    this.pages.delete(page)
-    this.sessions.delete(info.targetId)
+    await this.core.pages.close(page)
   }
 
   // --- Navigation ---
@@ -1293,7 +1026,7 @@ export class Browser {
 
   async createWindow(opts?: { hidden?: boolean }): Promise<WindowInfo> {
     const result = await this.cdp.Browser.createWindow({
-      ...(opts?.hidden !== undefined && { hidden: opts.hidden }),
+      hidden: opts?.hidden ?? false,
     })
     return result.window as WindowInfo
   }
@@ -1330,55 +1063,14 @@ export class Browser {
     page: number,
     opts?: { windowId?: number; index?: number; activate?: boolean },
   ): Promise<PageInfo> {
-    const info = this.pages.get(page)
-    if (!info)
-      throw new Error(
-        `Unknown page ${page}. Use list_pages to see available pages.`,
-      )
-
-    const result = await this.cdp.Browser.showTab({
-      tabId: info.tabId,
-      ...(opts?.windowId !== undefined && { windowId: opts.windowId }),
-      ...(opts?.index !== undefined && { index: opts.index }),
-      ...(opts?.activate !== undefined && { activate: opts.activate }),
-    })
-
-    const tab = result.tab as TabInfo
-    const updated: PageInfo = {
-      ...info,
-      isHidden: tab.isHidden,
-      isActive: tab.isActive,
-      windowId: tab.windowId,
-      index: tab.index,
-    }
-    this.pages.set(page, updated)
-    return updated
+    return this.core.pages.show(page, opts)
   }
 
   async movePage(
     page: number,
     opts?: { windowId?: number; index?: number },
   ): Promise<PageInfo> {
-    const info = this.pages.get(page)
-    if (!info)
-      throw new Error(
-        `Unknown page ${page}. Use list_pages to see available pages.`,
-      )
-
-    const result = await this.cdp.Browser.moveTab({
-      tabId: info.tabId,
-      ...(opts?.windowId !== undefined && { windowId: opts.windowId }),
-      ...(opts?.index !== undefined && { index: opts.index }),
-    })
-
-    const tab = result.tab as TabInfo
-    const updated: PageInfo = {
-      ...info,
-      windowId: tab.windowId,
-      index: tab.index,
-    }
-    this.pages.set(page, updated)
-    return updated
+    return this.core.pages.move(page, opts)
   }
 
   // --- Bookmarks ---
@@ -1442,7 +1134,7 @@ export class Browser {
 
   private resolvePageIdsToTabIds(pageIds: number[]): number[] {
     return pageIds.map((pageId) => {
-      const info = this.pages.get(pageId)
+      const info = this.getPageInfo(pageId)
       if (!info)
         throw new Error(
           `Unknown page ${pageId}. Use list_pages to see available pages.`,
@@ -1454,11 +1146,11 @@ export class Browser {
   async listTabGroups(): Promise<
     (Omit<TabGroup, 'tabIds'> & { pageIds: number[] })[]
   > {
-    await this.listPages()
+    const pages = await this.listPages()
     const groups = await tabGroups.listTabGroups(this.cdp)
 
     const tabToPage = new Map<number, number>()
-    for (const info of this.pages.values()) {
+    for (const info of pages) {
       tabToPage.set(info.tabId, info.pageId)
     }
 
@@ -1477,12 +1169,12 @@ export class Browser {
     pageIds: number[],
     opts?: { title?: string; groupId?: string },
   ): Promise<Omit<TabGroup, 'tabIds'> & { pageIds: number[] }> {
-    await this.listPages()
+    const pages = await this.listPages()
     const tabIds = this.resolvePageIdsToTabIds(pageIds)
     const group = await tabGroups.groupTabs(this.cdp, tabIds, opts)
 
     const tabToPage = new Map<number, number>()
-    for (const info of this.pages.values()) {
+    for (const info of pages) {
       tabToPage.set(info.tabId, info.pageId)
     }
 

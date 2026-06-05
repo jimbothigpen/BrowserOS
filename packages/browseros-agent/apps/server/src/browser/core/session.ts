@@ -3,23 +3,31 @@ import { Input } from './input/input'
 import { Navigation } from './navigation'
 import { FrameRegistry } from './observer/frames'
 import { Observer } from './observer/observer'
-import { PageManager } from './pages'
+import { PageManager, type PageManagerHooks } from './pages'
 
-/**
- * Per-browser-session state holder: the page registry today, plus per-page observation,
- * snapshot baselines, and ref maps as later tasks land. One instance is created per MCP
- * session (or directly by the in-process agent) and disposed on session end.
- */
+export interface BrowserSessionHooks extends PageManagerHooks {}
+
+/** Coordinates page registry, observation, input, navigation, and raw CDP access. */
 export class BrowserSession {
   readonly pages: PageManager
   private readonly frames: FrameRegistry
   private readonly observers = new Map<number, Observer>()
 
-  constructor(private readonly connection: CdpConnection) {
+  constructor(
+    private readonly connection: CdpConnection,
+    hooks: BrowserSessionHooks = {},
+  ) {
     this.frames = new FrameRegistry(connection)
-    this.pages = new PageManager(connection, (session, pageId, sessionId) =>
-      this.frames.registerPage(session, pageId, sessionId),
-    )
+    this.pages = new PageManager(connection, {
+      ...hooks,
+      onSessionAttached: async (session, pageId, sessionId) => {
+        await this.frames.registerPage(session, pageId, sessionId)
+        await hooks.onSessionAttached?.(session, pageId, sessionId)
+      },
+    })
+    this.connection.Target.on('detachedFromTarget', (params) => {
+      if (params.sessionId) this.pages.detachSession(params.sessionId)
+    })
   }
 
   /** Per-page observation (snapshot + diff), created lazily and cached. */
