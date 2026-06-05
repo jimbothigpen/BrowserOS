@@ -3,9 +3,7 @@
  * Copyright 2025 BrowserOS
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Top-level interface every adapter runtime implements. Two abstract
- * subclasses (`ContainerAgentRuntime`, `HostProcessAgentRuntime`)
- * cover the two kinds we ship today.
+ * Top-level interface every adapter runtime implements.
  */
 
 import type {
@@ -33,17 +31,10 @@ export interface AgentRuntime {
   ): Promise<void>
 
   // ── ACP plane integration ────────────────────────────────────────
-  /**
-   * Build the shell-command string acpx-core spawns to run `spec`
-   * against this runtime. For container kinds, this is the
-   * `limactl shell <vm> -- nerdctl exec -i …` chain; for host kinds,
-   * it's `env KEY=VAL <binary> <argv...>`.
-   */
+  /** Build the shell-command string acpx-core spawns to run `spec`. */
   buildExecArgv(spec: ExecSpec): string
 
-  // ── Filesystem ───────────────────────────────────────────────────
-  /** Per-agent home dir on host. Both kinds expose this; container
-   *  kinds also expose `toContainerPath` for in-container translation. */
+  /** Per-agent home dir on host. */
   getPerAgentHomeDir(agentId: string): string
   toContainerPath?(hostPath: string): string
   toHostPath?(containerPath: string): string

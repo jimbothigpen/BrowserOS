@@ -256,7 +256,7 @@ describe('HostProcessAgentRuntime', () => {
       expect(r.authCalls).toBe(1)
     })
 
-    it('throws ActionNotSupportedError for container-only actions', async () => {
+    it('throws ActionNotSupportedError for unsupported lifecycle actions', async () => {
       const r = makeRuntime()
       await expect(r.executeAction({ type: 'install' })).rejects.toBeInstanceOf(
         ActionNotSupportedError,

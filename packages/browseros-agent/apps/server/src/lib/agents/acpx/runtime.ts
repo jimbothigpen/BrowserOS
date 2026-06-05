@@ -30,7 +30,6 @@ import {
 import { resolveBundledBun } from '../host-acp/bundled-bun'
 import { withBundledNativeBinaryPath } from '../host-acp/bundled-native-binary'
 import { HOST_ACP_ADAPTER_CONFIG } from '../host-acp/config'
-import { getHermesRuntime } from '../runtime'
 import type {
   AgentHistoryPage,
   AgentPromptInput,
@@ -741,11 +740,6 @@ function createBrowserosAgentRegistry(input: {
       const lower = agentName.trim().toLowerCase()
 
       if (lower === 'hermes') {
-        const runtime = getHermesRuntime()
-        if (runtime)
-          return runtime.buildExecArgv(runtime.getAcpExecSpec(input.commandEnv))
-        // No runtime registered (tests, dev fallback, non-darwin) →
-        // host-process spawn of the bare hermes binary.
         return wrapCommandWithEnv('hermes acp', input.commandEnv)
       }
 

@@ -3,13 +3,16 @@
  * Copyright 2025 BrowserOS
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Shared types for the AgentRuntime layer. Pure types — no behaviour
+ * Shared types for the AgentRuntime layer. Pure types - no behaviour
  * lives here.
  */
 
-import type { ExecSpec } from '../../container/managed'
-
 export type Platform = NodeJS.Platform
+
+export interface ExecSpec {
+  argv: string[]
+  env?: Record<string, string>
+}
 
 export interface RuntimeDescriptor {
   /** Stable id matching `agent.adapter` for harness lookups. */
@@ -18,22 +21,19 @@ export interface RuntimeDescriptor {
   displayName: string
   /** Discriminator for runtime kind. UI components route on this. */
   kind: 'container' | 'host-process'
-  /** Platforms where this runtime is supported (today: ['darwin']
-   *  for container kinds; varies for host kinds). */
+  /** Platforms where this runtime is supported. */
   platforms: ReadonlyArray<Platform>
 }
 
 export type RuntimeState =
   | 'unsupported_platform'
   | 'errored'
-  // container-only
   | 'not_installed'
   | 'installing'
   | 'installed'
   | 'starting'
   | 'running'
   | 'stopped'
-  // host-only
   | 'cli_missing'
   | 'cli_present'
   | 'cli_unhealthy'
@@ -88,5 +88,3 @@ export type RuntimeAction =
 
 export type StateListener = (snapshot: RuntimeStatusSnapshot) => void
 export type Unsubscribe = () => void
-
-export type { ExecSpec }

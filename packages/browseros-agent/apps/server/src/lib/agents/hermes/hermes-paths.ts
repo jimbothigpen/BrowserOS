@@ -3,38 +3,26 @@
  * Copyright 2025 BrowserOS
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Host-side path helpers for the Hermes container.
- *
- * Hermes per-agent state lives under the BrowserOS-managed VM state
- * directory (so it's reachable inside the Lima VM via the existing
- * vm/ → /mnt/browseros/vm bind mount). The Hermes container then bind-
- * mounts the guest-side path (/mnt/browseros/vm/hermes/harness) into
- * /data/agents/harness, so `HERMES_HOME` ends up pointing at a path
- * the container can actually open.
+ * Host-side path helpers for Hermes per-agent configuration.
  */
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { getVmStateDir } from '../../browseros-dir'
+import { getBrowserosDir } from '../../browseros-dir'
 
-/** Top-level Hermes state directory: `<browserosDir>/vm/hermes`. */
+/** Top-level Hermes state directory. */
 export function getHermesHostStateDir(browserosDir?: string): string {
-  return join(
-    browserosDir ? join(browserosDir, 'vm') : getVmStateDir(),
-    'hermes',
-  )
+  return join(browserosDir ?? getBrowserosDir(), 'agents', 'hermes')
 }
 
-/** Per-agent harness root: `<browserosDir>/vm/hermes/harness`. */
+/** Per-agent Hermes harness root. */
 export function getHermesHarnessHostDir(browserosDir?: string): string {
   return join(getHermesHostStateDir(browserosDir), 'harness')
 }
 
 /**
- * Per-agent home directory on the host. The Hermes container reads
- * `config.yaml` + `.env` from here via the harness bind mount; both
- * files are written at agent-create time by AgentHarnessService and
- * stay constant across turns.
+ * Per-agent home directory on the host. Hermes reads `config.yaml` +
+ * `.env` from here; both files are written at agent-create time.
  */
 export function getHermesAgentHomeHostDir(input: {
   browserosDir?: string
@@ -49,8 +37,6 @@ export function getHermesAgentHomeHostDir(input: {
 
 /**
  * Write a Hermes per-agent provider config into the on-host home dir.
- * The dir lives under <browserosDir>/vm/hermes/harness/<agentId>/home/
- * which is bind-mounted into the container at /data/agents/harness/<id>/home/.
  *
  * Idempotent: writes always overwrite (last-write-wins). The provider
  * id, env var name, and credentials must be supplied by the caller —

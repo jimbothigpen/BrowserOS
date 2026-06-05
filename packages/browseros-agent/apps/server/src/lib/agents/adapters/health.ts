@@ -20,10 +20,8 @@ import {
 
 /**
  * Reports adapter readiness for the `/adapters` route. Reads from the
- * `AgentRuntimeRegistry` — host-process runtimes self-cache their
- * `<binary> --version` probe; container runtimes expose lifecycle
- * state via the same snapshot.
- *
+ * `AgentRuntimeRegistry`; host-process runtimes self-cache their
+ * `<binary> --version` probe.
  */
 export class AdapterHealthChecker {
   private readonly registry: AgentRuntimeRegistry
@@ -71,9 +69,6 @@ function runtimeSnapshotToHealth(runtime: AgentRuntime): AdapterHealth {
   return {
     healthy: snap.isReady,
     reason: snap.isReady ? undefined : (snap.lastError ?? undefined),
-    // Prefer probedAt so the timestamp reflects probe completion
-    // regardless of health state. lastErrorAt is the fallback for
-    // runtimes that don't emit probedAt yet (containers).
     checkedAt: snap.probedAt ?? snap.lastErrorAt ?? Date.now(),
     readiness: snap.isReady ? 'ready' : 'unknown',
     installState: snap.isReady ? 'installed' : 'not-installed',
