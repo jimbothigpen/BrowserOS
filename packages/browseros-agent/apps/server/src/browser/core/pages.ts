@@ -46,15 +46,19 @@ const delay = (ms: number): Promise<void> =>
 export class PageManager {
   private readonly pages = new Map<number, PageInfo>()
   private readonly sessions = new Map<string, SessionId>()
+  private connectionEpoch: number
   private nextPageId = 1
 
   constructor(
     private readonly cdp: CdpConnection,
     private readonly hooks: PageManagerHooks = {},
-  ) {}
+  ) {
+    this.connectionEpoch = cdp.connectionEpoch()
+  }
 
   /** Reconcile the registry with the browser's live tabs (upsert + drop vanished). */
   async list(): Promise<PageInfo[]> {
+    await this.ensureConnected()
     const result = await this.cdp.Browser.getTabs({ includeHidden: true })
     const tabs = (result.tabs as TabInfo[]).filter(
       (tab) =>
@@ -64,8 +68,12 @@ export class PageManager {
     const seen = new Set<string>()
     for (const tab of tabs) {
       seen.add(tab.targetId)
-      const existing = this.findByTarget(tab.targetId)
+      const existing =
+        this.findByTarget(tab.targetId) ?? this.findByTab(tab.tabId)
       if (existing) {
+        if (existing.targetId !== tab.targetId) {
+          this.sessions.delete(existing.targetId)
+        }
         // CDP omits windowId for hidden tabs — preserve the cached value.
         Object.assign(existing, tab, {
           windowId: tab.windowId ?? existing.windowId,
@@ -97,8 +105,9 @@ export class PageManager {
 
   /** Resolve a pageId to its attached CDP session, listing pages first if unseen. */
   async getSession(pageId: number): Promise<PageSession> {
+    const reconnected = await this.ensureConnected()
     let info = this.pages.get(pageId)
-    if (!info) {
+    if (!info || reconnected) {
       await this.list()
       info = this.pages.get(pageId)
     }
@@ -121,6 +130,7 @@ export class PageManager {
   }
 
   async getActive(): Promise<PageInfo | null> {
+    await this.ensureConnected()
     const result = await this.cdp.Browser.getActiveTab()
     if (!result.tab) return null
 
@@ -130,6 +140,7 @@ export class PageManager {
   }
 
   async getActiveSessionForWindow(windowId: number): Promise<PageSession> {
+    await this.ensureConnected()
     const result = await this.cdp.Browser.getActiveTab({ windowId })
     const tab = result.tab as TabInfo | undefined
     if (!tab) throw new Error(`No active tab in window ${windowId}`)
@@ -144,6 +155,7 @@ export class PageManager {
   }
 
   async refresh(pageId: number): Promise<PageInfo | undefined> {
+    await this.ensureConnected()
     let info = this.pages.get(pageId)
     if (!info) {
       await this.list()
@@ -180,6 +192,7 @@ export class PageManager {
     url: string,
     opts?: { background?: boolean; windowId?: number },
   ): Promise<number> {
+    await this.ensureConnected()
     const created = await this.cdp.Browser.createTab({
       url,
       ...(opts?.background !== undefined && { background: opts.background }),
@@ -217,6 +230,7 @@ export class PageManager {
     pageId: number,
     opts?: { windowId?: number; index?: number; activate?: boolean },
   ): Promise<PageInfo> {
+    await this.ensureConnected()
     const info = (await this.refresh(pageId)) ?? this.requireInfo(pageId)
     if (!info.isHidden) {
       throw new Error(`Page ${pageId} is already visible.`)
@@ -235,6 +249,7 @@ export class PageManager {
     pageId: number,
     opts?: { windowId?: number; index?: number },
   ): Promise<PageInfo> {
+    await this.ensureConnected()
     const info = (await this.refresh(pageId)) ?? this.requireInfo(pageId)
     const result = await this.cdp.Browser.moveTab({
       tabId: info.tabId,
@@ -254,6 +269,7 @@ export class PageManager {
   }
 
   private async attach(targetId: string, pageId: number): Promise<SessionId> {
+    await this.ensureConnected()
     const cached = this.sessions.get(targetId)
     if (cached) return cached
 
@@ -273,6 +289,28 @@ export class PageManager {
     return sessionId
   }
 
+  private async ensureConnected(): Promise<boolean> {
+    if (!this.cdp.isConnected()) {
+      await this.waitForConnection()
+    }
+
+    const epoch = this.cdp.connectionEpoch()
+    if (epoch !== this.connectionEpoch) {
+      this.sessions.clear()
+      this.connectionEpoch = epoch
+      return true
+    }
+    return false
+  }
+
+  private async waitForConnection(): Promise<void> {
+    const deadline = Date.now() + 5000
+    while (!this.cdp.isConnected() && Date.now() < deadline) {
+      await delay(50)
+    }
+    if (!this.cdp.isConnected()) throw new Error('CDP not connected')
+  }
+
   private async ensurePageIdForTarget(targetId: string): Promise<number> {
     const existing = this.findByTarget(targetId)
     if (existing) return existing.pageId
@@ -287,6 +325,13 @@ export class PageManager {
   private findByTarget(targetId: string): PageInfo | undefined {
     for (const info of this.pages.values()) {
       if (info.targetId === targetId) return info
+    }
+    return undefined
+  }
+
+  private findByTab(tabId: number): PageInfo | undefined {
+    for (const info of this.pages.values()) {
+      if (info.tabId === tabId) return info
     }
     return undefined
   }

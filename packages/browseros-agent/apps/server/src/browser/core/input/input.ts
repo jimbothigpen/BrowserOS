@@ -57,22 +57,26 @@ export class Input {
     backendNodeId: number,
     opts: ClickOptions = {},
   ): Promise<{ x: number; y: number } | undefined> {
-    return this.clickNode(await this.pageSession(), backendNodeId, opts)
+    return this.withPageSessionRetry((session) =>
+      this.clickNode(session, backendNodeId, opts),
+    )
   }
 
   async clickAt(x: number, y: number, opts: ClickOptions = {}): Promise<void> {
-    await dispatchClick(
-      await this.pageSession(),
-      x,
-      y,
-      mouseButton(opts.button),
-      opts.clickCount ?? 1,
-      0,
+    await this.withPageSessionRetry((session) =>
+      dispatchClick(
+        session,
+        x,
+        y,
+        mouseButton(opts.button),
+        opts.clickCount ?? 1,
+        0,
+      ),
     )
   }
 
   async hoverAt(x: number, y: number): Promise<void> {
-    await dispatchHover(await this.pageSession(), x, y)
+    await this.withPageSessionRetry((session) => dispatchHover(session, x, y))
   }
 
   async typeAt(
@@ -81,17 +85,20 @@ export class Input {
     text: string,
     clear = false,
   ): Promise<void> {
-    const session = await this.pageSession()
-    await dispatchClick(session, x, y, 'left', 1, 0)
-    if (clear) await clearField(session)
-    await typeText(session, text)
+    await this.withPageSessionRetry(async (session) => {
+      await dispatchClick(session, x, y, 'left', 1, 0)
+      if (clear) await clearField(session)
+      await typeText(session, text)
+    })
   }
 
   async dragAt(
     from: { x: number; y: number },
     to: { x: number; y: number },
   ): Promise<void> {
-    await dispatchDrag(await this.pageSession(), from, to)
+    await this.withPageSessionRetry((session) =>
+      dispatchDrag(session, from, to),
+    )
   }
 
   private async clickNode(
@@ -126,7 +133,9 @@ export class Input {
   async hoverBackendNode(
     backendNodeId: number,
   ): Promise<{ x: number; y: number }> {
-    return this.hoverNode(await this.pageSession(), backendNodeId)
+    return this.withPageSessionRetry((session) =>
+      this.hoverNode(session, backendNodeId),
+    )
   }
 
   private async hoverNode(
@@ -153,7 +162,9 @@ export class Input {
     value: string,
     opts: { clear?: boolean } = {},
   ): Promise<{ x: number; y: number } | undefined> {
-    return this.fillNode(await this.pageSession(), backendNodeId, value, opts)
+    return this.withPageSessionRetry((session) =>
+      this.fillNode(session, backendNodeId, value, opts),
+    )
   }
 
   private async fillNode(
@@ -186,11 +197,11 @@ export class Input {
   }
 
   async type(text: string): Promise<void> {
-    await typeText(await this.pageSession(), text)
+    await this.withPageSessionRetry((session) => typeText(session, text))
   }
 
   async press(key: string): Promise<void> {
-    await pressCombo(await this.pageSession(), key)
+    await this.withPageSessionRetry((session) => pressCombo(session, key))
   }
 
   async selectOption(ref: string, value: string): Promise<string | null> {
@@ -202,10 +213,8 @@ export class Input {
     backendNodeId: number,
     value: string,
   ): Promise<string | null> {
-    return this.selectBackendNodeWithSession(
-      await this.pageSession(),
-      backendNodeId,
-      value,
+    return this.withPageSessionRetry((session) =>
+      this.selectBackendNodeWithSession(session, backendNodeId, value),
     )
   }
 
@@ -224,45 +233,44 @@ export class Input {
   }
 
   async focusBackendNode(backendNodeId: number): Promise<void> {
-    const session = await this.pageSession()
-    await scrollIntoView(session, backendNodeId)
-    await focusElement(session, backendNodeId)
+    await this.withPageSessionRetry(async (session) => {
+      await scrollIntoView(session, backendNodeId)
+      await focusElement(session, backendNodeId)
+    })
   }
 
   async checkBackendNode(backendNodeId: number): Promise<boolean> {
-    const session = await this.pageSession()
-    const checked = await callOnElement(
-      session,
-      backendNodeId,
-      'function(){return this.checked}',
+    const checked = await this.withPageSessionRetry((session) =>
+      callOnElement(session, backendNodeId, 'function(){return this.checked}'),
     )
     if (!checked) await this.clickBackendNode(backendNodeId)
     return true
   }
 
   async uncheckBackendNode(backendNodeId: number): Promise<boolean> {
-    const session = await this.pageSession()
-    const checked = await callOnElement(
-      session,
-      backendNodeId,
-      'function(){return this.checked}',
+    const checked = await this.withPageSessionRetry((session) =>
+      callOnElement(session, backendNodeId, 'function(){return this.checked}'),
     )
     if (checked) await this.clickBackendNode(backendNodeId)
     return false
   }
 
   async uploadFile(backendNodeId: number, files: string[]): Promise<void> {
-    await (await this.pageSession()).DOM.setFileInputFiles({
-      files,
-      backendNodeId,
-    })
+    await this.withPageSessionRetry((session) =>
+      session.DOM.setFileInputFiles({
+        files,
+        backendNodeId,
+      }),
+    )
   }
 
   async handleDialog(accept: boolean, promptText?: string): Promise<void> {
-    await (await this.pageSession()).Page.handleJavaScriptDialog({
-      accept,
-      ...(promptText !== undefined && { promptText }),
-    })
+    await this.withPageSessionRetry((session) =>
+      session.Page.handleJavaScriptDialog({
+        accept,
+        ...(promptText !== undefined && { promptText }),
+      }),
+    )
   }
 
   async dragBackendNode(
@@ -272,23 +280,24 @@ export class Input {
     from: { x: number; y: number }
     to: { x: number; y: number }
   }> {
-    const session = await this.pageSession()
-    await scrollIntoView(session, sourceBackendNodeId)
-    const from = await getElementCenter(session, sourceBackendNodeId)
+    return this.withPageSessionRetry(async (session) => {
+      await scrollIntoView(session, sourceBackendNodeId)
+      const from = await getElementCenter(session, sourceBackendNodeId)
 
-    let to: { x: number; y: number }
-    if (target.element !== undefined) {
-      to = await getElementCenter(session, target.element)
-    } else if (target.x !== undefined && target.y !== undefined) {
-      to = { x: target.x, y: target.y }
-    } else {
-      throw new Error(
-        'Provide either target element or both targetX and targetY.',
-      )
-    }
+      let to: { x: number; y: number }
+      if (target.element !== undefined) {
+        to = await getElementCenter(session, target.element)
+      } else if (target.x !== undefined && target.y !== undefined) {
+        to = { x: target.x, y: target.y }
+      } else {
+        throw new Error(
+          'Provide either target element or both targetX and targetY.',
+        )
+      }
 
-    await dispatchDrag(session, from, to)
-    return { from, to }
+      await dispatchDrag(session, from, to)
+      return { from, to }
+    })
   }
 
   async scroll(
@@ -329,40 +338,65 @@ export class Input {
       direction === 'up' ? -pixels : direction === 'down' ? pixels : 0
     if (deltaX === 0 && deltaY === 0) return
 
-    const session = await this.pageSession()
-    let x: number
-    let y: number
-    if (backendNodeId !== undefined) {
-      const center = await getElementCenter(session, backendNodeId)
-      x = center.x
-      y = center.y
-    } else {
-      const metrics = await session.Page.getLayoutMetrics()
-      x = metrics.layoutViewport.clientWidth / 2
-      y = metrics.layoutViewport.clientHeight / 2
-    }
+    await this.withPageSessionRetry(async (session) => {
+      let x: number
+      let y: number
+      if (backendNodeId !== undefined) {
+        const center = await getElementCenter(session, backendNodeId)
+        x = center.x
+        y = center.y
+      } else {
+        const metrics = await session.Page.getLayoutMetrics()
+        x = metrics.layoutViewport.clientWidth / 2
+        y = metrics.layoutViewport.clientHeight / 2
+      }
 
-    const before =
-      backendNodeId === undefined
-        ? await getWindowScrollPosition(session)
-        : undefined
-    await dispatchScroll(session, x, y, deltaX, deltaY)
-    if (before === undefined) return
+      const before =
+        backendNodeId === undefined
+          ? await getWindowScrollPosition(session)
+          : undefined
+      await dispatchScroll(session, x, y, deltaX, deltaY)
+      if (before === undefined) return
 
-    const after = await getWindowScrollPosition(session)
-    if (didScrollInExpectedDirection(before, after, deltaX, deltaY)) return
+      const after = await getWindowScrollPosition(session)
+      if (didScrollInExpectedDirection(before, after, deltaX, deltaY)) return
 
-    await fallbackWindowScroll(session, deltaX, deltaY)
+      await fallbackWindowScroll(session, deltaX, deltaY)
+    })
   }
 
   private async pageSession(): Promise<ProtocolApi> {
     return (await this.pages.getSession(this.pageId)).session
+  }
+
+  /** Reacquires the page session once after transient CDP reconnect errors. */
+  private async withPageSessionRetry<T>(
+    action: (session: ProtocolApi) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await action(await this.pageSession())
+      } catch (error) {
+        if (attempt > 0 || !isRetryableCdpSessionError(error)) throw error
+        await this.pages.refresh(this.pageId).catch(() => undefined)
+      }
+    }
   }
 }
 
 function mouseButton(button: ClickOptions['button']): MouseButton {
   if (button === 'middle' || button === 'right') return button
   return 'left'
+}
+
+function isRetryableCdpSessionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    message.includes('CDP not connected') ||
+    message.includes('No target with given id') ||
+    message.includes('No session with given id') ||
+    message.includes('Session with given id not found')
+  )
 }
 
 async function getWindowScrollPosition(

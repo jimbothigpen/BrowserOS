@@ -11,6 +11,7 @@ export type FrameId = string
 export interface CdpConnection extends ProtocolApi {
   session(sessionId: SessionId): ProtocolApi
   isConnected(): boolean
+  connectionEpoch(): number
 }
 
 /** Internal/agent surfaces we never expose as pages. */
