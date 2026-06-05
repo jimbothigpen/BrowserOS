@@ -4,14 +4,18 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { homedir } from 'node:os'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PATHS } from '@browseros/shared/constants/paths'
 import {
+  ensureBrowserosDir,
   getBrowserosDir,
   getCacheDir,
   getDbPath,
+  getSessionsDir,
   getVmCacheDir,
+  getVmDisksDir,
   logDevelopmentBrowserosDir,
 } from '../src/lib/browseros-dir'
 import { logger } from '../src/lib/logger'
@@ -28,17 +32,15 @@ describe('getBrowserosDir', () => {
   afterEach(() => {
     if (originalNodeEnv === undefined) {
       delete process.env.NODE_ENV
-      return
+    } else {
+      process.env.NODE_ENV = originalNodeEnv
     }
-
-    process.env.NODE_ENV = originalNodeEnv
 
     if (originalBrowserosDir === undefined) {
       delete process.env.BROWSEROS_DIR
-      return
+    } else {
+      process.env.BROWSEROS_DIR = originalBrowserosDir
     }
-
-    process.env.BROWSEROS_DIR = originalBrowserosDir
   })
 
   it('uses a separate home directory in development', () => {
@@ -131,5 +133,23 @@ describe('getBrowserosDir', () => {
     expect(getVmCacheDir()).toBe(
       join(homedir(), '.browseros-dev', 'cache', 'vm'),
     )
+  })
+
+  it('does not create lazy monitoring directories during startup setup', async () => {
+    const browserosDir = mkdtempSync(join(tmpdir(), 'browseros-dir-test-'))
+    process.env.BROWSEROS_DIR = browserosDir
+
+    try {
+      await ensureBrowserosDir()
+
+      expect(existsSync(getSessionsDir())).toBe(true)
+      expect(existsSync(getVmDisksDir())).toBe(true)
+      expect(existsSync(join(browserosDir, 'lazy-monitoring'))).toBe(false)
+      expect(existsSync(join(browserosDir, 'lazy-monitoring', 'runs'))).toBe(
+        false,
+      )
+    } finally {
+      rmSync(browserosDir, { recursive: true, force: true })
+    }
   })
 })

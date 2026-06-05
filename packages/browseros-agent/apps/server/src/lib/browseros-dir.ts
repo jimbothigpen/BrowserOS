@@ -52,18 +52,6 @@ export function getVmDisksDir(): string {
   return getVmCacheDir()
 }
 
-export function getLazyMonitoringDir(): string {
-  return join(getBrowserosDir(), 'lazy-monitoring')
-}
-
-export function getLazyMonitoringRunsDir(): string {
-  return join(getLazyMonitoringDir(), 'runs')
-}
-
-export function getLazyMonitoringRunDir(runId: string): string {
-  return join(getLazyMonitoringRunsDir(), runId)
-}
-
 export function getServerConfigPath(): string {
   return join(getBrowserosDir(), PATHS.SERVER_CONFIG_FILE_NAME)
 }
@@ -83,14 +71,13 @@ export function removeServerConfigSync(): void {
   try {
     unlinkSync(getServerConfigPath())
   } catch {
-    // File may not exist or already be removed
+    return
   }
 }
 
 export async function ensureBrowserosDir(): Promise<void> {
   logDevelopmentBrowserosDir()
   await mkdir(getSessionsDir(), { recursive: true })
-  await mkdir(getLazyMonitoringRunsDir(), { recursive: true })
   await mkdir(getVmDisksDir(), { recursive: true })
 }
 

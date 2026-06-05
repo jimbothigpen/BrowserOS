@@ -3,10 +3,6 @@ import { z } from 'zod'
 import { logger } from '../../../lib/logger'
 import { metrics } from '../../../lib/metrics'
 import {
-  buildMonitoringToolOutput,
-  type ToolExecutionObserver,
-} from '../../../monitoring/observer'
-import {
   executeTool,
   type ToolContext,
   type ToolDefinition,
@@ -36,7 +32,6 @@ export function registerTools(
   mcpServer: McpServer,
   registry: ToolRegistry,
   ctx: ToolContext & {
-    observer?: ToolExecutionObserver
     // Default windowId from X-BrowserOS-Default-Window-Id. When set,
     // tool calls without an explicit args.windowId have this value
     // injected — provided the tool's schema actually accepts one. When
@@ -79,17 +74,9 @@ export function registerTools(
         args.tabGroupId = ctx.defaultTabGroupId
       }
       const startTime = performance.now()
-      const toolCallId = crypto.randomUUID()
 
       try {
         logger.info(`${tool.name} request: ${JSON.stringify(args, null, '  ')}`)
-        await ctx.observer?.onToolStart({
-          toolCallId,
-          toolName: tool.name,
-          toolDescription: tool.description,
-          source: 'browser-tool',
-          args,
-        })
 
         const result = await executeTool(tool, args, ctx, extra.signal)
 
@@ -98,17 +85,6 @@ export function registerTools(
           duration_ms: Math.round(performance.now() - startTime),
           success: !result.isError,
           source: 'mcp',
-        })
-
-        await ctx.observer?.onToolEnd({
-          toolCallId,
-          output: buildMonitoringToolOutput({
-            content: result.content,
-            structuredContent: result.structuredContent,
-            metadata: result.metadata,
-            isError: result.isError,
-          }),
-          error: result.isError ? 'Tool returned isError=true' : undefined,
         })
 
         return {
@@ -125,11 +101,6 @@ export function registerTools(
           success: false,
           error_message: errorText,
           source: 'mcp',
-        })
-
-        await ctx.observer?.onToolEnd({
-          toolCallId,
-          error: errorText,
         })
 
         return {

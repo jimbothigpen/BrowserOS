@@ -29,7 +29,6 @@ import { createCreditsRoutes } from './routes/credits'
 import { createHealthRoute } from './routes/health'
 import { createKlavisRoutes } from './routes/klavis'
 import { createMcpRoutes } from './routes/mcp'
-import { createMonitoringRoutes } from './routes/monitoring'
 import { createOAuthRoutes } from './routes/oauth'
 import { createProviderRoutes } from './routes/provider'
 import { createRefinePromptRoutes } from './routes/refine-prompt'
@@ -94,10 +93,6 @@ export async function createHttpServer(config: HttpServerConfig) {
       })
     : () => {}
 
-  const monitoringRoutes = new Hono<Env>()
-    .use('/*', requireTrustedAppOrigin())
-    .route('/', createMonitoringRoutes())
-
   const agentRoutes = new Hono<Env>()
     .use('/*', requireTrustedAppOrigin())
     .route(
@@ -136,7 +131,6 @@ export async function createHttpServer(config: HttpServerConfig) {
       }),
     )
     .route('/status', createStatusRoute({ browser }))
-    .route('/monitoring', monitoringRoutes)
     .route('/test-provider', createProviderRoutes({ browserosId }))
     .route('/refine-prompt', createRefinePromptRoutes({ browserosId }))
     .route(
