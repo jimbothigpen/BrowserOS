@@ -8,81 +8,59 @@ import {
   Search,
   X,
 } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   type FC,
   type FormEventHandler,
   type ReactNode,
   useEffect,
-  useState,
 } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Kbd } from '@/components/ui/kbd'
-import { createBrowserOSAction } from '@/lib/chat-actions/types'
 import { BrowserOSIcon } from '@/lib/llm-providers/providerIcons'
-import { openSidePanelWithSearch } from '@/lib/messaging/sidepanel/openSidepanelWithSearch'
 import { cn } from '@/lib/utils'
-import { useVoiceInput } from '@/lib/voice/useVoiceInput'
 import { AttachDropdown } from './AttachDropdown'
+import { useComposer } from './ComposerProvider'
 
 export const NewTabTwo: FC = () => {
-  const [value, setValue] = useState('')
-  const [selectedTabs, setSelectedTabs] = useState<chrome.tabs.Tab[]>([])
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const voice = useVoiceInput()
+  const composer = useComposer()
+  const {
+    value,
+    setValue,
+    selectedTabs,
+    selectedFiles,
+    toggleTab,
+    addFiles,
+    removeTab,
+    removeFile,
+    voice,
+    transitionIntent,
+    submitToChat,
+  } = composer
+
   const canSend = value.trim().length > 0
   const attachCount = selectedTabs.length + selectedFiles.length
 
   useEffect(() => {
     if (!voice.transcript) return
-    setValue((prev) =>
-      prev ? `${prev} ${voice.transcript}` : voice.transcript,
-    )
+    setValue(value ? `${value} ${voice.transcript}` : voice.transcript)
     voice.clearTranscript()
-  }, [voice.transcript, voice.clearTranscript])
-
-  const onToggleTab = (tab: chrome.tabs.Tab) => {
-    setSelectedTabs((prev) =>
-      prev.some((t) => t.id === tab.id)
-        ? prev.filter((t) => t.id !== tab.id)
-        : [...prev, tab],
-    )
-  }
-  const onAddFiles = (files: File[]) => {
-    setSelectedFiles((prev) => [...prev, ...files])
-  }
-  const onRemoveTab = (tab: chrome.tabs.Tab) => {
-    setSelectedTabs((prev) => prev.filter((t) => t.id !== tab.id))
-  }
-  const onRemoveFile = (file: File) => {
-    setSelectedFiles((prev) => prev.filter((f) => f !== file))
-  }
+    // setValue is stable; we intentionally depend only on the transcript.
+  }, [voice.transcript, setValue, value, voice.clearTranscript])
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (e) => {
     e.preventDefault()
-    const message = value.trim()
-    if (!message) return
-    const action = createBrowserOSAction({
-      mode: 'agent',
-      message,
-      tabs: selectedTabs,
-    })
-    openSidePanelWithSearch('open', {
-      query: message,
-      mode: 'agent',
-      action,
-    })
-    setValue('')
-    setSelectedTabs([])
-    setSelectedFiles([])
+    if (!canSend) return
+    submitToChat('text')
   }
 
   const handleMicToggle = () => {
     if (voice.isRecording) {
       void voice.stopRecording()
-    } else {
-      void voice.startRecording()
+      return
     }
+    submitToChat('voice')
   }
 
   const hint = voice.isTranscribing
@@ -91,8 +69,18 @@ export const NewTabTwo: FC = () => {
       ? 'Listening… press the mic again to stop'
       : null
 
+  const pageExit =
+    transitionIntent === 'voice'
+      ? { opacity: 0, transition: { duration: 0.08, ease: 'easeIn' as const } }
+      : { opacity: 0, transition: { duration: 0.18, ease: 'easeIn' as const } }
+
   return (
-    <div className="flex h-screen w-screen flex-col bg-[radial-gradient(110%_80%_at_50%_38%,#FFE9D6_0%,#FDF0E6_32%,var(--background)_70%)]">
+    <motion.div
+      initial={{ opacity: 1 }}
+      animate={{ opacity: 1 }}
+      exit={pageExit}
+      className="flex h-screen w-screen flex-col bg-[radial-gradient(110%_80%_at_50%_38%,#FFE9D6_0%,#FDF0E6_32%,var(--background)_70%)]"
+    >
       <main className="relative flex flex-1 flex-col items-center justify-center gap-[22px]">
         <div
           aria-hidden
@@ -103,7 +91,9 @@ export const NewTabTwo: FC = () => {
           <BrowserOSIcon size={40} />
         </div>
 
-        <form
+        <motion.form
+          layoutId="composer-card"
+          layout="position"
           onSubmit={handleSubmit}
           className="z-10 w-[660px] rounded-[22px] border border-transparent bg-white/90 px-5 pt-[18px] pb-3 transition-shadow duration-200 focus-within:border-[rgba(226,114,44,0.18)] focus-within:shadow-[0_16px_50px_-10px_rgba(226,114,44,0.28),0_0_0_6px_rgba(226,114,44,0.05)]"
         >
@@ -119,42 +109,53 @@ export const NewTabTwo: FC = () => {
             />
           </div>
 
-          {attachCount > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              {selectedTabs.map((tab) => (
-                <AttachChip
-                  key={`tab-${tab.id}`}
-                  icon={
-                    tab.favIconUrl ? (
-                      <img
-                        src={tab.favIconUrl}
-                        alt=""
-                        className="size-3 shrink-0 rounded-[2px]"
-                      />
-                    ) : (
-                      <Globe className="size-3 shrink-0" />
-                    )
-                  }
-                  label={tab.title || tab.url || 'Tab'}
-                  onRemove={() => onRemoveTab(tab)}
-                />
-              ))}
-              {selectedFiles.map((file) => (
-                <AttachChip
-                  key={`file-${file.name}-${file.size}-${file.lastModified}`}
-                  icon={<Paperclip className="size-3 shrink-0" />}
-                  label={file.name}
-                  onRemove={() => onRemoveFile(file)}
-                />
-              ))}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {attachCount > 0 && (
+              <motion.div
+                key="chips"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.15 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  {selectedTabs.map((tab) => (
+                    <AttachChip
+                      key={`tab-${tab.id}`}
+                      icon={
+                        tab.favIconUrl ? (
+                          <img
+                            src={tab.favIconUrl}
+                            alt=""
+                            className="size-3 shrink-0 rounded-[2px]"
+                          />
+                        ) : (
+                          <Globe className="size-3 shrink-0" />
+                        )
+                      }
+                      label={tab.title || tab.url || 'Tab'}
+                      onRemove={() => removeTab(tab)}
+                    />
+                  ))}
+                  {selectedFiles.map((file) => (
+                    <AttachChip
+                      key={`file-${file.name}-${file.size}-${file.lastModified}`}
+                      icon={<Paperclip className="size-3 shrink-0" />}
+                      label={file.name}
+                      onRemove={() => removeFile(file)}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="mt-3 flex items-center gap-2">
             <AttachDropdown
               selectedTabs={selectedTabs}
-              onToggleTab={onToggleTab}
-              onAddFiles={onAddFiles}
+              onToggleTab={toggleTab}
+              onAddFiles={addFiles}
             >
               <Button
                 type="button"
@@ -213,7 +214,7 @@ export const NewTabTwo: FC = () => {
               <ArrowUp className="size-4" />
             </Button>
           </div>
-        </form>
+        </motion.form>
 
         <p className="z-10 whitespace-nowrap text-[13px] text-muted-foreground">
           {hint ?? (
@@ -233,7 +234,7 @@ export const NewTabTwo: FC = () => {
           </p>
         )}
       </main>
-    </div>
+    </motion.div>
   )
 }
 

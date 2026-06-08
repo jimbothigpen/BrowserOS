@@ -631,3 +631,15 @@
     box-shadow: 0 0 0 8px rgba(226, 114, 44, 0);
   }
 }
+
+@keyframes fv-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
