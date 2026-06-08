@@ -1,7 +1,7 @@
 import { Check, Loader2, Plug } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Button } from '@/components/ui/button'
-import { McpServerIcon } from '@/entrypoints/app/connect-mcp/McpServerIcon'
 import {
   ONBOARDING_APP_CONNECTED_EVENT,
   ONBOARDING_CONNECT_APPS_SKIPPED_EVENT,

@@ -1,6 +1,6 @@
 import type { FC } from 'react'
+import { AdapterIcon, adapterLabel } from '@/components/agents/AdapterIcon'
 import { Badge } from '@/components/ui/badge'
-import { AdapterIcon, adapterLabel } from '@/entrypoints/app/agents/AdapterIcon'
 import type {
   HarnessAdapterDescriptor,
   HarnessAgentAdapter,

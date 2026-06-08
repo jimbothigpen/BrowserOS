@@ -3,7 +3,7 @@ import type { FC, FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { AppSelector } from '@/components/elements/AppSelector'
 import { WorkspaceSelector } from '@/components/elements/workspace-selector'
-import { McpServerIcon } from '@/entrypoints/app/connect-mcp/McpServerIcon'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Feature } from '@/lib/browseros/capabilities'
 import { useMcpServers } from '@/lib/mcp/mcpServerStorage'
 import {

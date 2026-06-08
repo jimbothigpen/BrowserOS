@@ -40,6 +40,7 @@ import {
 import { CodingAgentsList } from './CodingAgentsList'
 import { CodingAgentsManager } from './CodingAgentsManager'
 import { ConfiguredProvidersList } from './ConfiguredProvidersList'
+import { useCodingAgents } from './coding-agents.hooks'
 import { DeviceCodeDialog } from './DeviceCodeDialog'
 import {
   DeleteRemoteLlmProviderDocument,
@@ -51,7 +52,6 @@ import { LlmProvidersHeader } from './LlmProvidersHeader'
 import { McpPromoBanner } from './McpPromoBanner'
 import { NewProviderDialog } from './NewProviderDialog'
 import { ProviderTemplatesSection } from './ProviderTemplatesSection'
-import { useCodingAgents } from './useCodingAgents'
 
 // All OAuth providers share the same flow via useOAuthProviderFlow
 const OAUTH_PROVIDERS_CONFIG: Record<string, OAuthProviderFlowConfig> = {

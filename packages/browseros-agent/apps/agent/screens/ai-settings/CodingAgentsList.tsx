@@ -1,10 +1,10 @@
 import { type FC, useMemo } from 'react'
+import { InlineErrorAlert } from '@/components/agents/PageAlerts'
 import type { HarnessAgentAdapter } from '@/modules/agents/agent-harness-types'
 import { compareAgentsByPinThenRecency } from '@/modules/agents/agents-list-order'
 import type { AgentListItem } from '@/modules/agents/agents-page-types'
-import { InlineErrorAlert } from '../agents/PageAlerts'
 import { CodingAgentCard } from './CodingAgentCard'
-import type { CodingAgentsController } from './useCodingAgents'
+import type { CodingAgentsController } from './coding-agents.hooks'
 
 interface CodingAgentsListProps {
   controller: CodingAgentsController

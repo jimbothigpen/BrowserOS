@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   getDefaultBaseUrlForProviders,
   providerTypeOptions,
-} from '../../../lib/llm-providers/providerTemplates'
+} from '@/lib/llm-providers/providerTemplates'
 import {
   normalizeProviderFormValues,
   providerFormSchema,

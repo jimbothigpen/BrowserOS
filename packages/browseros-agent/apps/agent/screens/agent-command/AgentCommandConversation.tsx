@@ -1,8 +1,8 @@
 import { ArrowLeft, Plus } from 'lucide-react'
 import { type FC, useEffect, useMemo, useRef } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
+import type { AgentAdapterHealth } from '@/components/agents/agent-row/agent-row.types'
 import { Button } from '@/components/ui/button'
-import type { AgentAdapterHealth } from '@/entrypoints/app/agents/agent-row/agent-row.types'
 import { cn } from '@/lib/utils'
 import type {
   AgentEntry,
@@ -18,19 +18,19 @@ import {
   useUpdateHarnessAgent,
 } from '@/modules/agents/agents.hooks'
 import { AgentChat } from './AgentChat'
+import { useAgentCommandData } from './AgentCommandLayout'
 import { AgentRail } from './AgentRail'
 import {
   buildChatHistoryFromAgentMessages,
   filterTurnsPersistedInHistory,
   flattenHistoryPages,
 } from './agent-chat-types'
-import { useAgentCommandData } from './agent-command-layout'
+import { useAgentConversation } from './agent-conversation.hooks'
 import { ConversationHeader } from './ConversationHeader'
 import { ConversationInput } from './ConversationInput'
+import { useHarnessChatHistory } from './harness-chat-history.hooks'
 import { consumePendingInitialMessage } from './pending-initial-message'
 import { QueuePanel } from './QueuePanel'
-import { useAgentConversation } from './useAgentConversation'
-import { useHarnessChatHistory } from './useHarnessChatHistory'
 
 function AgentConversationController({
   agentId,

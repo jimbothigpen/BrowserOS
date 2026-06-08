@@ -1,5 +1,6 @@
 import { KeyRound, Plus, Search } from 'lucide-react'
 import { type FC, useState } from 'react'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -9,7 +10,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { McpServerIcon } from './McpServerIcon'
 
 interface UnauthenticatedServer {
   name: string

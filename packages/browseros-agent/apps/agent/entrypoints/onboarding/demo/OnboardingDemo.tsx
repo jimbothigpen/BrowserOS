@@ -1,8 +1,8 @@
 import { ArrowRight, Globe, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { McpServerIcon } from '@/entrypoints/app/connect-mcp/McpServerIcon'
 import {
   ONBOARDING_COMPLETED_EVENT,
   ONBOARDING_DEMO_TRIGGERED_EVENT,

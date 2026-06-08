@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { type FC, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod/v3'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,7 +22,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { McpServerIcon } from './McpServerIcon'
 
 const formSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),

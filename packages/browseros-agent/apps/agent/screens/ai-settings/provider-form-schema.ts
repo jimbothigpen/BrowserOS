@@ -1,5 +1,5 @@
 import { z } from 'zod/v3'
-import { isLocalRuntimeProviderType } from '../../../lib/llm-providers/provider-runtime'
+import { isLocalRuntimeProviderType } from '@/lib/llm-providers/provider-runtime'
 
 export const providerTypeEnum = z.enum([
   'moonshot',

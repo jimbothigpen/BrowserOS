@@ -1,5 +1,6 @@
 import { ListPlus, X } from 'lucide-react'
 import type { FC } from 'react'
+import { firstNonBlankLine } from '@/components/agents/agent-row/agent-row.helpers'
 import {
   Queue,
   QueueItem,
@@ -15,7 +16,6 @@ import {
   QueueSectionLabel,
   QueueSectionTrigger,
 } from '@/components/ai-elements/queue'
-import { firstNonBlankLine } from '@/entrypoints/app/agents/agent-row/agent-row.helpers'
 import type {
   HarnessQueuedMessage,
   HarnessQueuedMessageAttachment,

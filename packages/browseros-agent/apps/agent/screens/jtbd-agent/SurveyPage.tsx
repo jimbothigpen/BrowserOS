@@ -5,7 +5,7 @@ import { jtbdPopupStorage } from '@/lib/jtbd-popup/storage'
 import { Chat } from './SurveyChat'
 import { Header } from './SurveyHeader'
 import { Welcome } from './SurveyWelcome'
-import { useChat } from './useSurveyChat'
+import { useChat } from './survey-chat.hooks'
 
 interface SurveyPageProps {
   maxTurns?: number

@@ -1,5 +1,5 @@
 import { type FC, useMemo } from 'react'
-import type { AgentAdapterHealth } from '@/entrypoints/app/agents/agent-row/agent-row.types'
+import type { AgentAdapterHealth } from '@/components/agents/agent-row/agent-row.types'
 import type {
   HarnessAdapterDescriptor,
   HarnessAgent,

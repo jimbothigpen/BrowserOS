@@ -2,6 +2,8 @@ import { KeyRound, Plus, Settings } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { ApiKeyDialog } from '@/components/mcp/ApiKeyDialog'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import {
   Command,
   CommandEmpty,
@@ -15,8 +17,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { ApiKeyDialog } from '@/entrypoints/app/connect-mcp/ApiKeyDialog'
-import { McpServerIcon } from '@/entrypoints/app/connect-mcp/McpServerIcon'
 import { MANAGED_MCP_ADDED_EVENT } from '@/lib/constants/analyticsEvents'
 import { useMcpServers } from '@/lib/mcp/mcpServerStorage'
 import { track } from '@/lib/metrics/track'

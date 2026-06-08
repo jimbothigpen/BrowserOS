@@ -23,13 +23,13 @@ import {
 } from '@/components/elements/glowing-border'
 import { TabPickerPopover } from '@/components/elements/tab-picker-popover'
 import { WorkspaceSelector } from '@/components/elements/workspace-selector'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { McpServerIcon } from '@/entrypoints/app/connect-mcp/McpServerIcon'
 import { useChatSessionContext } from '@/entrypoints/sidepanel/layout/ChatSessionContext'
 import { Feature } from '@/lib/browseros/capabilities'
 import {

@@ -1,6 +1,6 @@
 import type { FC } from 'react'
-import { NewAgentDialog } from '@/entrypoints/app/agents/NewAgentDialog'
-import type { CodingAgentsController } from './useCodingAgents'
+import { NewAgentDialog } from '@/components/agents/NewAgentDialog'
+import type { CodingAgentsController } from './coding-agents.hooks'
 
 /**
  * Shared New Agent dialog opened from provider-template cards. Agent rows live

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useVoiceInput } from '@/modules/voice/voice.hooks'
-import type { Message } from './useSurveyChat'
+import type { Message } from './survey-chat.hooks'
 import { VoiceInputButton } from './VoiceInputButton'
 
 interface Props {

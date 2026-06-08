@@ -1,6 +1,8 @@
 import { Check, Loader2, Plus, Server, Trash2 } from 'lucide-react'
 import { type FC, useState } from 'react'
 import { toast } from 'sonner'
+import { ApiKeyDialog } from '@/components/mcp/ApiKeyDialog'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Button } from '@/components/ui/button'
 import {
   CUSTOM_MCP_ADDED_EVENT,
@@ -17,9 +19,7 @@ import { useSyncRemoteIntegrations } from '@/modules/mcp/sync-remote-integration
 import { useGetUserMCPIntegrations } from '@/modules/mcp/user-integrations.hooks'
 import { AddCustomMCPDialog } from './AddCustomMCPDialog'
 import { AddManagedMCPDialog } from './AddManagedMCPDialog'
-import { ApiKeyDialog } from './ApiKeyDialog'
 import { AvailableManagedServers } from './AvailableManagedServers'
-import { McpServerIcon } from './McpServerIcon'
 
 const failedToAddMcp = (serverName: string, e: unknown) => {
   toast.error(`Failed to add app: ${serverName}`)

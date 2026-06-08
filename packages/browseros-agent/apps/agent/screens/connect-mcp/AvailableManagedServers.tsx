@@ -1,12 +1,12 @@
 import { ChevronDown, Loader2, Plus } from 'lucide-react'
 import { type FC, useState } from 'react'
+import { McpServerIcon } from '@/components/mcp/McpServerIcon'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { McpServerIcon } from './McpServerIcon'
 
 interface AvailableManagedServersProps {
   availableServers?: { name: string; description: string }[]

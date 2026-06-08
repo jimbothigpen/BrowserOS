@@ -1,6 +1,7 @@
 import { Check, Plug } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { ApiKeyDialog } from '@/components/mcp/ApiKeyDialog'
 import { Button } from '@/components/ui/button'
 import {
   BREADCRUMB_CONNECT_CLICKED_EVENT,
@@ -14,7 +15,6 @@ import { track } from '@/lib/metrics/track'
 import { sentry } from '@/lib/sentry/sentry'
 import { useAddManagedServer } from '@/modules/mcp/add-managed-server.hooks'
 import { useSubmitApiKey } from '@/modules/mcp/submit-api-key.hooks'
-import { ApiKeyDialog } from '../../app/connect-mcp/ApiKeyDialog'
 import { useChatSessionContext } from '../layout/ChatSessionContext'
 import type { NudgeData } from './getMessageSegments'
 
