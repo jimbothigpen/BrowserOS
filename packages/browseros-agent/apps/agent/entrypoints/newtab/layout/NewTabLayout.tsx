@@ -1,5 +1,7 @@
+import { ArrowRight } from 'lucide-react'
 import type { FC } from 'react'
-import { Outlet, useLocation } from 'react-router'
+import { Link, Outlet, useLocation } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { ChatSessionProvider } from '@/entrypoints/sidepanel/layout/ChatSessionContext'
 import { NewTabFocusGrid } from './NewTabFocusGrid'
 import { shouldHideFocusGrid, shouldUseChatSession } from './route-utils'
@@ -21,6 +23,7 @@ export const NewTabLayout: FC<NewTabLayoutProps> = ({
     <>
       {!hideGrid && <NewTabFocusGrid />}
       <Outlet />
+      <NewTabTwoLink />
     </>
   )
 
@@ -28,3 +31,17 @@ export const NewTabLayout: FC<NewTabLayoutProps> = ({
 
   return <ChatSessionProvider origin="newtab">{content}</ChatSessionProvider>
 }
+
+const NewTabTwoLink: FC = () => (
+  <Button
+    asChild
+    variant="ghost"
+    size="sm"
+    className="fixed right-4 bottom-4 z-50 h-8 gap-1.5 rounded-full bg-white/70 px-3 text-muted-foreground shadow-sm backdrop-blur hover:bg-white"
+  >
+    <Link to="/newtab-2">
+      Try newtab 2
+      <ArrowRight className="size-3.5" />
+    </Link>
+  </Button>
+)
