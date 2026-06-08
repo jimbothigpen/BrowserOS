@@ -6,6 +6,7 @@
 
 import { StreamableHTTPTransport } from '@hono/mcp'
 import { Hono } from 'hono'
+import type { Browser } from '../../browser/browser'
 import type { BrowserSession } from '../../browser/core/session'
 import { logger } from '../../lib/logger'
 import { metrics } from '../../lib/metrics'
@@ -16,8 +17,10 @@ import type { Env } from '../types'
 
 interface McpRouteDeps {
   version: string
+  browser: Browser
   browserSession: BrowserSession
   klavisRef?: KlavisProxyRef
+  browserUseNewTools?: boolean
 }
 
 function parseOptionalNumber(value: string | undefined): number | undefined {
@@ -59,8 +62,10 @@ export function createMcpRoutes(deps: McpRouteDeps) {
     // no ID collisions. Required by MCP SDK 1.26.0+ security fix (GHSA-345p-7cg4-v4c7).
     const mcpServer = createMcpServer({
       version: deps.version,
+      browser: deps.browser,
       browserSession: deps.browserSession,
       klavisRef: deps.klavisRef,
+      browserUseNewTools: deps.browserUseNewTools !== false,
       defaultWindowId,
       defaultTabGroupId,
     })

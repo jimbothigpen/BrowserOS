@@ -146,8 +146,10 @@ export async function createHttpServer(config: HttpServerConfig) {
       '/mcp',
       createMcpRoutes({
         version,
+        browser,
         browserSession,
         klavisRef,
+        browserUseNewTools: config.browserUseNewTools,
       }),
     )
     .route(

@@ -81,6 +81,7 @@ export class Application {
         executionDir: this.config.executionDir,
         resourcesDir: this.config.resourcesDir,
         aiSdkDevtoolsEnabled: this.config.aiSdkDevtoolsEnabled,
+        browserUseNewTools: this.config.browserUseNewTools,
 
         onShutdown: () => this.stop('shutdown-endpoint'),
       })
