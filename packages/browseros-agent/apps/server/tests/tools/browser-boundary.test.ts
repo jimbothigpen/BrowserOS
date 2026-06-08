@@ -3,7 +3,6 @@ import assert from 'node:assert'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { get_bookmarks } from '../../src/tools/browser/bookmarks'
-import { get_console_logs } from '../../src/tools/browser/console'
 import { get_dom } from '../../src/tools/browser/dom'
 import { search_history } from '../../src/tools/browser/history'
 import { click } from '../../src/tools/browser/input'
@@ -16,7 +15,6 @@ import { registry } from '../../src/tools/registry'
 
 const browserToolFiles = [
   'bookmarks.ts',
-  'console.ts',
   'dom.ts',
   'history.ts',
   'input.ts',
@@ -38,11 +36,16 @@ describe('browser tool boundary', () => {
       )
       assert.ok(!existsSync(join(toolsDir, file)), `Unexpected ${file}`)
     }
+
+    assert.ok(
+      !existsSync(join(toolsDir, 'browser', 'console.ts')),
+      'Unexpected browser/console.ts',
+    )
   })
 
   it('registers browser tools from the browser tool modules', () => {
     assert.strictEqual(registry.get('get_bookmarks'), get_bookmarks)
-    assert.strictEqual(registry.get('get_console_logs'), get_console_logs)
+    assert.strictEqual(registry.get('get_console_logs'), undefined)
     assert.strictEqual(registry.get('get_dom'), get_dom)
     assert.strictEqual(registry.get('search_history'), search_history)
     assert.strictEqual(registry.get('click'), click)

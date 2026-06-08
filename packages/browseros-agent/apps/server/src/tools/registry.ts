@@ -6,7 +6,6 @@ import {
   search_bookmarks,
   update_bookmark,
 } from './browser/bookmarks'
-import { get_console_logs } from './browser/console'
 import { get_dom, search_dom } from './browser/dom'
 import {
   delete_history_range,
@@ -85,7 +84,7 @@ export const registry = createRegistry([
   move_page,
   close_page,
 
-  // Observation (8)
+  // Observation (7)
   take_snapshot,
   get_page_content,
   get_page_links,
@@ -93,7 +92,6 @@ export const registry = createRegistry([
   search_dom,
   take_screenshot,
   evaluate_script,
-  get_console_logs,
 
   // Input (17)
   click,

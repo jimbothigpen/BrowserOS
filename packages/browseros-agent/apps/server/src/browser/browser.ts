@@ -4,11 +4,6 @@ import type { CdpBackend } from './backends/types'
 import type { BookmarkNode } from './bookmarks'
 import * as bookmarks from './bookmarks'
 import {
-  ConsoleCollector,
-  type GetConsoleLogsOptions,
-  type GetConsoleLogsResult,
-} from './console-collector'
-import {
   buildContentMarkdownExpression,
   type ContentMarkdownOptions,
 } from './content-markdown'
@@ -54,21 +49,11 @@ export interface SetWindowVisibilityResult {
 
 export class Browser {
   private cdp: CdpBackend
-  private consoleCollector: ConsoleCollector
   private core: BrowserSession
 
   constructor(cdp: CdpBackend) {
     this.cdp = cdp
-    this.consoleCollector = new ConsoleCollector(cdp)
-    this.core = new BrowserSession(cdp, {
-      onSessionAttached: async (session, pageId, sessionId) => {
-        await session.Log.enable()
-        this.consoleCollector.attach(pageId, sessionId)
-      },
-      onPageDetached: (pageId) => {
-        this.consoleCollector.detach(pageId)
-      },
-    })
+    this.core = new BrowserSession(cdp)
   }
 
   isCdpConnected(): boolean {
@@ -850,15 +835,5 @@ export class Browser {
 
   async closeTabGroup(groupId: string): Promise<void> {
     return tabGroups.closeTabGroup(this.cdp, groupId)
-  }
-
-  // --- Console ---
-
-  async getConsoleLogs(
-    page: number,
-    opts?: GetConsoleLogsOptions,
-  ): Promise<GetConsoleLogsResult> {
-    await this.resolveSession(page)
-    return this.consoleCollector.getLogs(page, opts)
   }
 }
