@@ -29,7 +29,9 @@ apps/eval/
 |  |- graders/      Grader CLASSES (benchmark/, performance/) + python/ scripts
 |  |- grading/      Grader orchestration: registry (factory), runner, python bridge
 |  |- types/        Zod schemas + inferred types — the source of truth
+|  |- utils/        Env / provider resolution, MCP client, helpers
 |  |- capture/      Per-task message / screenshot / trajectory capture
+|  |- reporting/    Run + task summaries
 |  |- publishing/   R2 upload + run manifest
 |  |- viewer/       Public viewer manifest contract
 |  |- dashboard/    Hono live dashboard (http://localhost:9900)
@@ -54,7 +56,7 @@ apps/eval/
 2. Register it in `src/grading/grader-registry.ts`: add a `createGrader` case, and if it yields a pass/fail add it to `PASS_FAIL_GRADER_ORDER` (the fallback priority for a task's headline grader).
 3. `src/graders/registry.ts` is a back-compat shim that re-exports `src/grading` — edit `src/grading`, never the shim.
 
-Python evaluators (`agisdk_state_diff`, `infinity_state`) must stay in `src/graders/python/`; `tests/grading/python-script-layout.test.ts` fails if they move to `scripts/`. They are spawned via `BROWSEROS_EVAL_PYTHON` through `src/grading/python-evaluator.ts`.
+Python evaluator scripts (`agisdk-evaluate.py`, `infinity-evaluate.py`) must stay in `src/graders/python/`; `tests/grading/python-script-layout.test.ts` fails if they move to `scripts/`. They are spawned via `BROWSEROS_EVAL_PYTHON` through `src/grading/python-evaluator.ts`.
 
 ## Adding an agent type
 
@@ -63,8 +65,8 @@ Implement `AgentEvaluator` (`src/agents/types.ts`: `execute(): Promise<AgentResu
 ## Conventions & gotchas
 
 - **Types are Zod-first.** Everything in `src/types/*` is an `XSchema` + `type X = z.infer<typeof XSchema>`, consumed via `from '../types'`. `EvalConfigSchema` is the validation gate (`.parse()` on every config/suite). Provider/model shapes extend `@browseros/shared/schemas/llm` — don't redefine them here.
-- **Never leak API keys into persisted output.** `resolveVariant` (`src/suites/resolve-variant.ts`) returns a raw `agent` (the key) and a `publicMetadata` (only `apiKeyConfigured` / `apiKeyEnv` / `baseUrlHost`). Manifests, reports, and the dashboard get `publicMetadata`; `tests/suites/schema.test.ts` asserts no raw secret ever appears.
+- **Never leak API keys into persisted output.** `resolveVariant` (`src/suites/resolve-variant.ts`) returns a raw `agent` (with the key) and a `publicMetadata` that drops it (exposing `apiKeyConfigured` / `apiKeyEnv` / `baseUrlHost`). Manifests, reports, and the dashboard get `publicMetadata`; `tests/suites/schema.test.ts` asserts no raw secret ever appears.
 - **Config keys are env-var NAMES, not secrets.** An ALL_CAPS `apiKey` value is resolved from `process.env` at runtime (`src/utils/resolve-env.ts`); anything else is used literally. Keep `.env.example` current when you add a variable.
-- **The R2 viewer manifest is a contract.** `runs/<id>/manifest.json` (`schemaVersion: 2`, per-task `paths`) drives the public viewer; keep `src/viewer/viewer-manifest.ts` and its tests green when you change artifact layout.
+- **The R2 viewer manifest is a contract.** `runs/<id>/manifest.json` (versioned by `VIEWER_MANIFEST_SCHEMA_VERSION`, with per-task `paths`) drives the public viewer; keep `src/viewer/viewer-manifest.ts` and its tests green when you change artifact layout.
 - **Eval-only constants** live in `src/constants.ts`; cross-package values come from `@browseros/shared/constants/*`.
 - The `@eval/*` tsconfig path alias is defined but unused — follow the relative, extensionless imports used throughout `src/`.
