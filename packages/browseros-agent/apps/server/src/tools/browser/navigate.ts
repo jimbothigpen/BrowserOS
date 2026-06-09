@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { defineTool, errorResult, textResult } from './framework'
-import { wrapUntrusted } from './trust-boundary'
+import { defineTool, errorResult } from './framework'
 
 export const navigate = defineTool({
   name: 'navigate',
@@ -11,7 +10,7 @@ export const navigate = defineTool({
     action: z.enum(['url', 'back', 'forward', 'reload']).default('url'),
     url: z.string().optional().describe('Required when action is "url".'),
   }),
-  handler: async (args, ctx) => {
+  handler: async (args, ctx, response) => {
     const nav = ctx.session.nav(args.page)
     switch (args.action) {
       case 'url':
@@ -30,11 +29,12 @@ export const navigate = defineTool({
         break
     }
 
-    const { text } = await ctx.session.observe(args.page).snapshot()
-    const origin = ctx.session.pages.getInfo(args.page)?.url ?? 'unknown'
-    return textResult(
-      `navigated (${args.action}) -> ${origin}\n${wrapUntrusted(text || '(empty page)', origin)}`,
-      { page: args.page, url: origin },
-    )
+    const refreshed = await ctx.session.pages.refresh(args.page)
+    const origin =
+      refreshed?.url ?? ctx.session.pages.getInfo(args.page)?.url ?? 'unknown'
+    response.text(`navigated (${args.action}) -> ${origin}`)
+    response.data({ page: args.page, url: origin })
+    response.includeSnapshot(args.page)
+    return undefined
   },
 })
