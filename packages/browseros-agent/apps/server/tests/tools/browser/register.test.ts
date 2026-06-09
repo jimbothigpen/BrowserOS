@@ -159,6 +159,67 @@ describe('registerBrowserTools', () => {
     )
   })
 
+  it('returns a full snapshot when diff sees a URL change', async () => {
+    const fake = createFakeServer()
+    const session = {
+      observe: () => ({
+        diff: async () => ({
+          changed: true,
+          text: '- main\n  - heading "New page"',
+          added: 0,
+          removed: 0,
+          urlChanged: true,
+          beforeUrl: 'https://example.com/old',
+          afterUrl: 'https://example.com/new',
+        }),
+      }),
+      pages: {
+        getInfo: () => ({ url: 'https://example.com/new' }),
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('diff')?.({ page: 1 })
+
+    expect(result?.isError).toBeFalsy()
+    expect(result?.structuredContent).toEqual({
+      added: 0,
+      removed: 0,
+      urlChanged: true,
+      beforeUrl: 'https://example.com/old',
+      afterUrl: 'https://example.com/new',
+    })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining(
+          'URL changed from https://example.com/old to https://example.com/new',
+        ),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining(
+          'returning full current snapshot instead of a diff',
+        ),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('[UNTRUSTED_PAGE_CONTENT'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('- heading "New page"'),
+      }),
+    ])
+  })
+
   it('caps page-context JavaScript timeouts', async () => {
     const fake = createFakeServer()
     const evaluateCalls: Array<Record<string, unknown>> = []
