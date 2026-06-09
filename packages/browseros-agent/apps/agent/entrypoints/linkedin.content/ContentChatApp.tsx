@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'motion/react'
 import type { FC } from 'react'
 import { FaLaunch } from './FaLaunch'
 import { FaPopup } from './FaPopup'
@@ -17,7 +18,11 @@ const LauncherView: FC = () => {
   return (
     <>
       <FaLaunch position={position} onPointerDown={beginDrag} />
-      {popupOpen && <FaPopup anchor={position} onClose={closePopup} />}
+      <AnimatePresence>
+        {popupOpen && (
+          <FaPopup key="popup" anchor={position} onClose={closePopup} />
+        )}
+      </AnimatePresence>
     </>
   )
 }
