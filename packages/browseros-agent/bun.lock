@@ -148,6 +148,7 @@
         "@ai-sdk/openai": "^3.0.30",
         "@ai-sdk/openai-compatible": "^2.0.30",
         "@ai-sdk/provider": "^3.0.8",
+        "@browseros/cdp-protocol": "workspace:*",
         "@browseros/shared": "workspace:*",
         "@hono/mcp": "^0.2.3",
         "@hono/zod-validator": "^0.4.3",

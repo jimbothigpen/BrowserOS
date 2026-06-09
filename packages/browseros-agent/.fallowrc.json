@@ -15,12 +15,12 @@
     "apps/eval/scripts/generate-report.ts",
     "apps/eval/scripts/weekly-report.ts"
   ],
-  "ignoreUnresolvedImports": ["web-tree-sitter/tree-sitter.wasm?binary"],
   "ignoreDependencies": [
     "tailwind-scrollbar-hide",
     "tw-animate-css",
     "@tailwindcss/typography",
-    "pino-pretty"
+    "pino-pretty",
+    "@browseros/cdp-protocol"
   ],
   "ignorePatterns": [
     "**/*.d.ts",
