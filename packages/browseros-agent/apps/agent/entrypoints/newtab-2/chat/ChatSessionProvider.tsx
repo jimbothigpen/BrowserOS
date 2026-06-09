@@ -35,51 +35,46 @@ export const ChatSessionProvider: FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [initialMessage, setInitialMessage] = useState<string | null>(null)
-  const [epoch, setEpoch] = useState(0)
 
   const startSession = useCallback((next: string) => {
-    setInitialMessage((current) => {
-      if (current === next) return current
-      setEpoch((e) => e + 1)
-      return next
-    })
+    setInitialMessage((current) => (current === next ? current : next))
   }, [])
 
   const resetSession = useCallback(() => {
     setInitialMessage(null)
-    setEpoch((e) => e + 1)
   }, [])
 
   return (
     <ChatSessionControlsContext.Provider
       value={{ initialMessage, startSession, resetSession }}
     >
-      {initialMessage ? (
-        <DirectorScope key={`${epoch}`} initialMessage={initialMessage}>
-          {children}
-        </DirectorScope>
-      ) : (
-        <ChatSessionContext.Provider value={EMPTY_SESSION}>
-          {children}
-        </ChatSessionContext.Provider>
-      )}
+      <SessionScope initialMessage={initialMessage}>{children}</SessionScope>
     </ChatSessionControlsContext.Provider>
   )
 }
 
-interface DirectorScopeProps {
-  initialMessage: string
+interface SessionScopeProps {
+  initialMessage: string | null
   children: ReactNode
 }
 
-const DirectorScope: FC<DirectorScopeProps> = ({
-  initialMessage,
-  children,
-}) => {
+const SessionScope: FC<SessionScopeProps> = ({ initialMessage, children }) => {
   // SEAM: swap useDemoDirector for the live streaming hook when DEMO_MODE is off.
-  const director = useDemoDirector(initialMessage, DEMO_MODE)
+  // The hook stays mounted across session starts and resets via its
+  // initialMessage-change detection. Critically, the tree shape stays
+  // constant so consumers below this provider keep their React identity
+  // (and motion's layout baseline) across the launcher to chat handoff.
+  const director = useDemoDirector(
+    initialMessage ?? undefined,
+    !!initialMessage && DEMO_MODE,
+  )
+
+  const value: ChatSessionContextValue = initialMessage
+    ? { ...director, hasSession: true }
+    : EMPTY_SESSION
+
   return (
-    <ChatSessionContext.Provider value={{ ...director, hasSession: true }}>
+    <ChatSessionContext.Provider value={value}>
       {children}
     </ChatSessionContext.Provider>
   )

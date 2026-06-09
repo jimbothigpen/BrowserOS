@@ -281,23 +281,42 @@ const buildTimeline = (): DemoTimeline => ({
   ],
 })
 
+function makeFounderBlock(initialMessage: string | undefined): ChatBlock {
+  return {
+    type: 'founder',
+    id: nextId(),
+    text: initialMessage?.trim() ? initialMessage.trim() : FOUNDER_BRIEF,
+  }
+}
+
 export function useDemoDirector(
   initialMessage: string | undefined,
   enabled: boolean,
 ): DemoDirector {
   const [blocks, setBlocks] = useState<ChatBlock[]>(() => [
-    {
-      type: 'founder',
-      id: nextId(),
-      text: initialMessage?.trim() ? initialMessage.trim() : FOUNDER_BRIEF,
-    },
+    makeFounderBlock(initialMessage),
   ])
   const [segmentIndex, setSegmentIndex] = useState(0)
   const [gateActive, setGateActive] = useState(false)
   const rngRef = useRef(makeRng(DEMO_JITTER_SEED))
   const timelineRef = useRef<DemoTimeline | null>(null)
+  const lastInitialRef = useRef(initialMessage)
 
   if (!timelineRef.current) timelineRef.current = buildTimeline()
+
+  // Reset session state when initialMessage changes between renders. This
+  // lets the hook stay mounted across session restarts so consumers (the
+  // hoisted composer's motion.div) don't remount and lose their layout
+  // baseline. React docs sanction setState-during-render specifically for
+  // this "derive state from props" reset pattern.
+  if (lastInitialRef.current !== initialMessage) {
+    lastInitialRef.current = initialMessage
+    setBlocks([makeFounderBlock(initialMessage)])
+    setSegmentIndex(0)
+    setGateActive(false)
+    rngRef.current = makeRng(DEMO_JITTER_SEED)
+    timelineRef.current = buildTimeline()
+  }
 
   useEffect(() => {
     if (!enabled) return
