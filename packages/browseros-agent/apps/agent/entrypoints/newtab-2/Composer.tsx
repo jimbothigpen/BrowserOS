@@ -83,6 +83,56 @@ export const Composer: FC<ComposerProps> = ({
     triggerVoice()
   }
 
+  if (disableAttachments) {
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className="flex w-full max-w-[660px] items-center gap-3 rounded-[22px] border border-transparent bg-white/90 px-5 py-3 transition-shadow duration-200 focus-within:border-[rgba(226,114,44,0.18)] focus-within:shadow-[0_16px_50px_-10px_rgba(226,114,44,0.28),0_0_0_6px_rgba(226,114,44,0.05)]"
+      >
+        <Search
+          className="size-[18px] shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={effectivePlaceholder}
+          aria-label={effectivePlaceholder}
+          className="h-auto w-full min-w-0 rounded-none border-0 bg-transparent p-0 text-[15px] shadow-none placeholder:text-[color-mix(in_oklch,var(--muted-foreground)_80%,transparent)] focus-visible:border-0 focus-visible:ring-0"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={
+            voice.isRecording ? 'Stop voice input' : 'Start voice input'
+          }
+          aria-pressed={voice.isRecording}
+          disabled={voice.isTranscribing}
+          onClick={handleMicToggle}
+          className={cn(
+            'size-[32px] shrink-0 rounded-full bg-[oklch(0.6781_0.1663_43.21/0.10)] text-[var(--accent-orange)] hover:bg-[oklch(0.6781_0.1663_43.21/0.18)]',
+            !voice.isRecording &&
+              !voice.isTranscribing &&
+              'animate-[nt-mic-pulse_2s_ease-in-out_infinite]',
+          )}
+        >
+          <Mic className="size-4" />
+        </Button>
+        <Button
+          type="submit"
+          size="icon"
+          disabled={!canSend}
+          aria-label="Send"
+          className="size-[32px] shrink-0 rounded-full bg-[var(--accent-orange)] text-white hover:bg-[var(--accent-orange-bright)]"
+        >
+          <ArrowUp className="size-4" />
+        </Button>
+      </form>
+    )
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -101,7 +151,7 @@ export const Composer: FC<ComposerProps> = ({
       </div>
 
       <AnimatePresence initial={false}>
-        {!disableAttachments && attachCount > 0 && (
+        {attachCount > 0 && (
           <motion.div
             key="chips"
             initial={{ opacity: 0, height: 0 }}
@@ -143,39 +193,35 @@ export const Composer: FC<ComposerProps> = ({
       </AnimatePresence>
 
       <div className="mt-3 flex items-center gap-2">
-        {!disableAttachments && (
-          <>
-            <AttachDropdown
-              selectedTabs={selectedTabs}
-              onToggleTab={toggleTab}
-              onAddFiles={addFiles}
-            >
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-7 gap-1.5 rounded-full bg-black/5 px-[11px] py-[5px] font-normal text-[12.5px] text-muted-foreground hover:bg-black/10"
-              >
-                <Plus className="size-3.5" aria-hidden />
-                Add tabs or files
-                {attachCount > 0 && (
-                  <span className="ml-1 rounded-full bg-black/10 px-1.5 text-[11px] leading-[18px]">
-                    {attachCount}
-                  </span>
-                )}
-              </Button>
-            </AttachDropdown>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground"
-              aria-label="More options"
-            >
-              <MoreHorizontal className="size-[15px]" />
-            </Button>
-          </>
-        )}
+        <AttachDropdown
+          selectedTabs={selectedTabs}
+          onToggleTab={toggleTab}
+          onAddFiles={addFiles}
+        >
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-7 gap-1.5 rounded-full bg-black/5 px-[11px] py-[5px] font-normal text-[12.5px] text-muted-foreground hover:bg-black/10"
+          >
+            <Plus className="size-3.5" aria-hidden />
+            Add tabs or files
+            {attachCount > 0 && (
+              <span className="ml-1 rounded-full bg-black/10 px-1.5 text-[11px] leading-[18px]">
+                {attachCount}
+              </span>
+            )}
+          </Button>
+        </AttachDropdown>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground"
+          aria-label="More options"
+        >
+          <MoreHorizontal className="size-[15px]" />
+        </Button>
 
         <span className="flex-1" />
 
