@@ -34,11 +34,11 @@ class PrefStore {
 
   constructor() {
     this.values = this.load()
-    // seed the server port so getAgentServerUrl() resolves to the real server
-    if (this.values[MCP_PORT_PREF] == null) {
-      this.values[MCP_PORT_PREF] = resolveMcpPort()
-      this.persist()
-    }
+    // The server port is harness config, not user data — the env var always wins
+    // so a changed VITE_BROWSEROS_MCP_PORT takes effect even across reloads where
+    // an older port was persisted. Other prefs (e.g. providers) still persist.
+    this.values[MCP_PORT_PREF] = resolveMcpPort()
+    this.persist()
   }
 
   get(name: string): PrefObject {
