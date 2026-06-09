@@ -333,6 +333,50 @@ describe('registerBrowserTools', () => {
     }
   })
 
+  it('writes very long unbroken snapshots to a markdown temp file', async () => {
+    const fake = createFakeServer()
+    const largeSnapshot = 'x'.repeat(50_001)
+    const session = {
+      observe: () => ({
+        snapshot: async () => ({ text: largeSnapshot }),
+      }),
+      pages: {
+        getInfo: () => ({ url: 'https://example.com/long-token' }),
+      },
+    } as unknown as BrowserSession
+    let savedPath: string | undefined
+
+    registerBrowserTools(fake.server as never, session)
+
+    try {
+      const result = await fake.handlers.get('snapshot')?.({ page: 5 })
+      const data = result?.structuredContent as
+        | {
+            path: string
+            wordCount: number
+            writtenToFile: boolean
+          }
+        | undefined
+
+      expect(result?.isError).toBeFalsy()
+      expect(data).toMatchObject({
+        wordCount: 1,
+        writtenToFile: true,
+      })
+      savedPath = data?.path
+      expect(result?.content).toEqual([
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining(savedPath ?? ''),
+        }),
+      ])
+      expect(readFileSync(savedPath ?? '', 'utf8')).toContain(largeSnapshot)
+    } finally {
+      if (savedPath)
+        rmSync(dirname(savedPath), { recursive: true, force: true })
+    }
+  })
+
   it('returns read errors for page-side exceptions', async () => {
     const fake = createFakeServer()
     const session = {

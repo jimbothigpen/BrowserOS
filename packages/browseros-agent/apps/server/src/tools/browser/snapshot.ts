@@ -4,6 +4,7 @@ import { writeTempToolOutputFile } from './output-file'
 import { wrapUntrusted } from './trust-boundary'
 
 const LARGE_SNAPSHOT_WORD_THRESHOLD = 5_000
+const LARGE_SNAPSHOT_CHAR_THRESHOLD = 50_000
 
 function countWords(text: string): number {
   const trimmed = text.trim()
@@ -24,8 +25,12 @@ export const snapshot = defineTool({
     const snapshotText = text || '(empty page)'
     const wordCount = countWords(text)
     const wrappedSnapshot = wrapUntrusted(snapshotText, origin)
+    const contentLength = wrappedSnapshot.length
 
-    if (wordCount > LARGE_SNAPSHOT_WORD_THRESHOLD) {
+    if (
+      wordCount > LARGE_SNAPSHOT_WORD_THRESHOLD ||
+      snapshotText.length > LARGE_SNAPSHOT_CHAR_THRESHOLD
+    ) {
       const path = await writeTempToolOutputFile({
         toolName: 'snapshot',
         extension: 'md',
@@ -34,13 +39,13 @@ export const snapshot = defineTool({
 
       return textResult(
         [
-          `Large snapshot (${wordCount} words, ${wrappedSnapshot.length} chars) saved to: ${path}`,
+          `Large snapshot (${wordCount} words, ${contentLength} chars) saved to: ${path}`,
           'Read the file for the full snapshot and refs.',
         ].join('\n'),
         {
           page: args.page,
           path,
-          contentLength: wrappedSnapshot.length,
+          contentLength,
           wordCount,
           writtenToFile: true,
         },
