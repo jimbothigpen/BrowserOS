@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { ProtocolApi } from '@browseros/cdp-protocol/protocol-api'
-import type { PageManager, PageSession } from '../pages'
-import type { FrameRegistry } from './frames'
-import { Observer } from './observer'
+import type { FrameRegistry } from '../../../src/browser/core/observer/frames'
+import { Observer } from '../../../src/browser/core/observer/observer'
+import type { PageManager, PageSession } from '../../../src/browser/core/pages'
 
 type HarnessOptions = {
   frameTreeUrl?: string
+  frameTreeFragment?: string
   frameTreeError?: Error
   refreshedUrl?: string
   refreshError?: Error
@@ -27,6 +28,7 @@ function createObserverHarness(opts: HarnessOptions = {}) {
               id: 'main',
               loaderId: 'loader',
               url: opts.frameTreeUrl ?? 'https://frame.example/',
+              urlFragment: opts.frameTreeFragment,
               domainAndRegistry: '',
               securityOrigin: '',
               mimeType: 'text/html',
@@ -108,6 +110,18 @@ describe('Observer URL lookup', () => {
     expect(snapshot.url).toBe('https://frame.example/path')
     expect(harness.frameTreeCalls).toBe(2)
     expect(harness.refreshCalls).toBe(0)
+    expect(harness.runtimeExpressions).not.toContain('location.href')
+  })
+
+  test('preserves URL fragments from frame tree metadata', async () => {
+    const harness = createObserverHarness({
+      frameTreeUrl: 'https://frame.example/path',
+      frameTreeFragment: '#section',
+    })
+
+    const snapshot = await harness.observer.snapshot()
+
+    expect(snapshot.url).toBe('https://frame.example/path#section')
     expect(harness.runtimeExpressions).not.toContain('location.href')
   })
 

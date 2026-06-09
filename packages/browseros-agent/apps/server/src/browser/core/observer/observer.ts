@@ -140,8 +140,8 @@ async function readCurrentUrl(
 ): Promise<string> {
   try {
     const result = await session.Page.getFrameTree()
-    const url = result.frameTree.frame.url
-    if (url) return url
+    const frame = result.frameTree.frame
+    if (frame.url) return `${frame.url}${frame.urlFragment ?? ''}`
   } catch {}
   try {
     return (await fallback()) || 'unknown'
