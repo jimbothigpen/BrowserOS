@@ -1,5 +1,10 @@
 import type { TypeOf, ZodObject, ZodRawShape } from 'zod'
 import type { BrowserSession } from '../../browser/core/session'
+import {
+  type ContentItem,
+  type ToolResult as ResponseToolResult,
+  ToolResponse,
+} from '../response'
 
 type ToolInputSchema = ZodObject<ZodRawShape>
 
@@ -10,22 +15,8 @@ export interface ToolContext {
   signal?: AbortSignal
 }
 
-export interface TextBlock {
-  type: 'text'
-  text: string
-}
-export interface ImageBlock {
-  type: 'image'
-  data: string
-  mimeType: string
-}
-export type ContentBlock = TextBlock | ImageBlock
-
-export interface ToolResult {
-  content: ContentBlock[]
-  structuredContent?: unknown
-  isError?: boolean
-}
+export type ContentBlock = ContentItem
+export type ToolResult = ResponseToolResult
 
 export interface ToolAnnotations {
   readOnlyHint?: boolean
@@ -41,7 +32,8 @@ export interface ToolDefinition {
   handler: (
     args: Record<string, unknown>,
     ctx: ToolContext,
-  ) => Promise<ToolResult>
+    response: ToolResponse,
+  ) => Promise<ToolResult | undefined>
 }
 
 export function defineTool<S extends ToolInputSchema>(def: {
@@ -49,7 +41,11 @@ export function defineTool<S extends ToolInputSchema>(def: {
   description: string
   input: S
   annotations?: ToolAnnotations
-  handler: (args: TypeOf<S>, ctx: ToolContext) => Promise<ToolResult>
+  handler: (
+    args: TypeOf<S>,
+    ctx: ToolContext,
+    response: ToolResponse,
+  ) => Promise<ToolResult | undefined>
 }): ToolDefinition {
   return def as unknown as ToolDefinition
 }
@@ -150,17 +146,37 @@ export async function executeTool(
     return errorResult(`Invalid arguments for ${def.name}: ${detail}`)
   }
 
+  const response = new ToolResponse()
   try {
     const result = await abortable(
-      def.handler(parsed.data as Record<string, unknown>, ctx),
+      def.handler(parsed.data as Record<string, unknown>, ctx, response),
       ctx.signal,
     )
+    if (result) response.appendResult(result)
     throwIfAborted(ctx.signal)
-    return result
   } catch (err) {
     if (ctx.signal?.aborted || isAbortError(err)) throw err
-    return errorResult(
+    response.error(
       `${def.name} failed: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
+
+  throwIfAborted(ctx.signal)
+  const result = await abortable(
+    response.buildForSession(ctx.session),
+    ctx.signal,
+  )
+  throwIfAborted(ctx.signal)
+
+  const pageId = (parsed.data as Record<string, unknown>).page
+  if (typeof pageId === 'number') {
+    const tabId = (
+      ctx.session.pages as { getTabId?: (pageId: number) => number | undefined }
+    ).getTabId?.(pageId)
+    if (tabId !== undefined) {
+      result.metadata = { ...result.metadata, tabId }
+    }
+  }
+
+  return result
 }
