@@ -62,17 +62,15 @@ export class Observer {
 
   private async capture(): Promise<SnapshotResult> {
     const pageSession = await this.pages.getSession(this.pageId)
-    let latest: SnapshotResult | undefined
     for (let attempt = 0; attempt < MAX_STABLE_CAPTURE_ATTEMPTS; attempt++) {
       const beforeUrl = await this.readCurrentUrl(pageSession.session)
       const refs = new RefMap()
       const text = await this.captureFrame(undefined, refs, 0, new Set())
       const afterUrl = await this.readCurrentUrl(pageSession.session)
-      latest = { text, refs, url: afterUrl }
-      if (!knownUrlsDiffer(beforeUrl, afterUrl)) return latest
+      if (!knownUrlsDiffer(beforeUrl, afterUrl))
+        return { text, refs, url: afterUrl }
     }
-    if (!latest) throw new Error('Unable to capture page snapshot.')
-    return latest
+    throw new Error('Page URL changed during snapshot capture; retry.')
   }
 
   /** Render a frame, then splice each child iframe's rendered tree under its `- iframe` line. */
