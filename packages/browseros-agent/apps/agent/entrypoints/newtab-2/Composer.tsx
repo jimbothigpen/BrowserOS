@@ -25,11 +25,18 @@ import { useComposer } from './ComposerProvider'
 interface ComposerProps {
   autoFocusKey?: string | number | null
   placeholder?: string
+  /**
+   * Hide the attach affordance (AttachDropdown + chips strip + more-options).
+   * Required for the content-script surface, which has no access to
+   * `chrome.tabs`. Without this the AttachDropdown crashes on open.
+   */
+  disableAttachments?: boolean
 }
 
 export const Composer: FC<ComposerProps> = ({
   autoFocusKey,
   placeholder = 'Ask anything, or brief your marketing agent…',
+  disableAttachments = false,
 }) => {
   const {
     value,
@@ -94,7 +101,7 @@ export const Composer: FC<ComposerProps> = ({
       </div>
 
       <AnimatePresence initial={false}>
-        {attachCount > 0 && (
+        {!disableAttachments && attachCount > 0 && (
           <motion.div
             key="chips"
             initial={{ opacity: 0, height: 0 }}
@@ -136,35 +143,39 @@ export const Composer: FC<ComposerProps> = ({
       </AnimatePresence>
 
       <div className="mt-3 flex items-center gap-2">
-        <AttachDropdown
-          selectedTabs={selectedTabs}
-          onToggleTab={toggleTab}
-          onAddFiles={addFiles}
-        >
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-7 gap-1.5 rounded-full bg-black/5 px-[11px] py-[5px] font-normal text-[12.5px] text-muted-foreground hover:bg-black/10"
-          >
-            <Plus className="size-3.5" aria-hidden />
-            Add tabs or files
-            {attachCount > 0 && (
-              <span className="ml-1 rounded-full bg-black/10 px-1.5 text-[11px] leading-[18px]">
-                {attachCount}
-              </span>
-            )}
-          </Button>
-        </AttachDropdown>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground"
-          aria-label="More options"
-        >
-          <MoreHorizontal className="size-[15px]" />
-        </Button>
+        {!disableAttachments && (
+          <>
+            <AttachDropdown
+              selectedTabs={selectedTabs}
+              onToggleTab={toggleTab}
+              onAddFiles={addFiles}
+            >
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 gap-1.5 rounded-full bg-black/5 px-[11px] py-[5px] font-normal text-[12.5px] text-muted-foreground hover:bg-black/10"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Add tabs or files
+                {attachCount > 0 && (
+                  <span className="ml-1 rounded-full bg-black/10 px-1.5 text-[11px] leading-[18px]">
+                    {attachCount}
+                  </span>
+                )}
+              </Button>
+            </AttachDropdown>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              aria-label="More options"
+            >
+              <MoreHorizontal className="size-[15px]" />
+            </Button>
+          </>
+        )}
 
         <span className="flex-1" />
 

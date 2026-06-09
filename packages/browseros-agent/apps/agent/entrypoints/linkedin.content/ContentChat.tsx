@@ -41,7 +41,7 @@ const PopupChat: FC = () => {
         </div>
       ) : (
         <div className="shrink-0 border-border border-t bg-background px-4 pt-3 pb-4">
-          <Composer placeholder="Reply to the agent…" />
+          <Composer disableAttachments placeholder="Reply to the agent…" />
         </div>
       )}
     </div>
