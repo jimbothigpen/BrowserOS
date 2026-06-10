@@ -160,7 +160,7 @@ class VerifyServerResourcesBundleTest(unittest.TestCase):
 
 
 class SignModuleGuardWiringTest(unittest.TestCase):
-    def test_execute_path_raises_on_stale_bundle(self):
+    def test_module_guard_raises_on_stale_bundle(self):
         with tempfile.TemporaryDirectory() as tmp:
             chromium_src = Path(tmp) / "src"
             app_path = Path(tmp) / "out" / "BrowserOS.app"
@@ -180,7 +180,7 @@ class SignModuleGuardWiringTest(unittest.TestCase):
 
             self.assertIn("bin/third_party/codex", str(raised.exception))
 
-    def test_execute_path_accepts_matching_bundle(self):
+    def test_module_guard_accepts_matching_bundle(self):
         with tempfile.TemporaryDirectory() as tmp:
             chromium_src = Path(tmp) / "src"
             app_path = Path(tmp) / "out" / "BrowserOS.app"

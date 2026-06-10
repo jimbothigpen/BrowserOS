@@ -52,6 +52,10 @@ def verify_server_resources_bundle(app_path: Path, chromium_src: Path) -> List[s
     staged under chrome/browser/browseros/server/resources must exist in the
     bundle with executable bits intact. Returns problem strings; empty = OK.
     Bundle-only extras and a missing source tree (sign-only flows) just warn.
+
+    Deliberately compares paths + exec bits only, never content/size: universal
+    bundles hold lipo-fat binaries whose bytes differ from the thin staged
+    tree, so same-name content staleness is out of this guard's reach.
     """
     source_root = chromium_src / SERVER_RESOURCES_SOURCE_REL
     bundle_root = app_path / SERVER_RESOURCES_BUNDLE_REL
@@ -64,12 +68,12 @@ def verify_server_resources_bundle(app_path: Path, chromium_src: Path) -> List[s
         return []
 
     problems: List[str] = []
-    source_rels = []
+    staged = set()
     for source_file in sorted(source_root.rglob("*")):
         if not source_file.is_file() or source_file.name in SERVER_RESOURCES_JUNK_FILES:
             continue
         rel = source_file.relative_to(source_root)
-        source_rels.append(rel)
+        staged.add(rel)
         bundle_file = bundle_root / rel
         if not bundle_file.is_file():
             problems.append(f"missing from app bundle: {rel.as_posix()}")
@@ -78,7 +82,6 @@ def verify_server_resources_bundle(app_path: Path, chromium_src: Path) -> List[s
             problems.append(f"lost executable bit in app bundle: {rel.as_posix()}")
 
     if bundle_root.is_dir():
-        staged = set(source_rels)
         for bundle_file in sorted(bundle_root.rglob("*")):
             if (
                 not bundle_file.is_file()

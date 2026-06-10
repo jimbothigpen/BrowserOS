@@ -210,8 +210,8 @@ class Context:
     # New code should use ctx.artifacts (ArtifactRegistry) instead
     artifacts: Dict[str, List[Path]] = field(default_factory=dict)
 
-    # Fixed app path - used by UniversalBuildModule to prevent auto-detection
-    # When set, get_app_path() returns this directly instead of auto-detecting
+    # When set, get_app_path() returns this directly — UniversalBuildModule
+    # pins per-arch and universal app paths through it.
     _fixed_app_path: Optional[Path] = None
 
     # New sub-components (initialized in __post_init__)
