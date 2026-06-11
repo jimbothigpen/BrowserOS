@@ -48,6 +48,36 @@ func TestCommandProgressDisabledForJSON(t *testing.T) {
 	}
 }
 
+func TestCLIProgressTTYRewritesSingleLine(t *testing.T) {
+	var buf bytes.Buffer
+	progress := &cliProgress{w: &buf, tty: true}
+	progress.Step("Applying 1/342 chrome/a.cc")
+	progress.Step("Applying 2/342 chrome/b.cc")
+
+	output := buf.String()
+	if strings.Contains(output, "\n") {
+		t.Fatalf("tty progress must not emit newlines between steps, got %q", output)
+	}
+	if strings.Count(output, "\r") < 2 {
+		t.Fatalf("tty progress should rewrite the line per step, got %q", output)
+	}
+	if !strings.Contains(output, "Applying 2/342 chrome/b.cc") {
+		t.Fatalf("expected latest step in output, got %q", output)
+	}
+
+	progress.Finish()
+	if !strings.HasSuffix(buf.String(), "\x1b[2K") {
+		t.Fatalf("Finish should clear the pending line, got %q", buf.String())
+	}
+	progress.Finish() // idempotent
+}
+
+func TestCLIProgressNilSafe(t *testing.T) {
+	var progress *cliProgress
+	progress.Step("ignored")
+	progress.Finish()
+}
+
 func TestConflictPauseErrorClassification(t *testing.T) {
 	if err := conflictPauseError(false); err != nil {
 		t.Fatalf("clean result must exit 0, got %v", err)

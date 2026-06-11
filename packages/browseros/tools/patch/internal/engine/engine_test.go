@@ -319,6 +319,31 @@ func TestExtractFromTwoCheckoutsIsByteIdentical(t *testing.T) {
 	}
 }
 
+func TestExtractReportsUntrackedScanProgress(t *testing.T) {
+	ctx := context.Background()
+	workspacePath := initGitRepo(t)
+	writeFile(t, filepath.Join(workspacePath, "chrome", "browser.cc"), "base\n")
+	runGit(t, workspacePath, "add", "chrome/browser.cc")
+	runGit(t, workspacePath, "commit", "-m", "workspace base")
+	baseCommit := gitOutput(t, workspacePath, "rev-parse", "HEAD")
+
+	writeFile(t, filepath.Join(workspacePath, "chrome", "one.cc"), "one\n")
+	writeFile(t, filepath.Join(workspacePath, "chrome", "two.cc"), "two\n")
+
+	repoInfo := newPatchRepo(t, baseCommit)
+	progress := &progressRecorder{}
+	if _, err := Extract(ctx, ExtractOptions{
+		Workspace: workspace.Entry{Name: "ws", Path: workspacePath},
+		Repo:      repoInfo,
+		Progress:  progress,
+	}); err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	progress.requireContains(t, "Scanning untracked 1/2")
+	progress.requireContains(t, "Scanning untracked 2/2")
+	progress.requireContains(t, "Writing 2 patch files")
+}
+
 func TestExtractDryRunWritesNothing(t *testing.T) {
 	ctx := context.Background()
 	workspacePath := initGitRepo(t)

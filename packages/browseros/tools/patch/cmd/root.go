@@ -169,6 +169,7 @@ func Execute() {
 }
 
 func renderResult(data any, human func()) error {
+	activeProgress.Finish()
 	if jsonOut {
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")

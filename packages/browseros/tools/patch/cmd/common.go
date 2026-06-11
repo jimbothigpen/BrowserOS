@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/browseros-ai/BrowserOS/packages/browseros/tools/patch/internal/engine"
 	"github.com/browseros-ai/BrowserOS/packages/browseros/tools/patch/internal/repo"
@@ -89,12 +91,57 @@ func printStashOutcome(result *engine.ApplyResult) {
 	}
 }
 
+// cliProgress renders engine progress on stderr: a self-overwriting single
+// line on a TTY, plain "... message" lines otherwise.
+type cliProgress struct {
+	w      io.Writer
+	tty    bool
+	active bool
+}
+
+// activeProgress lets renderResult clear a pending ephemeral line before
+// printing results (package-global like jsonOut/appState).
+var activeProgress *cliProgress
+
+func (p *cliProgress) Step(message string) {
+	if p == nil {
+		return
+	}
+	if p.tty {
+		fmt.Fprintf(p.w, "\r\x1b[2K%s %s", ui.Muted("..."), message)
+		p.active = true
+		return
+	}
+	fmt.Fprintf(p.w, "%s %s\n", ui.Muted("..."), message)
+}
+
+// Finish clears the in-place progress line so the next write starts clean.
+func (p *cliProgress) Finish() {
+	if p == nil || !p.active {
+		return
+	}
+	fmt.Fprint(p.w, "\r\x1b[2K")
+	p.active = false
+}
+
+func isTerminal(w io.Writer) bool {
+	file, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
 // commandProgress routes long-running engine updates to stderr in human mode only.
 func commandProgress(cmd *cobra.Command) engine.Progress {
 	if jsonOut {
 		return nil
 	}
-	return engine.ProgressFunc(func(message string) {
-		fmt.Fprintf(cmd.ErrOrStderr(), "%s %s\n", ui.Muted("..."), message)
-	})
+	stderr := cmd.ErrOrStderr()
+	activeProgress = &cliProgress{w: stderr, tty: isTerminal(stderr)}
+	return activeProgress
 }
