@@ -131,11 +131,12 @@ func Sync(ctx context.Context, opts SyncOptions) (*SyncResult, error) {
 	if state.LastSyncRev == "" || state.BaseCommit != "" && state.BaseCommit != opts.Repo.BaseCommit {
 		result.Fallback = true
 		applyResult, err := Apply(ctx, ApplyOptions{
-			Workspace: opts.Workspace,
-			Repo:      opts.Repo,
-			Reset:     true,
-			Mode:      "sync-reset",
-			Progress:  opts.Progress,
+			Workspace:           opts.Workspace,
+			Repo:                opts.Repo,
+			Reset:               true,
+			Mode:                "sync-reset",
+			RestorePendingStash: opts.Rebase,
+			Progress:            opts.Progress,
 		})
 		if err != nil {
 			return nil, err
@@ -149,12 +150,13 @@ func Sync(ctx context.Context, opts SyncOptions) (*SyncResult, error) {
 		}
 	} else {
 		applyResult, err := Apply(ctx, ApplyOptions{
-			Workspace:  opts.Workspace,
-			Repo:       opts.Repo,
-			ChangedRef: state.LastSyncRev,
-			RangeEnd:   head,
-			Mode:       "sync",
-			Progress:   opts.Progress,
+			Workspace:           opts.Workspace,
+			Repo:                opts.Repo,
+			ChangedRef:          state.LastSyncRev,
+			RangeEnd:            head,
+			Mode:                "sync",
+			RestorePendingStash: opts.Rebase,
+			Progress:            opts.Progress,
 		})
 		if err != nil {
 			return nil, err

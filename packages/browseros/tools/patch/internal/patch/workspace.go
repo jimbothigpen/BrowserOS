@@ -1,7 +1,6 @@
 package patch
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
@@ -212,12 +211,7 @@ func RejectPath(workspacePath string, rel string) string {
 // exactly so the same logical patch is identical no matter which extraction
 // path produced it.
 func syntheticAddPatch(rel string, content []byte, mode string) FilePatch {
-	// Match git's binary heuristic: a NUL within the first 8000 bytes.
-	probe := content
-	if len(probe) > 8000 {
-		probe = probe[:8000]
-	}
-	if bytes.IndexByte(probe, 0) != -1 {
+	if git.LooksBinary(content) {
 		return FilePatch{Path: rel, Op: OpBinary, IsBinary: true}
 	}
 	if mode == "" {

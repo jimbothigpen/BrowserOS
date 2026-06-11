@@ -209,6 +209,23 @@ func TestWriteRepoPatchSetSkipsUnchangedMarkers(t *testing.T) {
 	}
 }
 
+func TestWriteRepoPatchSetScopeMatchesDirectories(t *testing.T) {
+	patchesDir := t.TempDir()
+	inDir := modifyPatch("chrome/sub/in.cc", fullIndex, "new")
+	outDir := modifyPatch("ui/out.cc", fullIndex, "new")
+	plan, err := WriteRepoPatchSet(patchesDir, PatchSet{
+		"chrome/sub/in.cc": inDir,
+		"ui/out.cc":        outDir,
+	}, []string{"chrome/sub"})
+	if err != nil {
+		t.Fatalf("WriteRepoPatchSet: %v", err)
+	}
+	assertStrings(t, "written", plan.Written(), []string{"chrome/sub/in.cc"})
+	if _, err := os.Stat(filepath.Join(patchesDir, "ui", "out.cc")); !os.IsNotExist(err) {
+		t.Fatalf("out-of-scope patch must not be written")
+	}
+}
+
 func TestPlanRepoPatchSetClassifies(t *testing.T) {
 	patchesDir := t.TempDir()
 	existingSame := modifyPatch("chrome/same.cc", fullIndex, "new")

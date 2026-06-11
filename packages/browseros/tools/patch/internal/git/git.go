@@ -494,8 +494,8 @@ func stashUntrackedFiles(ctx context.Context, dir string, stashRef string) ([]st
 	return splitLines(result.Stdout), nil
 }
 
-// looksBinary mirrors git's heuristic: a NUL within the first 8000 bytes.
-func looksBinary(content []byte) bool {
+// LooksBinary mirrors git's heuristic: a NUL within the first 8000 bytes.
+func LooksBinary(content []byte) bool {
 	probe := content
 	if len(probe) > 8000 {
 		probe = probe[:8000]
@@ -584,7 +584,7 @@ func mergeIntoWorkingFile(ctx context.Context, dir string, rel string, base []by
 	// merge-file cannot merge binary content (exit 255). Treat diverged
 	// binaries as a conflict the user resolves by hand — never a hard error
 	// that would wedge sync retries.
-	if looksBinary(current) || looksBinary(theirs) || looksBinary(base) {
+	if LooksBinary(current) || LooksBinary(theirs) || LooksBinary(base) {
 		return true, nil
 	}
 

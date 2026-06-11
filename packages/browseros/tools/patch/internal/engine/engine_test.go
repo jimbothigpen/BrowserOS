@@ -697,13 +697,15 @@ func TestContinueRestoresPendingStashAfterLastConflict(t *testing.T) {
 		t.Fatalf("SaveState: %v", err)
 	}
 
-	// The conflicted operation is already resolved in the working tree.
+	// The conflicted operation is already resolved in the working tree; the
+	// pause came from a rebase-mode sync, so restore intent is recorded.
 	if err := resolve.Save(workspacePath, &resolve.State{
-		Workspace:  workspacePath,
-		RepoRoot:   repoInfo.Root,
-		BaseCommit: baseCommit,
-		Current:    0,
-		Operations: []resolve.Operation{{ChromiumPath: "b.txt", PatchRel: "b.txt", Op: patch.OpModify}},
+		Workspace:           workspacePath,
+		RepoRoot:            repoInfo.Root,
+		BaseCommit:          baseCommit,
+		Current:             0,
+		Operations:          []resolve.Operation{{ChromiumPath: "b.txt", PatchRel: "b.txt", Op: patch.OpModify}},
+		RestorePendingStash: true,
 	}); err != nil {
 		t.Fatalf("resolve.Save: %v", err)
 	}
@@ -722,6 +724,66 @@ func TestContinueRestoresPendingStashAfterLastConflict(t *testing.T) {
 	}
 	if state.PendingStash != "" {
 		t.Fatalf("pending stash should be cleared, got %q", state.PendingStash)
+	}
+}
+
+func TestContinueLeavesExplicitlyParkedStashAlone(t *testing.T) {
+	ctx := context.Background()
+	workspacePath := initGitRepo(t)
+	writeFile(t, filepath.Join(workspacePath, "b.txt"), "base\n")
+	writeFile(t, filepath.Join(workspacePath, "local.txt"), "local base\n")
+	runGit(t, workspacePath, "add", "b.txt", "local.txt")
+	runGit(t, workspacePath, "commit", "-m", "base")
+	baseCommit := gitOutput(t, workspacePath, "rev-parse", "HEAD")
+
+	writeFile(t, filepath.Join(workspacePath, "b.txt"), "patched\n")
+	diff, err := git.DiffText(ctx, workspacePath, baseCommit, "--", "b.txt")
+	if err != nil {
+		t.Fatalf("DiffText: %v", err)
+	}
+	repoInfo := newPatchRepo(t, baseCommit)
+	writeFile(t, filepath.Join(repoInfo.PatchesDir, "b.txt"), diff)
+	runGit(t, repoInfo.Root, "add", "chromium_patches/b.txt")
+	runGit(t, repoInfo.Root, "commit", "-m", "add b.txt patch")
+
+	// Stash parked by an explicit --no-rebase sync: no restore intent.
+	writeFile(t, filepath.Join(workspacePath, "local.txt"), "local changed\n")
+	sha, err := git.StashPush(ctx, workspacePath, "sync stash", true, []string{"local.txt"})
+	if err != nil {
+		t.Fatalf("StashPush: %v", err)
+	}
+	if err := workspace.SaveState(workspacePath, &workspace.State{
+		Version:      1,
+		Workspace:    workspacePath,
+		BaseCommit:   baseCommit,
+		PendingStash: sha,
+	}); err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+	if err := resolve.Save(workspacePath, &resolve.State{
+		Workspace:  workspacePath,
+		RepoRoot:   repoInfo.Root,
+		BaseCommit: baseCommit,
+		Current:    0,
+		Operations: []resolve.Operation{{ChromiumPath: "b.txt", PatchRel: "b.txt", Op: patch.OpModify}},
+	}); err != nil {
+		t.Fatalf("resolve.Save: %v", err)
+	}
+
+	result, err := Continue(ctx, ContinueOptions{Workspace: workspace.Entry{Name: "ws", Path: workspacePath}})
+	if err != nil {
+		t.Fatalf("Continue: %v", err)
+	}
+	if result.StashRestored {
+		t.Fatalf("--no-rebase parked stash must stay parked, got %+v", result)
+	}
+	assertFile(t, filepath.Join(workspacePath, "local.txt"), "local base\n")
+	state, err := workspace.LoadState(workspacePath)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if state.PendingStash != sha {
+		t.Fatalf("pending stash record must survive, got %q want %q", state.PendingStash, sha)
 	}
 }
 

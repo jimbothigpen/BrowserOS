@@ -55,17 +55,17 @@ func PlanRepoPatchSet(patchesDir string, set PatchSet, scope []string) (*WritePl
 }
 
 func planRepoPatchSet(patchesDir string, existing PatchSet, set PatchSet, scope []string) *WritePlan {
+	// Scope entries follow PathMatches semantics (exact file or directory
+	// prefix) so "extract ch1 -- chrome/dir" scopes the whole directory.
 	inScope := map[string]bool{}
-	if len(scope) == 0 {
-		for rel := range existing {
+	for rel := range existing {
+		if PathMatches(rel, scope) {
 			inScope[rel] = true
 		}
-		for rel := range set {
+	}
+	for rel := range set {
+		if PathMatches(rel, scope) {
 			inScope[rel] = true
-		}
-	} else {
-		for _, rel := range scope {
-			inScope[NormalizeChromiumPath(rel)] = true
 		}
 	}
 

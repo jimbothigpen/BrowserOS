@@ -24,7 +24,10 @@ type ApplyOptions struct {
 	RangeEnd   string
 	Filters    []string
 	Mode       string
-	Progress   Progress
+	// RestorePendingStash carries a rebase-mode sync's intent through a
+	// conflict pause: continue/skip restore the parked stash on completion.
+	RestorePendingStash bool
+	Progress            Progress
 }
 
 type ApplyResult struct {
@@ -68,7 +71,7 @@ func Apply(ctx context.Context, opts ApplyOptions) (*ApplyResult, error) {
 		}
 		return result, nil
 	}
-	next, err := applyOperationRange(ctx, opts.Workspace, opts.Repo, ops, 0, nil, nil, result, opts.Progress)
+	next, err := applyOperationRange(ctx, opts.Workspace, opts.Repo, ops, 0, nil, nil, opts.RestorePendingStash, result, opts.Progress)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +120,7 @@ func Continue(ctx context.Context, opts ContinueOptions) (*ApplyResult, error) {
 		Conflicts:  nil,
 	}
 	reportProgress(opts.Progress, "Continuing patch resolution")
-	next, err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current+1, state.Resolved, state.Skipped, result, opts.Progress)
+	next, err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current+1, state.Resolved, state.Skipped, state.RestorePendingStash, result, opts.Progress)
 	if err != nil {
 		return nil, err
 	}
@@ -128,8 +131,10 @@ func Continue(ctx context.Context, opts ContinueOptions) (*ApplyResult, error) {
 		if err := resolve.Delete(ws.Path); err != nil {
 			return nil, err
 		}
-		if err := restorePendingStash(ctx, ws.Path, result, opts.Progress); err != nil {
-			return nil, err
+		if state.RestorePendingStash {
+			if err := restorePendingStash(ctx, ws.Path, result, opts.Progress); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return result, nil
@@ -164,7 +169,7 @@ func Skip(ctx context.Context, opts SkipOptions) (*ApplyResult, error) {
 		Applied:    append([]string{}, state.Resolved...),
 	}
 	reportProgress(opts.Progress, "Skipping current conflict")
-	next, err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current+1, state.Resolved, state.Skipped, result, opts.Progress)
+	next, err := applyOperationRange(ctx, ws, repoInfo, state.Operations, state.Current+1, state.Resolved, state.Skipped, state.RestorePendingStash, result, opts.Progress)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +180,10 @@ func Skip(ctx context.Context, opts SkipOptions) (*ApplyResult, error) {
 		if err := resolve.Delete(ws.Path); err != nil {
 			return nil, err
 		}
-		if err := restorePendingStash(ctx, ws.Path, result, opts.Progress); err != nil {
-			return nil, err
+		if state.RestorePendingStash {
+			if err := restorePendingStash(ctx, ws.Path, result, opts.Progress); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return result, nil
@@ -315,6 +322,7 @@ func applyOperationRange(
 	start int,
 	resolved []string,
 	skipped []string,
+	restorePending bool,
 	result *ApplyResult,
 	progress Progress,
 ) (int, error) {
@@ -341,15 +349,16 @@ func applyOperationRange(
 				op.Message = err.Error()
 				ops[idx] = op
 				state := &resolve.State{
-					Workspace:  ws.Path,
-					RepoRoot:   repoInfo.Root,
-					BaseCommit: repoInfo.BaseCommit,
-					RepoRev:    result.RepoRev,
-					Mode:       result.Mode,
-					Current:    idx,
-					Operations: ops,
-					Resolved:   append([]string{}, resolved...),
-					Skipped:    append([]string{}, skipped...),
+					Workspace:           ws.Path,
+					RepoRoot:            repoInfo.Root,
+					BaseCommit:          repoInfo.BaseCommit,
+					RepoRev:             result.RepoRev,
+					Mode:                result.Mode,
+					Current:             idx,
+					Operations:          ops,
+					Resolved:            append([]string{}, resolved...),
+					Skipped:             append([]string{}, skipped...),
+					RestorePendingStash: restorePending,
 				}
 				if err := resolve.Save(ws.Path, state); err != nil {
 					return idx, err

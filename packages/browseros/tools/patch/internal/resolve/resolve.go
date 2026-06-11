@@ -29,6 +29,10 @@ type State struct {
 	Operations []Operation `json:"operations"`
 	Resolved   []string    `json:"resolved,omitempty"`
 	Skipped    []string    `json:"skipped,omitempty"`
+	// RestorePendingStash marks that the paused operation was a rebase-mode
+	// sync: when the conflict loop completes, the parked stash comes back.
+	// Stashes parked explicitly with --no-rebase stay parked.
+	RestorePendingStash bool `json:"restore_pending_stash,omitempty"`
 }
 
 func Path(workspacePath string) string {
