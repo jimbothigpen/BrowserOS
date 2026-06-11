@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Test fixtures that fake the two directory trees the build system operates on.
 
-MockChromium builds a minimal gclient checkout (the multi-GB tree at e.g.
-~/code/chromium-1, reduced to the marker files build modules actually touch),
-and MockBrowserOSRoot builds a minimal packages/browseros root. Tests compose
+MockChromium builds a minimal gclient checkout (a real one is multi-GB; this
+keeps only the marker files build modules actually touch), and
+MockBrowserOSRoot builds a minimal packages/browseros root. Tests compose
 the pieces they need instead of depending on a real Chromium checkout.
 
 Only for use from *_test.py files.

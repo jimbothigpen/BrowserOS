@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
 
 from .annotate import (
     _is_git_index_lock_error,
@@ -32,7 +33,9 @@ class IsGitIndexLockErrorTest(unittest.TestCase):
     def test_other_errors_not_detected(self):
         self.assertFalse(_is_git_index_lock_error("fatal: not a git repository"))
         self.assertFalse(_is_git_index_lock_error(""))
-        self.assertFalse(_is_git_index_lock_error(None))
+        # CompletedProcess.stderr can be None when output isn't captured;
+        # the guard must tolerate it even though the annotation says str.
+        self.assertFalse(_is_git_index_lock_error(cast(str, None)))
 
 
 class LoadFeaturesTest(unittest.TestCase):
