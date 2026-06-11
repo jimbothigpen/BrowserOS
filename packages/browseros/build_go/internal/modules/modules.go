@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/browseros-ai/BrowserOS/packages/browseros/build_go/internal/buildctx"
+	"github.com/browseros-ai/BrowserOS/packages/browseros/build_go/internal/modules/resources"
 	"github.com/browseros-ai/BrowserOS/packages/browseros/build_go/internal/modules/setup"
 	"github.com/browseros-ai/BrowserOS/packages/browseros/build_go/internal/pipeline"
 )
@@ -42,10 +43,10 @@ func Available() pipeline.Registry {
 		// Patches & Resources
 		"patches":            placeholder("patches", "Apply BrowserOS patches"),
 		"series_patches":     placeholder("series_patches", "Apply series patches (GNU Quilt format)"),
-		"chromium_replace":   placeholder("chromium_replace", "Replace Chromium files with BrowserOS versions"),
-		"string_replaces":    placeholder("string_replaces", "Apply string replacements to Chromium files"),
-		"download_resources": placeholder("download_resources", "Download binaries from R2"),
-		"resources":          placeholder("resources", "Copy BrowserOS resources into Chromium"),
+		"chromium_replace":   func() pipeline.Module { return resources.NewChromiumReplace() },
+		"string_replaces":    func() pipeline.Module { return resources.NewStringReplaces() },
+		"download_resources": func() pipeline.Module { return resources.NewDownload() },
+		"resources":          func() pipeline.Module { return resources.NewCopy() },
 		"bundled_extensions": placeholder("bundled_extensions", "Download bundled extensions from CDN"),
 		// Build
 		"compile":         placeholder("compile", "Compile BrowserOS with autoninja"),
