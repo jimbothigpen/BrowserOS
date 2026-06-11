@@ -16,6 +16,7 @@ import { cors } from 'hono/cors'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { HttpAgentError } from '../agent/errors'
 import { INLINED_ENV } from '../env'
+import { TurnRegistry } from '../lib/agents/turns/active-turn-registry'
 import { KlavisClient } from '../lib/clients/klavis/klavis-client'
 import { initializeOAuth, shutdownOAuth } from '../lib/clients/oauth'
 import { getDb } from '../lib/db'
@@ -30,6 +31,7 @@ import { createHealthRoute } from './routes/health'
 import { createKlavisRoutes } from './routes/klavis'
 import { createMcpRoutes } from './routes/mcp'
 import { createMcpManagerRoutes } from './routes/mcp-manager'
+import { createNudgeMcpRoute } from './routes/nudge-mcp'
 import { createOAuthRoutes } from './routes/oauth'
 import { createProviderRoutes } from './routes/provider'
 import { createRefinePromptRoutes } from './routes/refine-prompt'
@@ -93,6 +95,12 @@ export async function createHttpServer(config: HttpServerConfig) {
       })
     : () => {}
 
+  // Shared between createAgentRoutes (which owns the lifecycle) and
+  // the nudge MCP route (which needs to push app_connection_request
+  // events into the same active turns). Hoisting here means both
+  // mounts hold the same instance.
+  const turnRegistry = new TurnRegistry()
+
   const agentRoutes = new Hono<Env>()
     .use('/*', requireTrustedAppOrigin())
     .route(
@@ -101,6 +109,7 @@ export async function createHttpServer(config: HttpServerConfig) {
         browserosServerPort: port,
         resourcesDir,
         browser,
+        turnRegistry,
       }),
     )
 
@@ -158,6 +167,11 @@ export async function createHttpServer(config: HttpServerConfig) {
         browserUseNewTools: config.browserUseNewTools,
       }),
     )
+    // Dedicated in-process MCP server for the suggest_app_connection
+    // tool. Reachable only by the ACPX-spawned host agent process; not
+    // published to external agents installed via the Integrations
+    // panel (those receive the /mcp URL only).
+    .route('/mcp/nudge', createNudgeMcpRoute({ turnRegistry }))
     .route(
       '/mcp-manager',
       createMcpManagerRoutes({

@@ -111,6 +111,12 @@ type AgentRouteDeps = {
   /** Optional override; defaults to a fresh in-memory checker. */
   adapterHealth?: Pick<AdapterHealthChecker, 'getHealth'>
   onTurnLifecycle?: import('../services/agents/agent-harness-service').TurnLifecycleListener
+  /**
+   * Shared with the /mcp/nudge route so the in-process nudge tool
+   * handler can push app_connection_request events into the same
+   * active turn the user is watching.
+   */
+  turnRegistry?: import('../../lib/agents/turns/active-turn-registry').TurnRegistry
 }
 
 type SidepanelAgentChatRequest = {
@@ -130,6 +136,7 @@ export function createAgentRoutes(deps: AgentRouteDeps = {}) {
     new AgentHarnessService({
       browserosServerPort: deps.browserosServerPort,
       resourcesDir: deps.resourcesDir,
+      turnRegistry: deps.turnRegistry,
     })
   if (deps.onTurnLifecycle && service instanceof AgentHarnessService) {
     service.onTurnLifecycle(deps.onTurnLifecycle)

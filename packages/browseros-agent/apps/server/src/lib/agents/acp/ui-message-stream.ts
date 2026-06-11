@@ -7,6 +7,7 @@
 import type { FinishReason, UIMessageChunk } from 'ai'
 
 import type { AgentStreamEvent } from '../types'
+import { isNudgeToolName } from './nudge'
 
 const TEXT_PART_ID = 'acp-text'
 const REASONING_PART_ID = 'acp-reasoning'
@@ -146,6 +147,9 @@ function handleAcpEvent(
     case 'tool_call':
       enqueueToolCall(event, controller, state)
       return
+    case 'app_connection_request':
+      enqueueAppConnectionRequest(event, controller, state)
+      return
     case 'status':
       controller.enqueue({
         type: 'data-acp-status',
@@ -198,9 +202,19 @@ function enqueueToolCall(
   state: AcpUIMessageStreamState,
 ): void {
   const toolCallId = event.id ?? nextToolCallId(state)
+  // Match against the raw title BEFORE normalization so the
+  // namespace-prefixed form `nudge/suggest_app_connection` still
+  // matches via the endsWith check. normalizeToolName would rewrite
+  // the slash and the suffix check would silently miss.
+  const rawTitle = event.title || event.rawType || ''
   const toolName =
-    state.toolNames.get(toolCallId) ??
-    normalizeToolName(event.title || event.rawType || 'acp_tool')
+    state.toolNames.get(toolCallId) ?? normalizeToolName(rawTitle || 'acp_tool')
+
+  // Drop the upstream tool_call rendering for nudge tools. The real
+  // connect card arrives via app_connection_request; without this
+  // suppression the renderer would briefly show a generic tool block
+  // next to the card. Mirrors agent-company's StreamTranslator drop.
+  if (isNudgeToolName(rawTitle)) return
 
   state.toolNames.set(toolCallId, toolName)
 
@@ -231,6 +245,45 @@ function enqueueToolCall(
       dynamic: true,
     })
   }
+}
+
+/**
+ * Emit the byok-shaped tool-input + tool-output parts the sidepanel's
+ * existing nudge parser already understands. The wire shape matches
+ * the in-process byok tool sentinel verbatim so getMessageSegments
+ * and ConnectAppCard work unchanged across both runtimes.
+ */
+function enqueueAppConnectionRequest(
+  event: Extract<AgentStreamEvent, { type: 'app_connection_request' }>,
+  controller: ReadableStreamDefaultController<UIMessageChunk>,
+  _state: AcpUIMessageStreamState,
+): void {
+  const toolName = 'suggest_app_connection'
+  controller.enqueue({
+    type: 'tool-input-available',
+    toolCallId: event.toolCallId,
+    toolName,
+    input: { appName: event.appName, reason: event.reason },
+    dynamic: true,
+  })
+  controller.enqueue({
+    type: 'tool-output-available',
+    toolCallId: event.toolCallId,
+    output: {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            type: 'app_connection',
+            appName: event.appName,
+            reason: event.reason,
+          }),
+        },
+      ],
+      isError: false,
+    },
+    dynamic: true,
+  })
 }
 
 function finish(
