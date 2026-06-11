@@ -75,7 +75,16 @@ func Extract(ctx context.Context, opts ExtractOptions) (*ExtractResult, error) {
 	default:
 		mode = "working-tree"
 		reportProgress(opts.Progress, "Extracting workspace changes")
-		set, err = patch.BuildWorkingTreePatchSet(ctx, opts.Workspace.Path, base, opts.Filters)
+		ignore, ignoreErr := patch.LoadIgnoreSet(opts.Repo.Root, nil)
+		if ignoreErr != nil {
+			return nil, ignoreErr
+		}
+		set, err = patch.BuildWorkingTreePatchSet(ctx, opts.Workspace.Path, patch.WorkingTreeOptions{
+			Base:    base,
+			Filters: opts.Filters,
+			Ignore:  ignore,
+			Report:  func(message string) { reportProgress(opts.Progress, "%s", message) },
+		})
 		if err == nil && len(opts.Filters) > 0 {
 			scope = opts.Filters
 		}

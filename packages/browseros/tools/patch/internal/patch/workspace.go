@@ -13,8 +13,18 @@ import (
 	"github.com/browseros-ai/BrowserOS/packages/browseros/tools/patch/internal/git"
 )
 
-func BuildWorkingTreePatchSet(ctx context.Context, workspacePath string, base string, filters []string) (PatchSet, error) {
-	diff, err := git.DiffText(ctx, workspacePath, base)
+// WorkingTreeOptions bound a working-tree patch-set build: the base commit to
+// diff against, include filters, an ignore set for untracked junk, and an
+// optional progress callback.
+type WorkingTreeOptions struct {
+	Base    string
+	Filters []string
+	Ignore  *IgnoreSet
+	Report  func(message string)
+}
+
+func BuildWorkingTreePatchSet(ctx context.Context, workspacePath string, opts WorkingTreeOptions) (PatchSet, error) {
+	diff, err := git.DiffText(ctx, workspacePath, opts.Base)
 	if err != nil {
 		return nil, err
 	}
@@ -22,11 +32,21 @@ func BuildWorkingTreePatchSet(ctx context.Context, workspacePath string, base st
 	if err != nil {
 		return nil, err
 	}
-	untracked, err := git.ListUntracked(ctx, workspacePath, filters)
+	untracked, err := git.ListUntracked(ctx, workspacePath, opts.Filters)
 	if err != nil {
 		return nil, err
 	}
+	kept := make([]string, 0, len(untracked))
 	for _, rel := range untracked {
+		if opts.Ignore.Match(rel) {
+			continue
+		}
+		kept = append(kept, rel)
+	}
+	for idx, rel := range kept {
+		if opts.Report != nil {
+			opts.Report(fmt.Sprintf("Scanning untracked %d/%d %s", idx+1, len(kept), rel))
+		}
 		diffText, err := git.DiffNoIndex(ctx, workspacePath, rel)
 		if err != nil {
 			return nil, err
@@ -39,7 +59,7 @@ func BuildWorkingTreePatchSet(ctx context.Context, workspacePath string, base st
 			set[patchPath] = patchFile
 		}
 	}
-	return filterSet(set, filters), nil
+	return filterSet(set, opts.Filters), nil
 }
 
 func BuildCommitPatchSet(ctx context.Context, workspacePath string, ref string, base string, filters []string) (PatchSet, error) {

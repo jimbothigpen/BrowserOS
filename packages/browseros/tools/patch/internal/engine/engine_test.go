@@ -152,6 +152,47 @@ func TestApplyReportsPatchProgress(t *testing.T) {
 	assertFile(t, filepath.Join(workspacePath, "chrome", "browser.cc"), "patched\n")
 }
 
+func TestInspectWorkspaceSkipsIgnoredUntrackedFiles(t *testing.T) {
+	ctx := context.Background()
+	workspacePath := initGitRepo(t)
+	writeFile(t, filepath.Join(workspacePath, "chrome", "browser.cc"), "base\n")
+	runGit(t, workspacePath, "add", "chrome/browser.cc")
+	runGit(t, workspacePath, "commit", "-m", "workspace base")
+	baseCommit := gitOutput(t, workspacePath, "rev-parse", "HEAD")
+
+	writeFile(t, filepath.Join(workspacePath, ".llm", "scratch.md"), "junk\n")
+	writeFile(t, filepath.Join(workspacePath, "debug.log"), "junk\n")
+	writeFile(t, filepath.Join(workspacePath, "chrome", "feature.cc"), "real\n")
+
+	repoRoot := initGitRepo(t)
+	if err := os.MkdirAll(filepath.Join(repoRoot, "chromium_patches"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeFile(t, filepath.Join(repoRoot, "BASE_COMMIT"), baseCommit+"\n")
+	runGit(t, repoRoot, "add", "BASE_COMMIT")
+	runGit(t, repoRoot, "commit", "-m", "patch repo init")
+	repoInfo, err := repo.Load(repoRoot)
+	if err != nil {
+		t.Fatalf("repo.Load: %v", err)
+	}
+
+	status, err := InspectWorkspace(ctx, InspectWorkspaceOptions{
+		Workspace: workspace.Entry{Name: "ws", Path: workspacePath},
+		Repo:      repoInfo,
+	})
+	if err != nil {
+		t.Fatalf("InspectWorkspace: %v", err)
+	}
+	if !slices.Contains(status.Orphaned, "chrome/feature.cc") {
+		t.Fatalf("expected real untracked file as orphan, got %v", status.Orphaned)
+	}
+	for _, junk := range []string{".llm/scratch.md", "debug.log"} {
+		if slices.Contains(status.Orphaned, junk) {
+			t.Fatalf("expected %q to be ignored, got orphans %v", junk, status.Orphaned)
+		}
+	}
+}
+
 func TestSyncClearsPendingStashAfterSuccessfulNonRebaseRun(t *testing.T) {
 	ctx := context.Background()
 	workspacePath := initGitRepo(t)

@@ -47,8 +47,16 @@ func InspectWorkspace(ctx context.Context, opts InspectWorkspaceOptions) (*Works
 	if err != nil {
 		return nil, err
 	}
+	ignore, err := patch.LoadIgnoreSet(opts.Repo.Root, nil)
+	if err != nil {
+		return nil, err
+	}
 	reportProgress(opts.Progress, "Building workspace patch set")
-	localSet, err := patch.BuildWorkingTreePatchSet(ctx, opts.Workspace.Path, opts.Repo.BaseCommit, nil)
+	localSet, err := patch.BuildWorkingTreePatchSet(ctx, opts.Workspace.Path, patch.WorkingTreeOptions{
+		Base:   opts.Repo.BaseCommit,
+		Ignore: ignore,
+		Report: func(message string) { reportProgress(opts.Progress, "%s", message) },
+	})
 	if err != nil {
 		return nil, err
 	}

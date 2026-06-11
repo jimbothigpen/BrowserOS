@@ -223,7 +223,16 @@ func buildApplyOperations(ctx context.Context, opts ApplyOptions) ([]resolve.Ope
 		}
 		return operationsFromChanges(repoSet, changes, opts.Filters), nil, nil
 	default:
-		localSet, err := patch.BuildWorkingTreePatchSet(ctx, opts.Workspace.Path, opts.Repo.BaseCommit, opts.Filters)
+		ignore, err := patch.LoadIgnoreSet(opts.Repo.Root, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		localSet, err := patch.BuildWorkingTreePatchSet(ctx, opts.Workspace.Path, patch.WorkingTreeOptions{
+			Base:    opts.Repo.BaseCommit,
+			Filters: opts.Filters,
+			Ignore:  ignore,
+			Report:  func(message string) { reportProgress(opts.Progress, "%s", message) },
+		})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -338,7 +347,10 @@ func verifyResolved(ctx context.Context, workspacePath string, repoInfo *repo.In
 	if err != nil {
 		return err
 	}
-	localSet, err := patch.BuildWorkingTreePatchSet(ctx, workspacePath, base, []string{op.ChromiumPath})
+	localSet, err := patch.BuildWorkingTreePatchSet(ctx, workspacePath, patch.WorkingTreeOptions{
+		Base:    base,
+		Filters: []string{op.ChromiumPath},
+	})
 	if err != nil {
 		return err
 	}
