@@ -155,8 +155,22 @@ func ResetPathToCommit(ctx context.Context, dir string, ref string, rel string) 
 	return os.RemoveAll(target)
 }
 
+// diffArgs builds a diff invocation whose output is a pure function of the
+// compared content: per-checkout config (abbrev, prefixes, algorithm, context)
+// must not leak into patch files that get committed to the patch repo.
+func diffArgs(extra ...string) []string {
+	args := []string{
+		"-c", "diff.algorithm=myers",
+		"-c", "diff.noprefix=false",
+		"-c", "diff.mnemonicPrefix=false",
+		"-c", "core.quotepath=false",
+		"diff", "--binary", "--full-index", "-U3",
+	}
+	return append(args, extra...)
+}
+
 func DiffText(ctx context.Context, dir string, args ...string) (string, error) {
-	result, err := Run(ctx, dir, nil, append([]string{"diff", "--binary", "-M"}, args...)...)
+	result, err := Run(ctx, dir, nil, diffArgs(append([]string{"-M"}, args...)...)...)
 	if err != nil {
 		return "", err
 	}
@@ -167,7 +181,7 @@ func DiffText(ctx context.Context, dir string, args ...string) (string, error) {
 }
 
 func DiffNoIndex(ctx context.Context, dir string, path string) (string, error) {
-	result, err := Run(ctx, dir, nil, "diff", "--binary", "--no-index", "--", "/dev/null", path)
+	result, err := Run(ctx, dir, nil, diffArgs("--no-index", "--", "/dev/null", path)...)
 	if err != nil {
 		return "", err
 	}
@@ -175,6 +189,21 @@ func DiffNoIndex(ctx context.Context, dir string, path string) (string, error) {
 		return "", errors.New(strings.TrimSpace(result.Stderr))
 	}
 	return result.Stdout, nil
+}
+
+func FileModeAtCommit(ctx context.Context, dir string, ref string, rel string) (string, error) {
+	result, err := Run(ctx, dir, nil, "ls-tree", ref, "--", rel)
+	if err != nil {
+		return "", err
+	}
+	if result.Code != 0 {
+		return "", errors.New(strings.TrimSpace(result.Stderr))
+	}
+	fields := strings.Fields(result.Stdout)
+	if len(fields) == 0 {
+		return "", fmt.Errorf("no tree entry for %s at %s", rel, ref)
+	}
+	return fields[0], nil
 }
 
 func ListUntracked(ctx context.Context, dir string, pathspecs []string) ([]string, error) {
