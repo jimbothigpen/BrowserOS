@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/browseros-ai/BrowserOS/packages/browseros/build_go/internal/buildctx"
+	"github.com/browseros-ai/BrowserOS/packages/browseros/build_go/internal/modules/setup"
 	"github.com/browseros-ai/BrowserOS/packages/browseros/build_go/internal/pipeline"
 )
 
@@ -34,10 +35,10 @@ func placeholder(name, description string) func() pipeline.Module {
 func Available() pipeline.Registry {
 	return pipeline.Registry{
 		// Setup & Environment
-		"clean":         placeholder("clean", "Clean build artifacts"),
-		"git_setup":     placeholder("git_setup", "Setup git repository (fetch, checkout, sync)"),
-		"sparkle_setup": placeholder("sparkle_setup", "Download and setup Sparkle framework (macOS)"),
-		"configure":     placeholder("configure", "Configure build with GN"),
+		"clean":         func() pipeline.Module { return setup.NewClean() },
+		"git_setup":     func() pipeline.Module { return setup.NewGitSetup() },
+		"sparkle_setup": func() pipeline.Module { return setup.NewSparkleSetup() },
+		"configure":     func() pipeline.Module { return setup.NewConfigure() },
 		// Patches & Resources
 		"patches":            placeholder("patches", "Apply BrowserOS patches"),
 		"series_patches":     placeholder("series_patches", "Apply series patches (GNU Quilt format)"),
