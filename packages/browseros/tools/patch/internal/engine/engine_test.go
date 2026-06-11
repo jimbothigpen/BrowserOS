@@ -491,6 +491,85 @@ func TestSyncNoRebaseKeepsStashRecorded(t *testing.T) {
 	}
 }
 
+func TestAbortRestoresSyncParkedStashBySHA(t *testing.T) {
+	ctx := context.Background()
+	workspacePath := initGitRepo(t)
+	writeFile(t, filepath.Join(workspacePath, "a.txt"), "a\n")
+	writeFile(t, filepath.Join(workspacePath, "local.txt"), "local\n")
+	runGit(t, workspacePath, "add", "a.txt", "local.txt")
+	runGit(t, workspacePath, "commit", "-m", "base")
+	baseCommit := gitOutput(t, workspacePath, "rev-parse", "HEAD")
+
+	// Park a local change exactly the way sync does: recorded by commit SHA.
+	writeFile(t, filepath.Join(workspacePath, "local.txt"), "local changed\n")
+	sha, err := git.StashPush(ctx, workspacePath, "sync stash", true, []string{"local.txt"})
+	if err != nil {
+		t.Fatalf("StashPush: %v", err)
+	}
+	if err := workspace.SaveState(workspacePath, &workspace.State{
+		Version:      1,
+		Workspace:    workspacePath,
+		BaseCommit:   baseCommit,
+		PendingStash: sha,
+	}); err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+
+	writeFile(t, filepath.Join(workspacePath, "a.txt"), "applied\n")
+	if err := resolve.Save(workspacePath, &resolve.State{
+		Workspace:  workspacePath,
+		RepoRoot:   workspacePath,
+		BaseCommit: baseCommit,
+		Current:    0,
+		Operations: []resolve.Operation{
+			{ChromiumPath: "a.txt", PatchRel: "a.txt", Op: patch.OpModify},
+		},
+	}); err != nil {
+		t.Fatalf("resolve.Save: %v", err)
+	}
+
+	if err := Abort(ctx, workspace.Entry{Name: "ws", Path: workspacePath}); err != nil {
+		t.Fatalf("Abort: %v", err)
+	}
+	assertFile(t, filepath.Join(workspacePath, "a.txt"), "a\n")
+	assertFile(t, filepath.Join(workspacePath, "local.txt"), "local changed\n")
+	state, err := workspace.LoadState(workspacePath)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if state.PendingStash != "" {
+		t.Fatalf("expected pending stash cleared, got %q", state.PendingStash)
+	}
+}
+
+func TestSyncRefusesToDoubleParkLocalChanges(t *testing.T) {
+	ctx := context.Background()
+	ws, repoInfo := syncFixture(t, "PATCHED", "local change")
+
+	first, err := Sync(ctx, SyncOptions{Workspace: ws, Repo: repoInfo, Rebase: false})
+	if err != nil {
+		t.Fatalf("first Sync: %v", err)
+	}
+	if first.StashRef == "" {
+		t.Fatalf("expected a parked stash")
+	}
+
+	// New divergence while changes are still parked.
+	writeFile(t, filepath.Join(ws.Path, "local.txt"), "second change\n")
+	_, err = Sync(ctx, SyncOptions{Workspace: ws, Repo: repoInfo, Rebase: false})
+	if err == nil || !strings.Contains(err.Error(), "already parked") {
+		t.Fatalf("expected double-park refusal, got %v", err)
+	}
+	// The original stash record must be intact.
+	state, err := workspace.LoadState(ws.Path)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if state.PendingStash != first.StashRef {
+		t.Fatalf("pending stash = %q, want %q", state.PendingStash, first.StashRef)
+	}
+}
+
 func TestSyncRestoresPreviouslyParkedStash(t *testing.T) {
 	ctx := context.Background()
 	ws, repoInfo := syncFixture(t, "PATCHED", "local change")

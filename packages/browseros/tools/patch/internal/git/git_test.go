@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,11 +25,23 @@ func TestDiffTextEmitsFullIndexRegardlessOfRepoConfig(t *testing.T) {
 	runGit(t, dir, "config", "diff.mnemonicPrefix", "true")
 	runGit(t, dir, "config", "diff.algorithm", "histogram")
 	runGit(t, dir, "config", "diff.context", "8")
+	runGit(t, dir, "config", "diff.interHunkContext", "10")
+	runGit(t, dir, "config", "diff.suppressBlankEmpty", "true")
+	runGit(t, dir, "config", "diff.srcPrefix", "x/")
+	runGit(t, dir, "config", "diff.dstPrefix", "y/")
 
-	writeFile(t, filepath.Join(dir, "f.txt"), "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n")
+	var lines []string
+	for i := 1; i <= 20; i++ {
+		lines = append(lines, fmt.Sprintf("l%d", i))
+	}
+	lines[3] = "" // blank context line inside the first hunk
+	base := strings.Join(lines, "\n") + "\n"
+	writeFile(t, filepath.Join(dir, "f.txt"), base)
 	runGit(t, dir, "add", "f.txt")
 	runGit(t, dir, "commit", "-m", "base")
-	writeFile(t, filepath.Join(dir, "f.txt"), "one\ntwo\nthree\nfour\nCHANGED\nsix\nseven\neight\nnine\nten\n")
+	lines[1] = "CHANGED2"
+	lines[17] = "CHANGED18"
+	writeFile(t, filepath.Join(dir, "f.txt"), strings.Join(lines, "\n")+"\n")
 
 	diff, err := DiffText(ctx, dir, "HEAD")
 	if err != nil {
@@ -38,10 +51,13 @@ func TestDiffTextEmitsFullIndexRegardlessOfRepoConfig(t *testing.T) {
 		t.Fatalf("expected full 40-hex index line, got:\n%s", diff)
 	}
 	if !strings.Contains(diff, "--- a/f.txt") || !strings.Contains(diff, "+++ b/f.txt") {
-		t.Fatalf("expected a/ b/ prefixes despite noprefix/mnemonicPrefix config, got:\n%s", diff)
+		t.Fatalf("expected a/ b/ prefixes despite prefix config, got:\n%s", diff)
 	}
-	if !strings.Contains(diff, "@@ -2,7 +2,7 @@") {
-		t.Fatalf("expected default 3-line context despite diff.context=8, got:\n%s", diff)
+	if !strings.Contains(diff, "@@ -1,5 +1,5 @@") || !strings.Contains(diff, "@@ -15,6 +15,6 @@") {
+		t.Fatalf("expected two default-context hunks despite diff.context/interHunkContext, got:\n%s", diff)
+	}
+	if !strings.Contains(diff, "\n \n") {
+		t.Fatalf("expected blank context lines to keep their space despite suppressBlankEmpty, got:\n%q", diff)
 	}
 }
 

@@ -243,7 +243,10 @@ func Abort(ctx context.Context, ws workspace.Entry) error {
 		return nil
 	}
 	if err := git.StashPop(ctx, ws.Path, workspaceState.PendingStash); err != nil {
-		return err
+		if !errors.Is(err, git.ErrStashNotFound) {
+			return err
+		}
+		// Stale record (stash gone): clearing it is the correct rollback.
 	}
 	workspaceState.PendingStash = ""
 	return workspace.SaveState(ws.Path, workspaceState)

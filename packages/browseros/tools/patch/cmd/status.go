@@ -91,6 +91,7 @@ func init() {
 }
 
 // statusRow is the compact per-checkout shape used by status --all.
+// pending_stash carries the same string ref as the single-checkout status.
 type statusRow struct {
 	Workspace    string `json:"workspace"`
 	Path         string `json:"path"`
@@ -98,7 +99,7 @@ type statusRow struct {
 	NeedsApply   int    `json:"needs_apply"`
 	NeedsUpdate  int    `json:"needs_update"`
 	Orphaned     int    `json:"orphaned"`
-	PendingStash bool   `json:"pending_stash"`
+	PendingStash string `json:"pending_stash,omitempty"`
 	Error        string `json:"error,omitempty"`
 }
 
@@ -125,7 +126,7 @@ func runStatusAll(cmd *cobra.Command) error {
 			row.NeedsApply = len(status.NeedsApply)
 			row.NeedsUpdate = len(status.NeedsUpdate)
 			row.Orphaned = len(status.Orphaned)
-			row.PendingStash = status.PendingStash != ""
+			row.PendingStash = status.PendingStash
 		}
 		rows = append(rows, row)
 	}
@@ -138,7 +139,7 @@ func runStatusAll(cmd *cobra.Command) error {
 				continue
 			}
 			stash := ""
-			if row.PendingStash {
+			if row.PendingStash != "" {
 				stash = "yes"
 			}
 			tableRows = append(tableRows, []string{

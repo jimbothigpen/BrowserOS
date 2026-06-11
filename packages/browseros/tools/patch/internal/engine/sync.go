@@ -111,6 +111,11 @@ func Sync(ctx context.Context, opts SyncOptions) (*SyncResult, error) {
 	}
 	divergent := append([]string{}, status.NeedsUpdate...)
 	divergent = append(divergent, status.Orphaned...)
+	if !opts.Rebase && state.PendingStash != "" && len(divergent) > 0 {
+		return nil, fmt.Errorf(
+			"a previous sync already parked local changes (stash %s); run \"browseros-patch sync %s\" without --no-rebase to restore them first, or pop the stash manually",
+			state.PendingStash, opts.Workspace.Name)
+	}
 	if len(divergent) > 0 {
 		reportProgress(opts.Progress, "Stashing %d divergent %s", len(divergent), plural(len(divergent), "file", "files"))
 		stashRef, err := git.StashPush(ctx, opts.Workspace.Path, "browseros-patch sync stash", true, divergent)

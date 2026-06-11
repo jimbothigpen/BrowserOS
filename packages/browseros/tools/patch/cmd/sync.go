@@ -36,14 +36,18 @@ func init() {
 				Workspace: ws,
 				Repo:      info,
 				Remote:    remote,
-				Rebase:    !noRebase,
+				Rebase:    rebase && !noRebase,
 				Progress:  commandProgress(cmd),
 			})
 			if err != nil {
 				return err
 			}
 			if err := renderResult(result, func() {
-				fmt.Println(ui.Title(fmt.Sprintf("Synced %s", ws.Name)))
+				if result.StashConflict || len(result.Conflicts) > 0 {
+					fmt.Println(ui.Warning(fmt.Sprintf("Sync paused for %s", ws.Name)))
+				} else {
+					fmt.Println(ui.Title(fmt.Sprintf("Synced %s", ws.Name)))
+				}
 				fmt.Printf("%s  %s\n", ui.Muted("repo head:"), result.RepoHead)
 				fmt.Printf("%s  %d\n", ui.Muted("applied:"), len(result.Applied))
 				switch {

@@ -163,6 +163,10 @@ func diffArgs(extra ...string) []string {
 		"-c", "diff.algorithm=myers",
 		"-c", "diff.noprefix=false",
 		"-c", "diff.mnemonicPrefix=false",
+		"-c", "diff.srcPrefix=a/",
+		"-c", "diff.dstPrefix=b/",
+		"-c", "diff.interHunkContext=0",
+		"-c", "diff.suppressBlankEmpty=false",
 		"-c", "core.quotepath=false",
 		"diff", "--binary", "--full-index", "-U3", "--no-ext-diff", "--no-textconv",
 	}
@@ -361,7 +365,13 @@ func (e *StashConflictError) Error() string {
 func StashPop(ctx context.Context, dir string, stashRef string) error {
 	args := []string{"stash", "pop"}
 	if stashRef != "" {
-		args = append(args, stashRef)
+		// git stash pop rejects raw commit SHAs; translate to the current
+		// positional entry (also catches records that no longer exist).
+		entry, err := resolveStashEntry(ctx, dir, stashRef)
+		if err != nil {
+			return err
+		}
+		args = append(args, entry)
 	}
 	result, err := Run(ctx, dir, nil, args...)
 	if err != nil {
@@ -484,6 +494,15 @@ func stashUntrackedFiles(ctx context.Context, dir string, stashRef string) ([]st
 	return splitLines(result.Stdout), nil
 }
 
+// looksBinary mirrors git's heuristic: a NUL within the first 8000 bytes.
+func looksBinary(content []byte) bool {
+	probe := content
+	if len(probe) > 8000 {
+		probe = probe[:8000]
+	}
+	return bytes.IndexByte(probe, 0) != -1
+}
+
 // restoreFromTree writes a file from a tree-ish into the working tree,
 // preserving the executable bit recorded there.
 func restoreFromTree(ctx context.Context, dir string, treeish string, rel string) error {
@@ -503,13 +522,24 @@ func restoreFromTree(ctx context.Context, dir string, treeish string, rel string
 }
 
 func rebaseStashedFile(ctx context.Context, dir string, stashRef string, rel string) (bool, error) {
-	base, baseErr := ShowFile(ctx, dir, stashRef+"^1", rel)
-	if baseErr != nil {
-		base = nil // file did not exist when the stash was taken
+	// Distinguish "path absent at ref" from real git failures before reading
+	// content — conflating them could misread an outage as a deletion.
+	baseExists, err := FileExistsAtCommit(ctx, dir, stashRef+"^1", rel)
+	if err != nil {
+		return false, err
 	}
-	theirs, theirsErr := ShowFile(ctx, dir, stashRef, rel)
+	var base []byte
+	if baseExists {
+		if base, err = ShowFile(ctx, dir, stashRef+"^1", rel); err != nil {
+			return false, err
+		}
+	}
+	theirsExists, err := FileExistsAtCommit(ctx, dir, stashRef, rel)
+	if err != nil {
+		return false, err
+	}
 	workPath := filepath.Join(dir, filepath.FromSlash(rel))
-	if theirsErr != nil {
+	if !theirsExists {
 		// Stash recorded a deletion. Re-delete when the tree still matches
 		// the stash base; otherwise keep the newer content and flag it.
 		current, readErr := os.ReadFile(workPath)
@@ -519,10 +549,14 @@ func rebaseStashedFile(ctx context.Context, dir string, stashRef string, rel str
 			}
 			return false, readErr
 		}
-		if base != nil && bytes.Equal(current, base) {
+		if baseExists && bytes.Equal(current, base) {
 			return false, os.Remove(workPath)
 		}
 		return true, nil
+	}
+	theirs, err := ShowFile(ctx, dir, stashRef, rel)
+	if err != nil {
+		return false, err
 	}
 	if _, statErr := os.Stat(workPath); os.IsNotExist(statErr) {
 		// The file is gone from the tree (e.g. a patch deleted it) while the
@@ -531,7 +565,7 @@ func rebaseStashedFile(ctx context.Context, dir string, stashRef string, rel str
 		if err := restoreFromTree(ctx, dir, stashRef, rel); err != nil {
 			return false, err
 		}
-		return base != nil, nil
+		return baseExists, nil
 	}
 	return mergeIntoWorkingFile(ctx, dir, rel, base, theirs)
 }
@@ -546,6 +580,12 @@ func mergeIntoWorkingFile(ctx context.Context, dir string, rel string, base []by
 	}
 	if bytes.Equal(current, theirs) {
 		return false, nil
+	}
+	// merge-file cannot merge binary content (exit 255). Treat diverged
+	// binaries as a conflict the user resolves by hand — never a hard error
+	// that would wedge sync retries.
+	if looksBinary(current) || looksBinary(theirs) || looksBinary(base) {
+		return true, nil
 	}
 
 	tmpDir, err := os.MkdirTemp("", "browseros-patch-stash")

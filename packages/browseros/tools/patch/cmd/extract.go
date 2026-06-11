@@ -91,6 +91,6 @@ func init() {
 	command.Flags().BoolVar(&squash, "squash", false, "Squash a range into a cumulative diff")
 	command.Flags().StringVar(&base, "base", "", "Override BASE_COMMIT for extraction")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "Preview what would be written without touching the patch repo")
-	command.Flags().StringArrayVar(&excludes, "exclude", nil, "Extra ignore pattern for untracked files (repeatable)")
+	command.Flags().StringArrayVar(&excludes, "exclude", nil, "Extra ignore pattern for untracked files; also removes previously extracted patches matching it (repeatable)")
 	rootCmd.AddCommand(command)
 }
