@@ -176,8 +176,9 @@ Causes, in the order to check:
 2. **Label not in WarpBuild's catalog** — supported images: Ubuntu
    22.04/24.04 (x64, arm64), macOS 14/15/26 (arm64), Windows Server 2022
    (x64) (https://www.warpbuild.com/docs/ci/preinstalled-software). An
-   unsupported label (this workflow once shipped `warp-windows-2025-…`)
-   queues forever; WarpBuild reports no error back to GitHub.
+   unsupported label queues forever (this workflow originally shipped a
+   `windows-2025` label that WarpBuild does not image); WarpBuild reports
+   no error back to GitHub.
 3. **WarpBuild account** — org connection or billing lapsed
    (https://app.warpbuild.com/).
 4. **WarpBuild capacity or incident** — rare; check their dashboard.
@@ -188,9 +189,10 @@ Mechanics worth knowing:
   workflow's `nightly-release` concurrency group
   (`cancel-in-progress: false`) makes every later run wait — one stuck
   night delays the next by a full day (runs 27367077749 → 27407228486 did
-  exactly this). The `queue-watchdog` job therefore cancels the run after
-  20 minutes when *no* build job has been picked up, and fails loudly
-  (without cancelling) when only some are stuck.
+  exactly this). The `queue-watchdog` job therefore steps in at the
+  20-minute mark: it cancels the run when no build job is actually
+  running (everything stuck in queue or already finished), and fails
+  loudly without cancelling while any build is in progress.
 - Fixing the root cause does not revive already-queued jobs: WarpBuild
   provisions on the `workflow_job.queued` webhook, which has already
   fired. Cancel the stuck run and re-dispatch.
