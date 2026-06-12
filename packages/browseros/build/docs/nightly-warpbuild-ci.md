@@ -21,6 +21,37 @@ apply — but `timeout-minutes` must be set explicitly (the implicit default is
 360). Linux's 150 GB disk is the tightest fit: ~60-75 GB checkout +
 ~25-40 GB out dir + OS image. The workflow prints `df -h` after each build.
 
+## One-time setup (WarpBuild)
+
+The `warpbuildbot` GitHub app is installed org-wide on `browseros-ai`
+(since 2026-06-11). Two more things must be true before any `warp-*` job
+leaves `queued`:
+
+1. **The org must allow self-hosted runners on public repos.** WarpBuild
+   runners register as org-level self-hosted runners, and GitHub blocks
+   those on public repositories by default
+   (https://www.warpbuild.com/docs/ci/public-repos). BrowserOS is public,
+   so an org admin must check: Organization Settings → Actions → Runner
+   groups → Default → "Allow public repositories". Via API (needs
+   `admin:org` scope):
+
+   ```bash
+   gh auth refresh -h github.com -s admin:org
+   gh api orgs/browseros-ai/actions/runner-groups \
+     --jq '.runner_groups[] | {id, name, allows_public_repositories}'
+   gh api -X PATCH "orgs/browseros-ai/actions/runner-groups/<id>" \
+     -F allows_public_repositories=true
+   ```
+
+2. **The WarpBuild org must be active**: sign in at
+   https://app.warpbuild.com/, confirm the `browseros-ai` connection and
+   that billing/credits are set up — runners are not provisioned without
+   an active account.
+
+Smoke test after changing either:
+`gh workflow run "Nightly Release Build" -f platforms=linux`, then watch
+the build job leave `queued` within ~5 minutes (`gh run watch`).
+
 ## Per-night pipeline (per platform)
 
 1. `actions/checkout` + `astral-sh/setup-uv`.
@@ -127,3 +158,39 @@ The first run per platform is the cache warm-up; expect cold timings. If a
 pin bump lands, the next night is cold again for that version. To force a
 fresh checkout, bump the `v1` in the cache key (workflow) — for Windows also
 delete the old object under `ci-cache/chromium/` in R2.
+
+## Troubleshooting: jobs stuck in `queued`
+
+A job no runner ever picked up shows `runner_id: 0` and empty steps:
+
+```bash
+gh run view <run-id> --json jobs --jq '.jobs[] | {name, status}'
+gh api repos/browseros-ai/BrowserOS/actions/jobs/<job-id> \
+  --jq '{status, runner_id, runner_name, labels}'
+```
+
+Causes, in the order to check:
+
+1. **Runner group blocks public repos** — see one-time setup above. This
+   stalls all platforms at once.
+2. **Label not in WarpBuild's catalog** — supported images: Ubuntu
+   22.04/24.04 (x64, arm64), macOS 14/15/26 (arm64), Windows Server 2022
+   (x64) (https://www.warpbuild.com/docs/ci/preinstalled-software). An
+   unsupported label (this workflow once shipped `warp-windows-2025-…`)
+   queues forever; WarpBuild reports no error back to GitHub.
+3. **WarpBuild account** — org connection or billing lapsed
+   (https://app.warpbuild.com/).
+4. **WarpBuild capacity or incident** — rare; check their dashboard.
+
+Mechanics worth knowing:
+
+- GitHub discards self-hosted jobs queued for more than 24h, and the
+  workflow's `nightly-release` concurrency group
+  (`cancel-in-progress: false`) makes every later run wait — one stuck
+  night delays the next by a full day (runs 27367077749 → 27407228486 did
+  exactly this). The `queue-watchdog` job therefore cancels the run after
+  20 minutes when *no* build job has been picked up, and fails loudly
+  (without cancelling) when only some are stuck.
+- Fixing the root cause does not revive already-queued jobs: WarpBuild
+  provisions on the `workflow_job.queued` webhook, which has already
+  fired. Cancel the stuck run and re-dispatch.
