@@ -15,8 +15,7 @@
     "start:ci": "bun src/main.ts",
     "typecheck": "tsc --noEmit",
     "lint": "bunx biome check",
-    "lint:fix": "bunx biome check --write --unsafe",
-    "fallow": "bunx fallow check"
+    "lint:fix": "bunx biome check --write --unsafe"
   },
   "dependencies": {
     "hono": "^4.12.3"
