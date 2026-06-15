@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import {
   detectLineEnding,
+  getBrowserToolOutputDir,
   isBinaryPath,
   normalizeToLF,
+  resolveBrowserToolOutputPath,
+  resolveWorkspacePath,
+  resolveWorkspaceWritePath,
   restoreLineEndings,
   stripBom,
   truncateHead,
@@ -233,5 +237,103 @@ describe('walkFiles', () => {
       files.push(f)
     }
     expect(files.length).toBe(0)
+  })
+})
+
+describe('filesystem path boundaries', () => {
+  let tmpDir: string
+  let outsideDir: string
+
+  beforeEach(async () => {
+    tmpDir = join(
+      tmpdir(),
+      `fs-boundary-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    )
+    outsideDir = join(
+      tmpdir(),
+      `fs-boundary-outside-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    )
+    await mkdir(tmpDir, { recursive: true })
+    await mkdir(outsideDir, { recursive: true })
+  })
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true })
+    await rm(outsideDir, { recursive: true, force: true })
+    await rm(getBrowserToolOutputDir(), { recursive: true, force: true })
+  })
+
+  it('resolves relative workspace paths inside the workspace', async () => {
+    await mkdir(join(tmpDir, 'sub'), { recursive: true })
+    await writeFile(join(tmpDir, 'sub', 'file.txt'), 'ok')
+
+    const expectedPath = await realpath(join(tmpDir, 'sub', 'file.txt'))
+    await expect(resolveWorkspacePath(tmpDir, 'sub/file.txt')).resolves.toBe(
+      expectedPath,
+    )
+  })
+
+  it('rejects absolute workspace paths', async () => {
+    await writeFile(join(tmpDir, 'file.txt'), 'ok')
+
+    await expect(
+      resolveWorkspacePath(tmpDir, join(tmpDir, 'file.txt')),
+    ).rejects.toThrow('relative to the selected workspace')
+  })
+
+  it('rejects traversal outside the workspace', async () => {
+    await writeFile(join(outsideDir, 'secret.txt'), 'secret')
+
+    await expect(
+      resolveWorkspacePath(tmpDir, `../${basename(outsideDir)}/secret.txt`),
+    ).rejects.toThrow('outside the selected workspace')
+  })
+
+  it('rejects symlinks that resolve outside the workspace', async () => {
+    await writeFile(join(outsideDir, 'secret.txt'), 'secret')
+    await symlink(join(outsideDir, 'secret.txt'), join(tmpDir, 'secret-link'))
+
+    await expect(resolveWorkspacePath(tmpDir, 'secret-link')).rejects.toThrow(
+      'outside the selected workspace',
+    )
+  })
+
+  it('allows write targets under an existing workspace parent', async () => {
+    await mkdir(join(tmpDir, 'reports'), { recursive: true })
+
+    const expectedParent = await realpath(join(tmpDir, 'reports'))
+    await expect(
+      resolveWorkspaceWritePath(tmpDir, 'reports/new/deep.txt'),
+    ).resolves.toBe(resolve(expectedParent, 'new', 'deep.txt'))
+  })
+
+  it('rejects write targets below symlinked parents outside the workspace', async () => {
+    await symlink(outsideDir, join(tmpDir, 'outside-link'))
+
+    await expect(
+      resolveWorkspaceWritePath(tmpDir, 'outside-link/new.txt'),
+    ).rejects.toThrow('outside the selected workspace')
+  })
+
+  it('accepts BrowserOS tool output paths under the dedicated output directory', async () => {
+    const outputDir = getBrowserToolOutputDir()
+    await mkdir(outputDir, { recursive: true })
+    const outputPath = join(outputDir, 'snapshot.md')
+    await writeFile(outputPath, 'snapshot')
+
+    await expect(resolveBrowserToolOutputPath(outputPath)).resolves.toBe(
+      outputPath,
+    )
+  })
+
+  it('rejects sibling BrowserOS state paths outside the output directory', async () => {
+    await mkdir(getBrowserToolOutputDir(), { recursive: true })
+    const siblingPath = join(getBrowserToolOutputDir(), '..', 'config.json')
+    await mkdir(join(getBrowserToolOutputDir(), '..'), { recursive: true })
+    await writeFile(siblingPath, '{}')
+
+    await expect(resolveBrowserToolOutputPath(siblingPath)).rejects.toThrow(
+      'outside BrowserOS tool output',
+    )
   })
 })
