@@ -4,8 +4,7 @@ import { type ProviderType, REMOTE_HERMES_PROVIDER_TYPE } from './types'
 
 export type FeatureSupport = (feature: Feature) => boolean
 
-/** Returns true when a provider type should be selectable in AI settings. */
-export function isProviderTypeVisible(
+function isProviderTypeVisible(
   type: ProviderType,
   supports: FeatureSupport,
 ): boolean {
