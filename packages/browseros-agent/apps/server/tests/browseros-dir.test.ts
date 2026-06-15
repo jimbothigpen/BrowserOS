@@ -4,17 +4,27 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PATHS } from '@browseros/shared/constants/paths'
 import {
   ensureBrowserosDir,
+  ensureToolOutputDir,
   getBrowserosDir,
   getCacheDir,
   getDbPath,
   getSessionsDir,
+  getToolOutputDir,
   logDevelopmentBrowserosDir,
+  TOOL_OUTPUT_DIR_MODE,
 } from '../src/lib/browseros-dir'
 import { logger } from '../src/lib/logger'
 
@@ -138,6 +148,27 @@ describe('getBrowserosDir', () => {
       expect(existsSync(join(browserosDir, 'lazy-monitoring', 'runs'))).toBe(
         false,
       )
+    } finally {
+      rmSync(browserosDir, { recursive: true, force: true })
+    }
+  })
+
+  it('locks down the tool output directory permissions', async () => {
+    const browserosDir = mkdtempSync(join(tmpdir(), 'browseros-dir-test-'))
+    process.env.BROWSEROS_DIR = browserosDir
+
+    try {
+      await ensureToolOutputDir()
+      if (process.platform !== 'win32') {
+        chmodSync(getToolOutputDir(), 0o777)
+      }
+
+      const outputDir = await ensureToolOutputDir()
+
+      expect(outputDir).toBe(realpathSync(getToolOutputDir()))
+      if (process.platform !== 'win32') {
+        expect(statSync(outputDir).mode & 0o777).toBe(TOOL_OUTPUT_DIR_MODE)
+      }
     } finally {
       rmSync(browserosDir, { recursive: true, force: true })
     }

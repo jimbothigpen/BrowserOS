@@ -5,6 +5,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -20,6 +21,10 @@ import {
 } from '../../../src/agent/tool-adapter'
 import type { Browser } from '../../../src/browser/browser'
 import type { BrowserSession } from '../../../src/browser/core/session'
+import {
+  TOOL_OUTPUT_DIR_MODE,
+  TOOL_OUTPUT_FILE_MODE,
+} from '../../../src/lib/browseros-dir'
 import {
   defineTool,
   executeTool,
@@ -79,9 +84,16 @@ async function withBrowserosDir<T>(run: () => Promise<T>): Promise<T> {
 
 function expectBrowserToolOutputPath(filePath: string | undefined): void {
   expect(filePath).toBeTruthy()
-  expect(realpathSync(dirname(filePath ?? ''))).toBe(
+  const path = filePath ?? ''
+  expect(realpathSync(dirname(path))).toBe(
     realpathSync(getBrowserToolOutputDir()),
   )
+  if (process.platform !== 'win32') {
+    expect(statSync(getBrowserToolOutputDir()).mode & 0o777).toBe(
+      TOOL_OUTPUT_DIR_MODE,
+    )
+    expect(statSync(path).mode & 0o777).toBe(TOOL_OUTPUT_FILE_MODE)
+  }
 }
 
 describe('registerBrowserTools', () => {

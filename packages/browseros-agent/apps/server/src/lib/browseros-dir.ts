@@ -1,5 +1,6 @@
 import { unlinkSync } from 'node:fs'
 import {
+  chmod,
   lstat,
   mkdir,
   readdir,
@@ -13,6 +14,9 @@ import { join } from 'node:path'
 import { PATHS } from '@browseros/shared/constants/paths'
 import type { ServerDiscoveryConfig } from '@browseros/shared/types/server-config'
 import { logger } from './logger'
+
+export const TOOL_OUTPUT_DIR_MODE = 0o700
+export const TOOL_OUTPUT_FILE_MODE = 0o600
 
 export function getBrowserosDir(): string {
   const override = process.env.BROWSEROS_DIR?.trim()
@@ -59,18 +63,35 @@ async function realToolOutputDir(): Promise<string> {
   if (!info.isDirectory() || info.isSymbolicLink()) {
     throw new Error('BrowserOS tool output directory must be a real directory.')
   }
-  return await realpath(getToolOutputDir())
+  const outputDir = await realpath(getToolOutputDir())
+  await chmod(outputDir, TOOL_OUTPUT_DIR_MODE)
+  return outputDir
 }
 
 /** Ensures large generated tool outputs use a real BrowserOS-owned directory. */
 export async function ensureToolOutputDir(): Promise<string> {
-  await mkdir(getToolOutputDir(), { recursive: true })
+  await mkdir(getToolOutputDir(), {
+    recursive: true,
+    mode: TOOL_OUTPUT_DIR_MODE,
+  })
   return await realToolOutputDir()
 }
 
 /** Resolves the generated tool output directory without creating it. */
 export async function getRealToolOutputDir(): Promise<string> {
   return await realToolOutputDir()
+}
+
+/** Writes a generated tool output file with private owner-only permissions. */
+export async function writeToolOutputFile(
+  filePath: string,
+  content: string,
+): Promise<void> {
+  await writeFile(filePath, content, {
+    encoding: 'utf-8',
+    mode: TOOL_OUTPUT_FILE_MODE,
+  })
+  await chmod(filePath, TOOL_OUTPUT_FILE_MODE)
 }
 
 /** Returns the durable SQLite database path for local BrowserOS server state. */

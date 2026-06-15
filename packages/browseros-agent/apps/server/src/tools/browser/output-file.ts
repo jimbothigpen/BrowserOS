@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
-import { ensureToolOutputDir } from '../../lib/browseros-dir'
+import {
+  ensureToolOutputDir,
+  writeToolOutputFile,
+} from '../../lib/browseros-dir'
 
 function sanitizeSegment(value: string): string {
   const sanitized = value.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '')
@@ -20,6 +23,6 @@ export async function writeTempToolOutputFile(args: {
     `${toolName}-${Date.now()}-${randomUUID()}.${extension}`,
   )
 
-  await Bun.write(filePath, args.content)
+  await writeToolOutputFile(filePath, args.content)
   return filePath
 }
