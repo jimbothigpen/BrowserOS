@@ -71,28 +71,42 @@ describe('registerTools', () => {
   it('samples repeated registration info logs without skipping tool registration', () => {
     for (let i = 0; i < 20; i++) {
       const fake = createFakeServer()
+      const useNewTools = i % 2 === 0
       registerTools(fake.server as never, {
         browser: {} as never,
         browserSession: { pages: {} } as unknown as BrowserSession,
-        useNewTools: i < 5,
+        useNewTools,
       })
 
       if (i === 1) {
-        expect(fake.handlers.has('tabs')).toBe(true)
-        expect(fake.handlers.has('new_page')).toBe(false)
-      }
-      if (i === 10) {
         expect(fake.handlers.has('tabs')).toBe(false)
         expect(fake.handlers.has('new_page')).toBe(true)
+      }
+      if (i === 2) {
+        expect(fake.handlers.has('tabs')).toBe(true)
+        expect(fake.handlers.has('new_page')).toBe(false)
       }
     }
 
     expect(infoMessages).toHaveLength(2)
     expect(infoMessages).toEqual([
       expect.stringContaining('Registered 10 browser tools'),
-      expect.stringContaining('Registered'),
+      expect.stringContaining('Registered 10 browser tools'),
     ])
-    expect(String(infoMessages[1])).toContain('legacy browser tools')
+  })
+
+  it('keeps the legacy registration info log available when sampled in', () => {
+    const fake = createFakeServer()
+
+    registerTools(fake.server as never, {
+      browser: {} as never,
+      browserSession: { pages: {} } as unknown as BrowserSession,
+      useNewTools: false,
+    })
+
+    expect(infoMessages).toEqual([
+      expect.stringContaining('legacy browser tools'),
+    ])
   })
 
   it('registers the new compact browser tools when explicitly enabled', () => {
