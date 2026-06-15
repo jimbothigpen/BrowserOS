@@ -1,5 +1,13 @@
 import { unlinkSync } from 'node:fs'
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  lstat,
+  mkdir,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { PATHS } from '@browseros/shared/constants/paths'
@@ -34,6 +42,35 @@ export function getCacheDir(): string {
 /** Returns the directory used for large generated tool outputs. */
 export function getToolOutputDir(): string {
   return join(getBrowserosDir(), 'tool-output')
+}
+
+async function realToolOutputDir(): Promise<string> {
+  let info: Awaited<ReturnType<typeof lstat>>
+  try {
+    info = await lstat(getToolOutputDir())
+  } catch (error) {
+    if (error instanceof Error && 'code' in error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error('BrowserOS tool output directory does not exist.')
+      }
+    }
+    throw error
+  }
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error('BrowserOS tool output directory must be a real directory.')
+  }
+  return await realpath(getToolOutputDir())
+}
+
+/** Ensures large generated tool outputs use a real BrowserOS-owned directory. */
+export async function ensureToolOutputDir(): Promise<string> {
+  await mkdir(getToolOutputDir(), { recursive: true })
+  return await realToolOutputDir()
+}
+
+/** Resolves the generated tool output directory without creating it. */
+export async function getRealToolOutputDir(): Promise<string> {
+  return await realToolOutputDir()
 }
 
 /** Returns the durable SQLite database path for local BrowserOS server state. */

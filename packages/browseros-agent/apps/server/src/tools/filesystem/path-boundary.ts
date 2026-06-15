@@ -1,6 +1,10 @@
 import { lstat, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve, win32 } from 'node:path'
-import { getBrowserosDir, getToolOutputDir } from '../../lib/browseros-dir'
+import {
+  getBrowserosDir,
+  getRealToolOutputDir,
+  getToolOutputDir,
+} from '../../lib/browseros-dir'
 
 export function getBrowserToolOutputDir(): string {
   return getToolOutputDir()
@@ -12,12 +16,26 @@ function isAbsoluteInput(inputPath: string): boolean {
 
 export function isPathInside(root: string, candidate: string): boolean {
   const rel = relative(root, candidate)
-  return rel === '' || (!rel.startsWith('..') && !isAbsoluteInput(rel))
+  const escapesRoot =
+    rel === '..' || rel.startsWith('../') || rel.startsWith('..\\')
+  return rel === '' || (!escapesRoot && !isAbsoluteInput(rel))
 }
 
-export function isBrowserosStatePath(inputPath: string): boolean {
-  return (
-    isAbsoluteInput(inputPath) && isPathInside(getBrowserosDir(), inputPath)
+export async function isBrowserosStatePath(
+  inputPath: string,
+): Promise<boolean> {
+  if (!isAbsoluteInput(inputPath)) return false
+
+  const stateRoot = resolve(getBrowserosDir())
+  const candidate = resolve(inputPath)
+  if (isPathInside(stateRoot, candidate)) return true
+
+  const realStateRoot = await realpath(stateRoot).catch(() => null)
+  const realCandidate = await realpath(candidate).catch(() => null)
+  return Boolean(
+    realStateRoot &&
+      realCandidate &&
+      isPathInside(realStateRoot, realCandidate),
   )
 }
 
@@ -105,7 +123,7 @@ export async function resolveWorkspaceWritePath(
 export async function resolveBrowserToolOutputPath(
   inputPath: string,
 ): Promise<string> {
-  const outputRoot = await realpath(getBrowserToolOutputDir())
+  const outputRoot = await getRealToolOutputDir()
   const candidate = resolve(inputPath)
   const canonical = await realpath(candidate)
   if (!isPathInside(outputRoot, canonical)) {

@@ -105,7 +105,7 @@ async function resolveReadPath(
   try {
     return await resolveWorkspacePath(cwd, inputPath)
   } catch (error) {
-    if (error instanceof Error && isBrowserosStatePath(inputPath)) {
+    if (error instanceof Error && (await isBrowserosStatePath(inputPath))) {
       return await resolveBrowserToolOutputPath(inputPath)
     }
     throw error

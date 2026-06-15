@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { getToolOutputDir } from '../../lib/browseros-dir'
+import { ensureToolOutputDir } from '../../lib/browseros-dir'
 
 function sanitizeSegment(value: string): string {
   const sanitized = value.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '')
@@ -13,8 +12,7 @@ export async function writeTempToolOutputFile(args: {
   extension: string
   content: string
 }): Promise<string> {
-  const outputDir = getToolOutputDir()
-  await mkdir(outputDir, { recursive: true })
+  const outputDir = await ensureToolOutputDir()
   const toolName = sanitizeSegment(args.toolName)
   const extension = sanitizeSegment(args.extension) || 'txt'
   const filePath = join(

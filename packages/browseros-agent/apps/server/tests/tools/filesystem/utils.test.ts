@@ -243,8 +243,16 @@ describe('walkFiles', () => {
 describe('filesystem path boundaries', () => {
   let tmpDir: string
   let outsideDir: string
+  let browserosDir: string
+  let previousBrowserosDir: string | undefined
 
   beforeEach(async () => {
+    previousBrowserosDir = process.env.BROWSEROS_DIR
+    browserosDir = join(
+      tmpdir(),
+      `fs-boundary-browseros-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    )
+    process.env.BROWSEROS_DIR = browserosDir
     tmpDir = join(
       tmpdir(),
       `fs-boundary-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -255,12 +263,18 @@ describe('filesystem path boundaries', () => {
     )
     await mkdir(tmpDir, { recursive: true })
     await mkdir(outsideDir, { recursive: true })
+    await mkdir(browserosDir, { recursive: true })
   })
 
   afterEach(async () => {
     await rm(tmpDir, { recursive: true, force: true })
     await rm(outsideDir, { recursive: true, force: true })
-    await rm(getBrowserToolOutputDir(), { recursive: true, force: true })
+    await rm(browserosDir, { recursive: true, force: true })
+    if (previousBrowserosDir === undefined) {
+      delete process.env.BROWSEROS_DIR
+    } else {
+      process.env.BROWSEROS_DIR = previousBrowserosDir
+    }
   })
 
   it('resolves relative workspace paths inside the workspace', async () => {
@@ -287,6 +301,16 @@ describe('filesystem path boundaries', () => {
     await expect(
       resolveWorkspacePath(tmpDir, `../${basename(outsideDir)}/secret.txt`),
     ).rejects.toThrow('outside the selected workspace')
+  })
+
+  it('allows workspace entries whose names start with dot dot text', async () => {
+    await mkdir(join(tmpDir, '..notes'), { recursive: true })
+    await writeFile(join(tmpDir, '..notes', 'file.txt'), 'ok')
+
+    const expectedPath = await realpath(join(tmpDir, '..notes', 'file.txt'))
+    await expect(
+      resolveWorkspacePath(tmpDir, '..notes/file.txt'),
+    ).resolves.toBe(expectedPath)
   })
 
   it('rejects symlinks that resolve outside the workspace', async () => {
@@ -335,6 +359,16 @@ describe('filesystem path boundaries', () => {
 
     await expect(resolveBrowserToolOutputPath(siblingPath)).rejects.toThrow(
       'outside BrowserOS tool output',
+    )
+  })
+
+  it('rejects symlinked BrowserOS tool output roots', async () => {
+    await symlink(outsideDir, getBrowserToolOutputDir())
+    const outputPath = join(getBrowserToolOutputDir(), 'snapshot.md')
+    await writeFile(join(outsideDir, 'snapshot.md'), 'snapshot')
+
+    await expect(resolveBrowserToolOutputPath(outputPath)).rejects.toThrow(
+      'BrowserOS tool output directory must be a real directory',
     )
   })
 })

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { TOOL_LIMITS } from '@browseros/shared/constants/limits'
@@ -12,6 +18,7 @@ import {
   buildBrowserToolSet,
   buildLegacyBrowserToolSet,
 } from '../../../src/agent/tool-adapter'
+import type { Browser } from '../../../src/browser/browser'
 import type { BrowserSession } from '../../../src/browser/core/session'
 import {
   defineTool,
@@ -20,7 +27,10 @@ import {
 } from '../../../src/tools/browser/framework'
 import { registerBrowserTools } from '../../../src/tools/browser/register'
 import { BROWSER_TOOLS } from '../../../src/tools/browser/registry'
+import { createReadTool } from '../../../src/tools/filesystem/read'
 import { getBrowserToolOutputDir } from '../../../src/tools/filesystem/utils'
+import { get_page_content as legacyGetPageContent } from '../../../src/tools/legacy/browser/snapshot'
+import { executeTool as executeLegacyTool } from '../../../src/tools/legacy/framework'
 
 type RegisteredHandler = (args: Record<string, unknown>) => Promise<{
   content: unknown
@@ -65,6 +75,13 @@ async function withBrowserosDir<T>(run: () => Promise<T>): Promise<T> {
     }
     rmSync(browserosDir, { recursive: true, force: true })
   }
+}
+
+function expectBrowserToolOutputPath(filePath: string | undefined): void {
+  expect(filePath).toBeTruthy()
+  expect(realpathSync(dirname(filePath ?? ''))).toBe(
+    realpathSync(getBrowserToolOutputDir()),
+  )
 }
 
 describe('registerBrowserTools', () => {
@@ -422,7 +439,7 @@ describe('registerBrowserTools', () => {
         ]),
       )
       const data = result?.structuredContent as { path?: string } | undefined
-      expect(dirname(data?.path ?? '')).toBe(getBrowserToolOutputDir())
+      expectBrowserToolOutputPath(data?.path)
       expect(readFileSync(data?.path ?? '', 'utf8')).toBe(largeText)
     })
   })
@@ -494,9 +511,8 @@ describe('registerBrowserTools', () => {
         writtenToFile: true,
       })
       const savedPath = data?.path
-      expect(savedPath).toBeTruthy()
+      expectBrowserToolOutputPath(savedPath)
       expect(savedPath?.endsWith('.md')).toBe(true)
-      expect(dirname(savedPath ?? '')).toBe(getBrowserToolOutputDir())
       expect(result?.content).toEqual([
         expect.objectContaining({
           type: 'text',
@@ -555,7 +571,7 @@ describe('registerBrowserTools', () => {
           text: expect.stringContaining(savedPath ?? ''),
         }),
       ])
-      expect(dirname(savedPath ?? '')).toBe(getBrowserToolOutputDir())
+      expectBrowserToolOutputPath(savedPath)
       expect(readFileSync(savedPath ?? '', 'utf8')).toContain(largeSnapshot)
     })
   })
@@ -709,6 +725,40 @@ describe('buildBrowserToolSet', () => {
     expect(tools.browseros_info).toBeDefined()
     expect(tools.tabs).toBeUndefined()
     expect(Object.keys(tools).length).toBeGreaterThan(50)
+  })
+
+  it('writes legacy large page content to BrowserOS output files readable by filesystem_read', async () => {
+    await withBrowserosDir(async () => {
+      const largeText = `${'legacy output token\n'.repeat(4)}${'x'.repeat(
+        TOOL_LIMITS.INLINE_PAGE_CONTENT_MAX_CHARS + 1,
+      )}`
+      const browser = {
+        contentAsMarkdown: async () => largeText,
+        getTabIdForPage: () => undefined,
+      } as unknown as Browser
+
+      const result = await executeLegacyTool(
+        legacyGetPageContent,
+        { page: 1 },
+        { browser, directories: {} },
+        AbortSignal.timeout(1_000),
+      )
+      const data = result.structuredContent as { path?: string } | undefined
+      expect(result.isError).toBeUndefined()
+      const savedPath = data?.path
+      expectBrowserToolOutputPath(savedPath)
+
+      const readTool = createReadTool(process.cwd())
+      const readResult = (await readTool.execute?.(
+        { path: savedPath as string },
+        {
+          toolCallId: 'read-legacy-output',
+          messages: [],
+        } as never,
+      )) as { text?: string; isError?: boolean }
+      expect(readResult.isError).toBeUndefined()
+      expect(readResult.text).toContain('legacy output token')
+    })
   })
 
   it('uses legacy tool names for legacy chat-mode filtering', () => {
