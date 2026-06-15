@@ -18,6 +18,8 @@ import {
 import { useLlmProviders } from '@/modules/llm-providers/llm-providers.hooks'
 import { useActiveHint } from '@/screens/newtab/index/active-hint.hooks'
 import { ImportDataHint } from '@/screens/newtab/index/ImportDataHint'
+import { RecentSites } from '@/screens/newtab/index/RecentSites'
+import { ScheduleResults } from '@/screens/newtab/index/ScheduleResults'
 import { SignInHint } from '@/screens/newtab/index/SignInHint'
 import {
   ConversationInput,
@@ -168,6 +170,11 @@ export const AgentCommandHome: FC = () => {
               }
             />
           </div>
+        </div>
+
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 pb-12">
+          <RecentSites />
+          <ScheduleResults />
         </div>
       </div>
 

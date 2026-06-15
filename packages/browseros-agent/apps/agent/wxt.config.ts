@@ -54,6 +54,7 @@ export default defineConfig({
       default_title: 'Ask BrowserOS',
     },
     permissions: [
+      'topSites',
       'storage',
       'unlimitedStorage',
       'scripting',
