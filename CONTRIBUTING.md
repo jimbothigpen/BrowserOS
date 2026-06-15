@@ -198,7 +198,7 @@ export type ToolInput = z.infer<typeof ToolInputSchema>
 - Handle errors gracefully
 
 **For detailed standards:**
-- Agent: [packages/browseros-agent/README.md](packages/browseros-agent/README.md) and app-specific `CLAUDE.md` files under `packages/browseros-agent/apps/`
+- Agent: [packages/browseros-agent/CLAUDE.md](packages/browseros-agent/CLAUDE.md)
 - Browser: Follow Chromium style guide
 
 ## Project Structure
