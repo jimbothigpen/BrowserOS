@@ -36,6 +36,7 @@ const fakeProvider = {
 }
 
 const mkdirCalls: Array<{ path: string; opts: { recursive?: boolean } }> = []
+let lastInstructionArgs: Record<string, unknown> | null = null
 
 mock.module('node:fs/promises', () => ({
   mkdir: async (path: string, opts: { recursive?: boolean }) => {
@@ -43,9 +44,15 @@ mock.module('node:fs/promises', () => ({
   },
 }))
 
+mock.module('../../src/agent/acp-instructions', () => ({
+  ensureWorkspaceInstructionFile: async (opts: Record<string, unknown>) => {
+    lastInstructionArgs = opts
+    return { action: 'skipped-not-new-conversation' }
+  },
+}))
+
 mock.module('../../src/lib/browseros-dir', () => ({
   getBrowserosDir: () => join(homedir(), '.browseros-test'),
-  getSoulPath: () => join(homedir(), '.browseros-test', 'SOUL.md'),
 }))
 
 mock.module('../../src/lib/agents/acpx-provider/buildAcpxProvider', () => ({
@@ -75,6 +82,7 @@ beforeEach(() => {
   rejectModes = []
   omitRuntimeSetMode = false
   mkdirCalls.length = 0
+  lastInstructionArgs = null
 })
 
 describe('createLanguageModel — ACP providers', () => {
@@ -221,6 +229,18 @@ describe('createLanguageModel — ACP providers', () => {
         'opus-high-uuid-1',
       ),
     )
+  })
+
+  it('does not pass legacy root soul content to ACP instruction prompts', async () => {
+    await createLanguageModel({
+      ...baseConfig(),
+      isNewConversation: true,
+    } as never)
+    const promptOptions = lastInstructionArgs?.promptOptions as
+      | Record<string, unknown>
+      | undefined
+    expect(promptOptions).toBeDefined()
+    expect(promptOptions).not.toHaveProperty('soulContent')
   })
 
   it('isolates two providers of the same type into different directories', async () => {

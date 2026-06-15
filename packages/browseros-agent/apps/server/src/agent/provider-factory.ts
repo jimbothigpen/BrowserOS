@@ -31,7 +31,6 @@ import { createOpenRouterCompatibleFetch } from '../lib/openrouter-fetch'
 import { ensureWorkspaceInstructionFile } from './acp-instructions'
 import { ACP_PROVIDER_TYPES, isAcpProvider } from './acp-providers'
 import type { BuildSystemPromptOptions } from './prompt'
-import { readSoulPrompt } from './soul-prompt'
 import type { ResolvedAgentConfig } from './types'
 
 export { isAcpProvider }
@@ -112,7 +111,6 @@ async function createAcpLanguageModel(
     userSystemPrompt: config.userSystemPrompt,
     chatMode: config.chatMode,
     isScheduledTask: config.isScheduledTask,
-    soulContent: await readSoulPrompt(),
     declinedApps: config.declinedApps,
     origin: config.origin,
     acpMode: true,

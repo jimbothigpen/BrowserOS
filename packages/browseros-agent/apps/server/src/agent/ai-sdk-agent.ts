@@ -38,7 +38,6 @@ import {
 import { buildNudgeToolSet } from './nudge-tools'
 import { buildSystemPrompt } from './prompt'
 import { createLanguageModel } from './provider-factory'
-import { readSoulPrompt } from './soul-prompt'
 import { buildBrowserToolSet, buildLegacyBrowserToolSet } from './tool-adapter'
 import type { ResolvedAgentConfig } from './types'
 
@@ -246,15 +245,12 @@ export class AiSdkAgent {
     ) {
       excludeSections.push('nudges')
     }
-    const soulContent = await readSoulPrompt()
-
     const instructions = buildSystemPrompt({
       userSystemPrompt: config.resolvedConfig.userSystemPrompt,
       exclude: excludeSections,
       isScheduledTask: config.resolvedConfig.isScheduledTask,
       scheduledTaskPageId: config.browserContext?.activeTab?.pageId,
       workspaceDir: config.resolvedConfig.workingDir,
-      soulContent,
       chatMode: config.resolvedConfig.chatMode,
       connectedApps: config.browserContext?.enabledMcpServers,
       declinedApps: config.resolvedConfig.declinedApps,
