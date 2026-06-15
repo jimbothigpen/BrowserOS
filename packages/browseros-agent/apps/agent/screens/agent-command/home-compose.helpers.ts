@@ -14,7 +14,7 @@ export type HomeSendRoute =
 export function routeHomeSend(
   provider: Provider,
   text: string,
-  options: { agentSessionId?: string } = {},
+  options: { agentSessionId?: string; selectedTabs?: chrome.tabs.Tab[] } = {},
 ): HomeSendRoute | null {
   const query = text.trim()
   if (!query) return null
@@ -29,9 +29,13 @@ export function routeHomeSend(
       path: `/home/agents/${provider.agentId}/sessions/${options.agentSessionId}?q=${encoded}`,
     }
   }
+  const tabIds = options.selectedTabs
+    ?.map((tab) => tab.id)
+    .filter((id): id is number => id !== undefined)
+  const tabsParam = tabIds?.length ? `&tabs=${tabIds.join(',')}` : ''
   return {
     kind: 'llm',
     providerId: provider.id,
-    path: `/home/chat?q=${encoded}`,
+    path: `/home/chat?q=${encoded}${tabsParam}`,
   }
 }

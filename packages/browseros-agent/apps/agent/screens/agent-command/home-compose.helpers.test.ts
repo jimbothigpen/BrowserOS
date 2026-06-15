@@ -43,6 +43,18 @@ describe('routeHomeSend', () => {
     )
   })
 
+  it('includes selected tab ids for LLM chat handoff', () => {
+    expect(
+      routeHomeSend(llm, 'summarize these', {
+        selectedTabs: [
+          { id: 11 } as chrome.tabs.Tab,
+          { url: 'https://browseros.com' } as chrome.tabs.Tab,
+          { id: 12 } as chrome.tabs.Tab,
+        ],
+      })?.path,
+    ).toBe('/home/chat?q=summarize%20these&tabs=11,12')
+  })
+
   it('returns null for an empty prompt', () => {
     expect(routeHomeSend(llm, '   ')).toBeNull()
   })

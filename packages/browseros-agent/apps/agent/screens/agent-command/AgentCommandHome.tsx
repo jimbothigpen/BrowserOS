@@ -83,6 +83,7 @@ export const AgentCommandHome: FC = () => {
       selectedProvider.kind === 'acp' ? crypto.randomUUID() : undefined
     const route = routeHomeSend(selectedProvider, input.text, {
       agentSessionId,
+      selectedTabs: input.selectedTabs,
     })
     if (!route) return
     if (route.kind === 'acp') {
