@@ -1,7 +1,13 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 
 const prefRequests: string[] = []
 const MCP_PORT_PREF = 'browseros.server.mcp_port'
+let originalChrome: typeof globalThis.chrome | undefined
+
+function readPref(name: string): { value: unknown } {
+  prefRequests.push(name)
+  return name === MCP_PORT_PREF ? { value: 9105 } : { value: null }
+}
 
 mock.module('./prefs', () => ({
   BROWSEROS_PREFS: {
@@ -22,24 +28,41 @@ mock.module('./prefs', () => ({
 mock.module('./adapter', () => ({
   BrowserOSAdapter: {
     getInstance: () => ({
-      getPref: async (name: string) => {
-        prefRequests.push(name)
-        return name === MCP_PORT_PREF ? { value: 9105 } : { value: null }
-      },
+      getPref: async (name: string) => readPref(name),
       getBrowserosVersion: async () => null,
     }),
   },
   getBrowserOSAdapter: () => ({
-    getPref: async (name: string) => {
-      prefRequests.push(name)
-      return name === MCP_PORT_PREF ? { value: 9105 } : { value: null }
-    },
+    getPref: async (name: string) => readPref(name),
   }),
 }))
 
 describe('getAgentServerUrl', () => {
   beforeEach(() => {
     prefRequests.length = 0
+    originalChrome = globalThis.chrome
+    Object.assign(globalThis, {
+      chrome: {
+        ...originalChrome,
+        browserOS: {
+          ...originalChrome?.browserOS,
+          getPref: (
+            name: string,
+            resolve: (result: { value: unknown }) => void,
+          ) => {
+            resolve(readPref(name))
+          },
+        },
+      },
+    })
+  })
+
+  afterEach(() => {
+    if (originalChrome) {
+      Object.assign(globalThis, { chrome: originalChrome })
+      return
+    }
+    Reflect.deleteProperty(globalThis, 'chrome')
   })
 
   it('uses the BrowserOS MCP port as the server URL', async () => {
