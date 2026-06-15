@@ -4,6 +4,20 @@ export type HomeSendRoute =
   | { kind: 'llm'; providerId: string; path: string }
   | { kind: 'acp'; agentId: string; path: string }
 
+export type HomeLlmRoutingMode = 'wait' | 'inline-chat' | 'sidepanel'
+
+/** Resolves whether an LLM home send should wait, use inline chat, or fall back. */
+export function resolveHomeLlmRoutingMode({
+  capabilitiesLoading,
+  supportsInlineChat,
+}: {
+  capabilitiesLoading: boolean
+  supportsInlineChat: boolean
+}): HomeLlmRoutingMode {
+  if (capabilitiesLoading) return 'wait'
+  return supportsInlineChat ? 'inline-chat' : 'sidepanel'
+}
+
 /**
  * Decide where a home-composer submission goes from the selected target.
  * LLM providers run in the in-tab provider chat (`/home/chat`); named agents
@@ -36,6 +50,6 @@ export function routeHomeSend(
   return {
     kind: 'llm',
     providerId: provider.id,
-    path: `/home/chat?q=${encoded}${tabsParam}`,
+    path: `/home/chat?q=${encoded}&mode=chat${tabsParam}`,
   }
 }

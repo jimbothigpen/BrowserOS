@@ -23,7 +23,10 @@ import {
   ConversationInput,
   type ConversationInputSendInput,
 } from './ConversationInput'
-import { routeHomeSend } from './home-compose.helpers'
+import {
+  resolveHomeLlmRoutingMode,
+  routeHomeSend,
+} from './home-compose.helpers'
 import { setPendingInitialMessage } from './pending-initial-message'
 
 export const AgentCommandHome: FC = () => {
@@ -36,14 +39,20 @@ export const AgentCommandHome: FC = () => {
   } = useLlmProviders()
   const { harnessAgents } = useHarnessAgents()
   const { adapters } = useAgentAdapters()
-  const { supports } = useCapabilities()
+  const { supports, isLoading: capabilitiesLoading } = useCapabilities()
   const hermesAgentSupported = supports(Feature.HERMES_AGENT_SUPPORT)
   const supportsInlineChat =
     supports(Feature.ALPHA_FEATURES_SUPPORT) &&
     supports(Feature.NEWTAB_CHAT_SUPPORT)
+  const llmRoutingMode = resolveHomeLlmRoutingMode({
+    capabilitiesLoading,
+    supportsInlineChat,
+  })
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(
     null,
   )
+  const waitingForLlmCapabilities =
+    selectedProvider?.kind === 'llm' && llmRoutingMode === 'wait'
 
   const targets = useMemo(
     () =>
@@ -79,6 +88,7 @@ export const AgentCommandHome: FC = () => {
 
   const handleSend = async (input: ConversationInputSendInput) => {
     if (!selectedProvider) return
+    if (selectedProvider.kind === 'llm' && llmRoutingMode === 'wait') return
     const agentSessionId =
       selectedProvider.kind === 'acp' ? crypto.randomUUID() : undefined
     const route = routeHomeSend(selectedProvider, input.text, {
@@ -107,7 +117,7 @@ export const AgentCommandHome: FC = () => {
     )
     await persistSidepanelChatTargetSelection(target)
     await setDefaultProvider(route.providerId)
-    if (!supportsInlineChat) {
+    if (llmRoutingMode === 'sidepanel') {
       const action = createBrowserOSAction({
         mode: 'chat',
         message: input.text,
@@ -149,7 +159,7 @@ export const AgentCommandHome: FC = () => {
               onSelectProvider={setSelectedProvider}
               onSend={handleSend}
               streaming={false}
-              disabled={!selectedProvider}
+              disabled={!selectedProvider || waitingForLlmCapabilities}
               attachmentsEnabled={true}
               placeholder={
                 selectedProvider
