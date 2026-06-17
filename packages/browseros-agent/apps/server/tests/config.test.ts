@@ -50,7 +50,7 @@ describe('loadServerConfig', () => {
       assert.strictEqual(result.value.cdpPort, 9222)
       assert.strictEqual(result.value.serverPort, 9223)
       assert.strictEqual(result.value.agentPort, 9223)
-      assert.strictEqual('extensionPort' in result.value, false)
+      assert.strictEqual(result.value.extensionPort, 9224)
       assert.strictEqual(result.value.mcpAllowRemote, false)
     })
 
@@ -77,7 +77,7 @@ describe('loadServerConfig', () => {
       assert.strictEqual(result.ok, true)
       if (!result.ok) return
       assert.strictEqual(result.value.cdpPort, null)
-      assert.strictEqual('extensionPort' in result.value, false)
+      assert.strictEqual(result.value.extensionPort, null)
     })
 
     it('warns when --extension-port is provided', () => {
@@ -119,7 +119,7 @@ describe('loadServerConfig', () => {
       assert.strictEqual(result.value.serverPort, 9223)
       // agentPort is deprecated - always equals serverPort
       assert.strictEqual(result.value.agentPort, 9223)
-      assert.strictEqual('extensionPort' in result.value, false)
+      assert.strictEqual(result.value.extensionPort, 9224)
     })
 
     it('CLI takes precedence over env', () => {
@@ -138,7 +138,7 @@ describe('loadServerConfig', () => {
       assert.strictEqual(result.value.serverPort, 1111)
       // agentPort is deprecated - always equals serverPort
       assert.strictEqual(result.value.agentPort, 1111)
-      assert.strictEqual('extensionPort' in result.value, false)
+      assert.strictEqual(result.value.extensionPort, 3333)
     })
   })
 
@@ -171,7 +171,7 @@ describe('loadServerConfig', () => {
       assert.strictEqual(result.value.serverPort, 3000)
       // agentPort is deprecated - always equals serverPort
       assert.strictEqual(result.value.agentPort, 3000)
-      assert.strictEqual('extensionPort' in result.value, false)
+      assert.strictEqual(result.value.extensionPort, 3002)
       assert.strictEqual(result.value.mcpAllowRemote, true)
     })
 
@@ -420,7 +420,7 @@ describe('loadServerConfig', () => {
       assert.strictEqual(result.value.agentPort, result.value.serverPort)
     })
 
-    it('does not expose deprecated extensionPort', () => {
+    it('defaults extensionPort to null', () => {
       const result = loadServerConfig([
         'bun',
         'src/index.ts',
@@ -429,7 +429,7 @@ describe('loadServerConfig', () => {
 
       assert.strictEqual(result.ok, true)
       if (!result.ok) return
-      assert.strictEqual('extensionPort' in result.value, false)
+      assert.strictEqual(result.value.extensionPort, null)
     })
 
     it('defaults aiSdkDevtoolsEnabled to false', () => {

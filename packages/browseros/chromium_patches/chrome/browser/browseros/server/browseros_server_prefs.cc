@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/browseros/server/browseros_server_prefs.cc b/chrome/browser/browseros/server/browseros_server_prefs.cc
 new file mode 100644
-index 0000000000000..2dfba7e9914ab
+index 0000000000000..8c3a459477837
 --- /dev/null
 +++ b/chrome/browser/browseros/server/browseros_server_prefs.cc
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,49 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -23,6 +23,9 @@ index 0000000000000..2dfba7e9914ab
 +// Sidecar backend server port
 +const char kServerPort[] = "browseros.server.server_port";
 +
++// Extension WebSocket server port
++const char kExtensionServerPort[] = "browseros.server.extension_port";
++
 +// Allow remote connections to MCP server (security setting)
 +const char kAllowRemoteInMCP[] = "browseros.server.allow_remote_in_mcp";
 +
@@ -40,6 +43,7 @@ index 0000000000000..2dfba7e9914ab
 +  registry->RegisterIntegerPref(kCDPServerPort, kDefaultCDPPort);
 +  registry->RegisterIntegerPref(kProxyPort, kDefaultProxyPort);
 +  registry->RegisterIntegerPref(kServerPort, kDefaultServerPort);
++  registry->RegisterIntegerPref(kExtensionServerPort, kDefaultExtensionPort);
 +  registry->RegisterBooleanPref(kAllowRemoteInMCP, false);
 +  registry->RegisterBooleanPref(kRestartServerRequested, false);
 +  registry->RegisterStringPref(kServerVersion, std::string());

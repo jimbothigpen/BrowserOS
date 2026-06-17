@@ -9,6 +9,7 @@ const config = {
   cdpPort: 9222,
   serverPort: 9100,
   agentPort: 9100,
+  extensionPort: null,
   resourcesDir: '/tmp/browseros-resources',
   executionDir: '/tmp/browseros-execution',
   mcpAllowRemote: false,

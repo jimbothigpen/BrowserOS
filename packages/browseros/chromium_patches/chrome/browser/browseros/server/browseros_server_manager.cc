@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/browseros/server/browseros_server_manager.cc b/chrome/browser/browseros/server/browseros_server_manager.cc
 new file mode 100644
-index 0000000000000..4d90d805f963e
+index 0000000000000..069d1b79d6ae2
 --- /dev/null
 +++ b/chrome/browser/browseros/server/browseros_server_manager.cc
-@@ -0,0 +1,1116 @@
+@@ -0,0 +1,1120 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -292,7 +292,10 @@ index 0000000000000..4d90d805f963e
 +    ports_.server = browseros_server::kDefaultServerPort;
 +  }
 +
-+  ports_.extension = browseros_server::kDefaultExtensionPort;
++  ports_.extension = local_state_->GetInteger(browseros_server::kExtensionServerPort);
++  if (ports_.extension <= 0) {
++    ports_.extension = browseros_server::kDefaultExtensionPort;
++  }
 +
 +  allow_remote_in_mcp_ = local_state_->GetBoolean(browseros_server::kAllowRemoteInMCP);
 +
@@ -404,6 +407,7 @@ index 0000000000000..4d90d805f963e
 +  local_state_->SetInteger(browseros_server::kCDPServerPort, ports_.cdp);
 +  local_state_->SetInteger(browseros_server::kProxyPort, ports_.proxy);
 +  local_state_->SetInteger(browseros_server::kServerPort, ports_.server);
++  local_state_->SetInteger(browseros_server::kExtensionServerPort, ports_.extension);
 +
 +  // DEPRECATED: keep mcp_port in sync with server port for backward compat
 +  local_state_->SetInteger(browseros_server::kMCPServerPort, ports_.server);

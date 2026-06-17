@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/browseros/core/browseros_constants.h b/chrome/browser/browseros/core/browseros_constants.h
 new file mode 100644
-index 0000000000000..db7b6c9a04290
+index 0000000000000..fdeee36f8cc70
 --- /dev/null
 +++ b/chrome/browser/browseros/core/browseros_constants.h
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,227 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -39,6 +39,10 @@ index 0000000000000..db7b6c9a04290
 +// Bug Reporter Extension ID
 +inline constexpr char kBugReporterExtensionId[] =
 +    "adlpneommgkgeanpaekgoaolcpncohkf";
++
++// Controller Extension ID
++inline constexpr char kControllerExtensionId[] =
++    "nlnihljpboknmfagkikhkdblbedophja";
 +
 +// uBlock Origin Extension ID (Chrome Web Store)
 +// inline constexpr char kUBlockOriginExtensionId[] =
@@ -169,6 +173,7 @@ index 0000000000000..db7b6c9a04290
 +inline constexpr BrowserOSExtensionInfo kBrowserOSExtensions[] = {
 +    {kAgentExtensionId, false, false},
 +    {kBugReporterExtensionId, true, false},
++    {kControllerExtensionId, false, false},
 +    // ublock origin gets installed from chrome web store
 +    // {kUBlockOriginExtensionId, false, false},
 +};
@@ -208,28 +213,12 @@ index 0000000000000..db7b6c9a04290
 +  return extension_id == kAgentExtensionId;
 +}
 +
++// Get all BrowserOS extension IDs
 +inline std::vector<std::string> GetBrowserOSExtensionIds() {
 +  std::vector<std::string> ids;
 +  ids.reserve(kBrowserOSExtensionsCount);
 +  for (const auto& info : kBrowserOSExtensions)
 +    ids.push_back(info.id);
-+  return ids;
-+}
-+
-+inline constexpr std::string_view kDeprecatedBrowserOSExtensions[] = {
-+    "nlnihljpboknmfagkikhkdblbedophja",
-+};
-+
-+inline constexpr size_t kDeprecatedBrowserOSExtensionsCount =
-+    sizeof(kDeprecatedBrowserOSExtensions) /
-+    sizeof(kDeprecatedBrowserOSExtensions[0]);
-+
-+// Returns BrowserOS-managed IDs that should be removed, not installed.
-+inline std::vector<std::string> GetDeprecatedBrowserOSExtensionIds() {
-+  std::vector<std::string> ids;
-+  ids.reserve(kDeprecatedBrowserOSExtensionsCount);
-+  for (std::string_view id : kDeprecatedBrowserOSExtensions)
-+    ids.push_back(std::string(id));
 +  return ids;
 +}
 +
