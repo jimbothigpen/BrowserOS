@@ -43,15 +43,57 @@ describe('database initialization', () => {
     expect(second).toBe(first)
   })
 
-  it('fails clearly when an explicit migration directory is missing', () => {
+  it('bootstraps the current schema when migration files are unavailable', () => {
     const dir = mkTempDir()
+    const handle = initializeDb({
+      dbPath: join(dir, 'browseros.sqlite'),
+      migrationsDir: join(dir, 'missing-migrations'),
+    })
 
-    expect(() =>
-      initializeDb({
-        dbPath: join(dir, 'browseros.sqlite'),
-        migrationsDir: join(dir, 'missing-migrations'),
-      }),
-    ).toThrow(/Drizzle migrations directory not found/)
+    const tables = handle.sqlite
+      .query<{ name: string }, []>(
+        `
+          SELECT name FROM sqlite_master
+          WHERE type = 'table'
+            AND name IN (
+              'agent_definitions',
+              'oauth_tokens',
+              'produced_files',
+              '__drizzle_migrations'
+            )
+          ORDER BY name
+        `,
+      )
+      .all()
+      .map((row) => row.name)
+
+    expect(tables).toEqual([
+      '__drizzle_migrations',
+      'agent_definitions',
+      'oauth_tokens',
+      'produced_files',
+    ])
+    expect(
+      handle.sqlite
+        .query<{ count: number }, []>(
+          'SELECT COUNT(*) AS count FROM __drizzle_migrations',
+        )
+        .get()?.count,
+    ).toBe(3)
+    expect(handle.db.select().from(agentDefinitions).all()).toEqual([])
+  })
+
+  it('does not rerun old migrations after fallback schema bootstrap', () => {
+    const dir = mkTempDir()
+    const dbPath = join(dir, 'browseros.sqlite')
+
+    initializeDb({
+      dbPath,
+      migrationsDir: join(dir, 'missing-migrations'),
+    })
+    closeDb()
+
+    expect(() => initializeDb({ dbPath })).not.toThrow()
   })
 
   function mkTempDir(): string {

@@ -16,7 +16,7 @@ export type BrowserOsDatabase = BunSQLiteDatabase<typeof schema>
 
 export interface DbHandle {
   path: string
-  migrationsDir: string
+  migrationsDir: string | null
   sqlite: BunDatabase
   db: BrowserOsDatabase
 }
@@ -43,7 +43,11 @@ export function openBrowserOsDatabase(options: OpenDbOptions): DbHandle {
 
   const db = drizzle(sqlite, { schema })
   if (options.runMigrations !== false) {
-    migrate(db, { migrationsFolder: migrationsDir })
+    if (migrationsDir) {
+      migrate(db, { migrationsFolder: migrationsDir })
+    } else {
+      bootstrapCurrentSchema(sqlite)
+    }
   }
 
   return {
@@ -57,12 +61,10 @@ export function openBrowserOsDatabase(options: OpenDbOptions): DbHandle {
 /** Resolves migrations from explicit test paths, packaged resources, or the source tree. */
 export function resolveMigrationsDir(
   options: Pick<OpenDbOptions, 'migrationsDir' | 'resourcesDir'> = {},
-): string {
+): string | null {
   if (options.migrationsDir) {
     if (existsSync(options.migrationsDir)) return options.migrationsDir
-    throw new Error(
-      `Drizzle migrations directory not found. Checked: ${options.migrationsDir}`,
-    )
+    return null
   }
 
   const candidates = [
@@ -76,7 +78,132 @@ export function resolveMigrationsDir(
     if (existsSync(candidate)) return candidate
   }
 
-  throw new Error(
-    `Drizzle migrations directory not found. Checked: ${candidates.join(', ')}`,
-  )
+  return null
 }
+
+/** Creates the current schema when packaged builds lack migration files, and marks those migrations applied. */
+function bootstrapCurrentSchema(sqlite: BunDatabase): void {
+  sqlite.exec('BEGIN')
+  try {
+    for (const statement of currentSchemaStatements) {
+      sqlite.exec(statement)
+    }
+    for (const migration of currentMigrationHistory) {
+      sqlite.exec(`
+        INSERT INTO __drizzle_migrations ("hash", "created_at")
+        SELECT '${migration.hash}', ${migration.createdAt}
+        WHERE NOT EXISTS (
+          SELECT 1 FROM __drizzle_migrations
+          WHERE created_at = ${migration.createdAt}
+        )
+      `)
+    }
+    sqlite.exec('COMMIT')
+  } catch (error) {
+    sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+const currentMigrationHistory = [
+  {
+    hash: 'aadfc2e86410febb11a974d25d99d5f7196aa797d9635ced9a18cd4eeb503b61',
+    createdAt: 1777750582590,
+  },
+  {
+    hash: '19e693f7b1adcd1d932fa6cf5638b5b158c66ea5de4f154bc59311f4d6f71261',
+    createdAt: 1777752799806,
+  },
+  {
+    hash: '02b11bf1dc34a5a289efd216233a48f0b7b950cfc33eaa7ebe6dcbb15d07f75c',
+    createdAt: 1777902205667,
+  },
+]
+
+const currentSchemaStatements = [
+  `
+    CREATE TABLE IF NOT EXISTS agent_definitions (
+      id text PRIMARY KEY NOT NULL,
+      name text NOT NULL,
+      adapter text NOT NULL,
+      model_id text NOT NULL,
+      reasoning_effort text NOT NULL,
+      permission_mode text DEFAULT 'approve-all' NOT NULL,
+      session_key text NOT NULL,
+      pinned integer DEFAULT false NOT NULL,
+      adapter_config_json text,
+      created_at integer NOT NULL,
+      updated_at integer NOT NULL
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS agent_definitions_session_key_unique
+    ON agent_definitions (session_key)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS agent_definitions_updated_at_idx
+    ON agent_definitions (updated_at)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS agent_definitions_adapter_updated_at_idx
+    ON agent_definitions (adapter, updated_at)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      browseros_id text NOT NULL,
+      provider text NOT NULL,
+      access_token text NOT NULL,
+      refresh_token text NOT NULL,
+      expires_at integer NOT NULL,
+      email text,
+      account_id text,
+      updated_at integer NOT NULL,
+      PRIMARY KEY (browseros_id, provider)
+    )
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS oauth_tokens_browseros_id_idx
+    ON oauth_tokens (browseros_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS produced_files (
+      id text PRIMARY KEY NOT NULL,
+      agent_definition_id text NOT NULL,
+      session_key text NOT NULL,
+      turn_id text NOT NULL,
+      turn_prompt text NOT NULL,
+      path text NOT NULL,
+      size integer NOT NULL,
+      mtime_ms integer NOT NULL,
+      created_at integer NOT NULL,
+      detected_by text DEFAULT 'diff' NOT NULL,
+      FOREIGN KEY (agent_definition_id)
+        REFERENCES agent_definitions(id)
+        ON UPDATE no action
+        ON DELETE cascade
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS produced_files_agent_path_unique
+    ON produced_files (agent_definition_id, path)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS produced_files_agent_created_idx
+    ON produced_files (agent_definition_id, created_at)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS produced_files_turn_idx
+    ON produced_files (turn_id)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS produced_files_session_idx
+    ON produced_files (session_key)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id SERIAL PRIMARY KEY,
+      hash text NOT NULL,
+      created_at numeric
+    )
+  `,
+]
