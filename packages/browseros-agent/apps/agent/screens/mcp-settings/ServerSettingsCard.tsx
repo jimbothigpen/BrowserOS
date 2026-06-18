@@ -59,7 +59,8 @@ export const ServerSettingsCard: FC<ServerSettingsCardProps> = ({
             const res = await fetch(`${baseUrl}/mcp-manager/settings`)
             if (res.ok && active) {
               const data = await res.json()
-              const savedHost = data.savedSettings?.serverHost || data.activeHost || '0.0.0.0'
+              const savedHost =
+                data.savedSettings?.serverHost || data.activeHost || '0.0.0.0'
               setHost(savedHost)
               if (!initialPort && data.activePort) {
                 initialPort = String(data.activePort)
@@ -109,7 +110,10 @@ export const ServerSettingsCard: FC<ServerSettingsCardProps> = ({
         const response = await fetch(`${baseUrl}/mcp-manager/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serverHost: trimmedHost, serverPort: parsedPort }),
+          body: JSON.stringify({
+            serverHost: trimmedHost,
+            serverPort: parsedPort,
+          }),
         })
         if (!response.ok) {
           throw new Error('Failed to save settings to server config file')
@@ -134,10 +138,14 @@ export const ServerSettingsCard: FC<ServerSettingsCardProps> = ({
         toast.success('Server settings updated and restarted successfully')
         onSettingsSaved?.()
       } else {
-        toast.warning('Settings saved, but server did not respond. Try restarting the browser.')
+        toast.warning(
+          'Settings saved, but server did not respond. Try restarting the browser.',
+        )
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update settings')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update settings',
+      )
     } finally {
       setSaving(false)
     }
@@ -160,7 +168,9 @@ export const ServerSettingsCard: FC<ServerSettingsCardProps> = ({
           <Network className="h-5 w-5" />
         </div>
         <div>
-          <CardTitle className="font-semibold text-lg">Connection Settings</CardTitle>
+          <CardTitle className="font-semibold text-lg">
+            Connection Settings
+          </CardTitle>
           <CardDescription className="text-muted-foreground text-sm">
             Configure the host IP address and port that BrowserOS uses.
           </CardDescription>
@@ -179,7 +189,8 @@ export const ServerSettingsCard: FC<ServerSettingsCardProps> = ({
                 onChange={(e) => setHost(e.target.value)}
               />
               <p className="text-muted-foreground text-xs">
-                Set to <code>127.0.0.1</code> for local-only, or <code>0.0.0.0</code> to allow other machines to connect.
+                Set to <code>127.0.0.1</code> for local-only, or{' '}
+                <code>0.0.0.0</code> to allow other machines to connect.
               </p>
             </div>
             <div className="space-y-2">
@@ -193,7 +204,8 @@ export const ServerSettingsCard: FC<ServerSettingsCardProps> = ({
                 onChange={(e) => setPort(e.target.value)}
               />
               <p className="text-muted-foreground text-xs">
-                The port external MCP clients connect to. Saving will restart the server.
+                The port external MCP clients connect to. Saving will restart
+                the server.
               </p>
             </div>
           </div>

@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { join } from 'node:path'
 import { Hono } from 'hono'
+import { getBrowserosDir } from '../../lib/browseros-dir'
 import {
   humaniseInstallError,
   installInto,
   listAgents,
   uninstallFrom,
 } from '../../lib/mcp-manager'
-
-import { join } from 'node:path'
-import { getBrowserosDir } from '../../lib/browseros-dir'
 
 interface McpManagerRouteOptions {
   /**
@@ -50,13 +49,20 @@ export function createMcpManagerRoutes(options: McpManagerRouteOptions) {
       try {
         const body = await c.req.json()
         const serverHost = body.serverHost?.trim()
-        const serverPort = body.serverPort !== undefined ? Number(body.serverPort) : undefined
+        const serverPort =
+          body.serverPort !== undefined ? Number(body.serverPort) : undefined
 
-        if (serverHost !== undefined && (typeof serverHost !== 'string' || serverHost.length === 0)) {
+        if (
+          serverHost !== undefined &&
+          (typeof serverHost !== 'string' || serverHost.length === 0)
+        ) {
           return c.json({ success: false, message: 'Invalid host' }, 400)
         }
 
-        if (serverPort !== undefined && (Number.isNaN(serverPort) || serverPort < 1024 || serverPort > 65535)) {
+        if (
+          serverPort !== undefined &&
+          (Number.isNaN(serverPort) || serverPort < 1024 || serverPort > 65535)
+        ) {
           return c.json({ success: false, message: 'Invalid port' }, 400)
         }
 
@@ -79,7 +85,13 @@ export function createMcpManagerRoutes(options: McpManagerRouteOptions) {
 
         return c.json({ success: true })
       } catch (err) {
-        return c.json({ success: false, message: err instanceof Error ? err.message : String(err) }, 500)
+        return c.json(
+          {
+            success: false,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          500,
+        )
       }
     })
     .get('/agents', async (c) => {
