@@ -128,7 +128,7 @@ describe('resolveAcpSpawnCommand', () => {
 
   it('quotes the bundled bun path so paths with spaces survive', () => {
     const bunWithSpaces =
-      '/Applications/BrowserOS.app/Contents/bin/third_party/bun'
+      '/Applications/BrowserOS App/Contents/bin/third party/bun'
     const out = resolveAcpSpawnCommand({
       agentType: 'claude',
       resourcesDir: '/Applications/BrowserOS.app/Contents/Resources',
@@ -137,6 +137,10 @@ describe('resolveAcpSpawnCommand', () => {
     expect(out?.command).toBe(
       `'${bunWithSpaces}' x ${HOST_ACP_ADAPTER_CONFIG.claude.acpPackageSpec}`,
     )
+    expect(splitCommandLikeAcpx(out?.command ?? '')).toEqual({
+      command: bunWithSpaces,
+      args: ['x', HOST_ACP_ADAPTER_CONFIG.claude.acpPackageSpec],
+    })
   })
 
   it('preserves Windows bundled bun path separators through acpx command splitting', () => {
