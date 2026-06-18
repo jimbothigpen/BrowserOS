@@ -21,6 +21,7 @@ describe('loadServerConfig', () => {
 
     delete process.env.BROWSEROS_CDP_PORT
     delete process.env.BROWSEROS_SERVER_PORT
+    delete process.env.BROWSEROS_SERVER_HOST
     delete process.env.BROWSEROS_EXTENSION_PORT
     delete process.env.BROWSEROS_RESOURCES_DIR
     delete process.env.BROWSEROS_EXECUTION_DIR
@@ -555,6 +556,128 @@ describe('loadServerConfig', () => {
       assert.strictEqual(result.ok, true)
       if (!result.ok) return
       assert.strictEqual(result.value.aiSdkDevtoolsEnabled, true)
+    })
+  })
+
+  describe('serverHost configuration', () => {
+    it('defaults to 0.0.0.0', () => {
+      const result = loadServerConfig([
+        'bun',
+        'src/index.ts',
+        '--server-port=9223',
+      ])
+
+      assert.strictEqual(result.ok, true)
+      if (!result.ok) return
+      assert.strictEqual(result.value.serverHost, '0.0.0.0')
+    })
+
+    it('can be overridden via CLI argument --server-host', () => {
+      const result = loadServerConfig([
+        'bun',
+        'src/index.ts',
+        '--server-port=9223',
+        '--server-host=127.0.0.1',
+      ])
+
+      assert.strictEqual(result.ok, true)
+      if (!result.ok) return
+      assert.strictEqual(result.value.serverHost, '127.0.0.1')
+    })
+
+    it('can be overridden via environment variable BROWSEROS_SERVER_HOST', () => {
+      process.env.BROWSEROS_SERVER_HOST = '10.0.0.1'
+
+      const result = loadServerConfig([
+        'bun',
+        'src/index.ts',
+        '--server-port=9223',
+      ])
+
+      assert.strictEqual(result.ok, true)
+      if (!result.ok) return
+      assert.strictEqual(result.value.serverHost, '10.0.0.1')
+    })
+
+    it('can be overridden via config file serverHost, host, or server_host', () => {
+      const configPath = path.join(tempDir, 'config.json')
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({
+          ports: { http_mcp: 9223 },
+          hosts: { server: '192.168.1.5' },
+        }),
+      )
+
+      const result = loadServerConfig([
+        'bun',
+        'src/index.ts',
+        `--config=${configPath}`,
+      ])
+
+      assert.strictEqual(result.ok, true)
+      if (!result.ok) return
+      assert.strictEqual(result.value.serverHost, '192.168.1.5')
+    })
+
+    it('obeys override precedence: CLI > Config File > Environment > Defaults', () => {
+      // 1. Env is set
+      process.env.BROWSEROS_SERVER_HOST = '10.0.0.1'
+
+      // 2. Config file is set
+      const configPath = path.join(tempDir, 'config.json')
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({
+          ports: { http_mcp: 9223 },
+          host: '192.168.1.5',
+        }),
+      )
+
+      // Config beats Env
+      const resultConfig = loadServerConfig([
+        'bun',
+        'src/index.ts',
+        `--config=${configPath}`,
+      ])
+      assert.strictEqual(resultConfig.ok, true)
+      if (!resultConfig.ok) return
+      assert.strictEqual(resultConfig.value.serverHost, '192.168.1.5')
+
+      // CLI beats Config and Env
+      const resultCli = loadServerConfig([
+        'bun',
+        'src/index.ts',
+        `--config=${configPath}`,
+        '--server-host=127.0.0.1',
+      ])
+      assert.strictEqual(resultCli.ok, true)
+      if (!resultCli.ok) return
+      assert.strictEqual(resultCli.value.serverHost, '127.0.0.1')
+    })
+
+    it('can be overridden via settings.json in the execution directory', () => {
+      const execDir = path.join(tempDir, 'exec')
+      fs.mkdirSync(execDir, { recursive: true })
+      fs.writeFileSync(
+        path.join(execDir, 'settings.json'),
+        JSON.stringify({
+          serverHost: '192.168.0.10',
+          serverPort: 9235,
+        }),
+      )
+
+      const result = loadServerConfig([
+        'bun',
+        'src/index.ts',
+        `--execution-dir=${execDir}`,
+        '--server-port=9223', // CLI override
+      ])
+
+      assert.strictEqual(result.ok, true)
+      if (!result.ok) return
+      assert.strictEqual(result.value.serverHost, '192.168.0.10')
+      assert.strictEqual(result.value.serverPort, 9223) // CLI overrides settings.json
     })
   })
 })

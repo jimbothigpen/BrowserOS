@@ -71,10 +71,15 @@ export class Application {
     const browser = new Browser(cdp)
     const browserSession = browser.session
 
+    const displayHost =
+      this.config.serverHost === '0.0.0.0'
+        ? '127.0.0.1'
+        : this.config.serverHost
+
     try {
       await createHttpServer({
         port: this.config.serverPort,
-        host: '0.0.0.0',
+        host: this.config.serverHost,
         version: VERSION,
         browser,
         browserSession,
@@ -94,7 +99,7 @@ export class Application {
       await writeServerConfig({
         server_port: this.config.serverPort,
         cdp_port: this.config.cdpPort ?? undefined,
-        url: `http://127.0.0.1:${this.config.serverPort}`,
+        url: `http://${displayHost}:${this.config.serverPort}`,
         server_version: VERSION,
         browseros_version: this.config.instanceBrowserosVersion,
         chromium_version: this.config.instanceChromiumVersion,
@@ -112,7 +117,7 @@ export class Application {
     // listServers check is cheap and the cost of a missed reconcile
     // is broken agent configs.
     reconcileUrl({
-      currentUrl: `http://127.0.0.1:${this.config.serverPort}/mcp`,
+      currentUrl: `http://${displayHost}:${this.config.serverPort}/mcp`,
     }).catch((err) => {
       logger.warn(
         'MCP manager URL reconcile failed; agent configs may be stale',
@@ -123,10 +128,10 @@ export class Application {
     })
 
     logger.info(
-      `HTTP server listening on http://127.0.0.1:${this.config.serverPort}`,
+      `HTTP server listening on http://${displayHost}:${this.config.serverPort}`,
     )
     logger.info(
-      `Health endpoint: http://127.0.0.1:${this.config.serverPort}/health`,
+      `Health endpoint: http://${displayHost}:${this.config.serverPort}/health`,
     )
 
     this.logStartupSummary()

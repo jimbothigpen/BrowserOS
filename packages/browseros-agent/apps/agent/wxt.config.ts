@@ -68,7 +68,10 @@ export default defineConfig({
       'webNavigation',
       'downloads',
     ],
-    host_permissions: ['http://127.0.0.1/*'],
+    host_permissions: [
+      'http://127.0.0.1/*',
+      `https://${apiPattern}/*`,
+    ],
   },
   vite: () => ({
     build: {

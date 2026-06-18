@@ -353,7 +353,7 @@ index 0000000000000..069d1b79d6ae2
 +    assigned_ports.insert(ports_.server);
 +  } else {
 +    ports_.server = server_utils::FindAvailablePort(
-+        browseros_server::kDefaultServerPort, assigned_ports);
++        ports_.server, assigned_ports);
 +    assigned_ports.insert(ports_.server);
 +  }
 +
@@ -361,7 +361,7 @@ index 0000000000000..069d1b79d6ae2
 +    assigned_ports.insert(ports_.extension);
 +  } else {
 +    ports_.extension = server_utils::FindAvailablePort(
-+        browseros_server::kDefaultExtensionPort, assigned_ports);
++        ports_.extension, assigned_ports);
 +  }
 +
 +  LOG(INFO) << "browseros: Resolved ports for startup - " << ports_.DebugString();
@@ -865,6 +865,9 @@ index 0000000000000..069d1b79d6ae2
 +            }
 +            auto* manager = weak_manager.get();
 +
++            // Load latest preferences from local state to pick up any changes
++            manager->LoadPortsFromPrefs();
++
 +            // Pick new ephemeral ports for server and extension
 +            // (unless CLI-overridden)
 +            base::CommandLine* cl =
@@ -876,14 +879,14 @@ index 0000000000000..069d1b79d6ae2
 +            if (!cl->HasSwitch(browseros::kServerPort)) {
 +              manager->ports_.server =
 +                  server_utils::FindAvailablePort(
-+                      browseros_server::kDefaultServerPort, assigned);
++                      manager->ports_.server, assigned);
 +            }
 +            assigned.insert(manager->ports_.server);
 +
 +            if (!cl->HasSwitch(browseros::kExtensionPort)) {
 +              manager->ports_.extension =
 +                  server_utils::FindAvailablePort(
-+                      browseros_server::kDefaultExtensionPort, assigned);
++                      manager->ports_.extension, assigned);
 +            }
 +
 +            LOG(INFO) << "browseros: New ephemeral ports - "
@@ -944,6 +947,9 @@ index 0000000000000..069d1b79d6ae2
 +            }
 +            auto* manager = weak_manager.get();
 +
++            // Load latest preferences from local state to pick up any changes
++            manager->LoadPortsFromPrefs();
++
 +            base::CommandLine* cl =
 +                base::CommandLine::ForCurrentProcess();
 +            std::set<int> assigned;
@@ -953,14 +959,14 @@ index 0000000000000..069d1b79d6ae2
 +            if (!cl->HasSwitch(browseros::kServerPort)) {
 +              manager->ports_.server =
 +                  server_utils::FindAvailablePort(
-+                      browseros_server::kDefaultServerPort, assigned);
++                      manager->ports_.server, assigned);
 +            }
 +            assigned.insert(manager->ports_.server);
 +
 +            if (!cl->HasSwitch(browseros::kExtensionPort)) {
 +              manager->ports_.extension =
 +                  server_utils::FindAvailablePort(
-+                      browseros_server::kDefaultExtensionPort, assigned);
++                      manager->ports_.extension, assigned);
 +            }
 +
 +            manager->SavePortsToPrefs();

@@ -12,6 +12,9 @@ import {
   uninstallFrom,
 } from '../../lib/mcp-manager'
 
+import { join } from 'node:path'
+import { getBrowserosDir } from '../../lib/browseros-dir'
+
 interface McpManagerRouteOptions {
   /**
    * Returns the BrowserOS MCP URL the running server bound to. Hot
@@ -19,12 +22,66 @@ interface McpManagerRouteOptions {
    * reads it per-request rather than caching at module load time.
    */
   getMcpUrl: () => string
+  activeHost: string
+  activePort: number
 }
 
 export function createMcpManagerRoutes(options: McpManagerRouteOptions) {
-  const { getMcpUrl } = options
+  const { getMcpUrl, activeHost, activePort } = options
 
   return new Hono()
+    .get('/settings', async (c) => {
+      const settingsPath = join(getBrowserosDir(), 'settings.json')
+      let savedSettings = {}
+      try {
+        const fs = await import('node:fs/promises')
+        const content = await fs.readFile(settingsPath, 'utf-8')
+        savedSettings = JSON.parse(content)
+      } catch {
+        // settings.json doesn't exist yet
+      }
+      return c.json({
+        activeHost,
+        activePort,
+        savedSettings,
+      })
+    })
+    .post('/settings', async (c) => {
+      try {
+        const body = await c.req.json()
+        const serverHost = body.serverHost?.trim()
+        const serverPort = body.serverPort !== undefined ? Number(body.serverPort) : undefined
+
+        if (serverHost !== undefined && (typeof serverHost !== 'string' || serverHost.length === 0)) {
+          return c.json({ success: false, message: 'Invalid host' }, 400)
+        }
+
+        if (serverPort !== undefined && (Number.isNaN(serverPort) || serverPort < 1024 || serverPort > 65535)) {
+          return c.json({ success: false, message: 'Invalid port' }, 400)
+        }
+
+        const settingsPath = join(getBrowserosDir(), 'settings.json')
+        let current = {}
+        try {
+          const fs = await import('node:fs/promises')
+          const content = await fs.readFile(settingsPath, 'utf-8')
+          current = JSON.parse(content)
+        } catch {}
+
+        const next = {
+          ...current,
+          ...(serverHost !== undefined ? { serverHost } : {}),
+          ...(serverPort !== undefined ? { serverPort } : {}),
+        }
+
+        const fs = await import('node:fs/promises')
+        await fs.writeFile(settingsPath, JSON.stringify(next, null, 2))
+
+        return c.json({ success: true })
+      } catch (err) {
+        return c.json({ success: false, message: err instanceof Error ? err.message : String(err) }, 500)
+      }
+    })
     .get('/agents', async (c) => {
       try {
         const agents = await listAgents()

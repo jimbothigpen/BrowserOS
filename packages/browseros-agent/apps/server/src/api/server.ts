@@ -81,6 +81,8 @@ export async function createHttpServer(config: HttpServerConfig) {
     browserSession,
   } = config
 
+  const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host
+
   const { onShutdown } = config
   const tokenManager = browserosId
     ? initializeOAuth(getDb(), browserosId)
@@ -107,7 +109,7 @@ export async function createHttpServer(config: HttpServerConfig) {
             jwtSecret: INLINED_ENV.AGENT_RUNNER_JWT_SECRET,
           }),
           resolveLocalMcpUrl: (server) =>
-            server === 'browseros' ? `http://127.0.0.1:${port}/mcp` : null,
+            server === 'browseros' ? `http://${displayHost}:${port}/mcp` : null,
         })
       : null
   if (!remoteHermes) {
@@ -183,7 +185,9 @@ export async function createHttpServer(config: HttpServerConfig) {
     .route(
       '/mcp-manager',
       createMcpManagerRoutes({
-        getMcpUrl: () => `http://127.0.0.1:${port}/mcp`,
+        getMcpUrl: () => `http://${displayHost}:${port}/mcp`,
+        activeHost: displayHost,
+        activePort: port,
       }),
     )
     .route(

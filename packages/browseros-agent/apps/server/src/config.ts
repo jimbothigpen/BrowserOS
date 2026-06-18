@@ -19,6 +19,7 @@ const portSchema = z.number().int()
 const ServerConfigSchema = z.object({
   cdpPort: portSchema.nullable(),
   serverPort: portSchema,
+  serverHost: z.string(),
   agentPort: portSchema,
   extensionPort: portSchema.nullable(),
   resourcesDir: z.string(),
@@ -59,10 +60,32 @@ export function loadServerConfig(
   const runtimeEnv = parseRuntimeEnv()
   if (!runtimeEnv.ok) return runtimeEnv
 
+  const executionDir =
+    cli.value.overrides.executionDir ??
+    file.value.executionDir ??
+    runtimeEnv.value.executionDir ??
+    getDefaults(cli.value.cwd).executionDir
+
+  const settingsPath = path.resolve(executionDir as string, 'settings.json')
+  let settingsConfig: PartialConfig = {}
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const content = fs.readFileSync(settingsPath, 'utf-8')
+      const parsed = JSON.parse(content)
+      settingsConfig = omitUndefined({
+        serverHost: parsed.serverHost,
+        serverPort: parsed.serverPort,
+      })
+    } catch (err) {
+      console.error('Failed to parse settings.json:', err)
+    }
+  }
+
   const merged = mergeConfigs(
     getDefaults(cli.value.cwd),
     runtimeEnv.value,
     file.value,
+    settingsConfig,
     cli.value.overrides,
   )
 
@@ -100,6 +123,7 @@ function parseCliArgs(argv: string[]): ConfigResult<ParsedCliArgs> {
         parsePortArg,
       )
       .option('--server-port <port>', 'Server HTTP port', parsePortArg)
+      .option('--server-host <host>', 'Server HTTP host')
       .option(
         '--http-mcp-port <port>',
         '[DEPRECATED] Use --server-port',
@@ -167,6 +191,7 @@ function parseCliArgs(argv: string[]): ConfigResult<ParsedCliArgs> {
       overrides: omitUndefined({
         cdpPort: opts.cdpPort,
         serverPort: opts.serverPort ?? opts.httpMcpPort,
+        serverHost: opts.serverHost,
         extensionPort: opts.extensionPort,
         resourcesDir: opts.resourcesDir
           ? toAbsolutePath(opts.resourcesDir, cwd)
@@ -211,6 +236,7 @@ function parseConfigFile(filePath?: string): ConfigResult<PartialConfig> {
       value: omitUndefined({
         cdpPort: cfg.ports?.cdp,
         serverPort: cfg.ports?.server ?? cfg.ports?.http_mcp,
+        serverHost: cfg.hosts?.server ?? cfg.host ?? cfg.server_host,
         extensionPort: cfg.ports?.extension,
         resourcesDir: parseAbsolutePath(cfg.directories?.resources, configDir),
         executionDir: parseAbsolutePath(cfg.directories?.execution, configDir),
@@ -259,6 +285,7 @@ function parseRuntimeEnv(): ConfigResult<PartialConfig> {
       serverPort: process.env.BROWSEROS_SERVER_PORT
         ? safeParseInt(process.env.BROWSEROS_SERVER_PORT)
         : undefined,
+      serverHost: process.env.BROWSEROS_SERVER_HOST,
       extensionPort: process.env.BROWSEROS_EXTENSION_PORT
         ? safeParseInt(process.env.BROWSEROS_EXTENSION_PORT)
         : undefined,
@@ -305,6 +332,7 @@ function getDefaults(cwd: string): PartialConfig {
     extensionPort: null,
     resourcesDir: cwd,
     executionDir: cwd,
+    serverHost: '0.0.0.0',
     mcpAllowRemote: false,
     aiSdkDevtoolsEnabled: false,
     browserUseNewTools: false,

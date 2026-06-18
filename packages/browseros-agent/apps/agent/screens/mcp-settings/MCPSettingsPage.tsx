@@ -5,6 +5,7 @@ import { sendServerMessage } from '@/lib/messaging/server/serverMessages'
 import { IntegrationsSection } from './IntegrationsSection'
 import { MCPServerHeader } from './MCPServerHeader'
 import { MCPToolsSection } from './MCPToolsSection'
+import { ServerSettingsCard } from './ServerSettingsCard'
 
 /** @public */
 export const MCPSettingsPage: FC = () => {
@@ -81,6 +82,11 @@ export const MCPSettingsPage: FC = () => {
         isLoading={urlLoading}
         error={urlError}
         onServerRestart={loadServerUrlAndTools}
+      />
+
+      <ServerSettingsCard
+        serverUrl={serverUrl}
+        onSettingsSaved={loadServerUrlAndTools}
       />
 
       <IntegrationsSection serverUrl={serverUrl} />
