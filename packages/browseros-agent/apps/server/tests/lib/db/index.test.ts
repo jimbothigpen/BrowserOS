@@ -4,7 +4,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'bun:test'
-import { existsSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -50,6 +50,54 @@ describe('database initialization', () => {
       migrationsDir: join(dir, 'missing-migrations'),
     })
 
+    expectCurrentSchema(handle)
+    expect(handle.db.select().from(agentDefinitions).all()).toEqual([])
+  })
+
+  it('bootstraps the current schema when a migration directory is empty', () => {
+    const dir = mkTempDir()
+    const migrationsDir = join(dir, 'empty-migrations')
+    mkdirSync(migrationsDir)
+
+    const handle = initializeDb({
+      dbPath: join(dir, 'browseros.sqlite'),
+      migrationsDir,
+    })
+
+    expect(handle.migrationsDir).toBe(null)
+    expectCurrentSchema(handle)
+    expect(handle.db.select().from(agentDefinitions).all()).toEqual([])
+  })
+
+  it('skips empty packaged migration resources', () => {
+    const dir = mkTempDir()
+    const resourcesDir = join(dir, 'resources')
+    const packagedMigrationsDir = join(resourcesDir, 'db', 'migrations')
+    mkdirSync(packagedMigrationsDir, { recursive: true })
+
+    const handle = initializeDb({
+      dbPath: join(dir, 'browseros.sqlite'),
+      resourcesDir,
+    })
+
+    expect(handle.migrationsDir).not.toBe(packagedMigrationsDir)
+    expect(handle.db.select().from(agentDefinitions).all()).toEqual([])
+  })
+
+  it('does not rerun old migrations after fallback schema bootstrap', () => {
+    const dir = mkTempDir()
+    const dbPath = join(dir, 'browseros.sqlite')
+
+    initializeDb({
+      dbPath,
+      migrationsDir: join(dir, 'missing-migrations'),
+    })
+    closeDb()
+
+    expect(() => initializeDb({ dbPath })).not.toThrow()
+  })
+
+  function expectCurrentSchema(handle: ReturnType<typeof initializeDb>): void {
     const tables = handle.sqlite
       .query<{ name: string }, []>(
         `
@@ -80,21 +128,7 @@ describe('database initialization', () => {
         )
         .get()?.count,
     ).toBe(3)
-    expect(handle.db.select().from(agentDefinitions).all()).toEqual([])
-  })
-
-  it('does not rerun old migrations after fallback schema bootstrap', () => {
-    const dir = mkTempDir()
-    const dbPath = join(dir, 'browseros.sqlite')
-
-    initializeDb({
-      dbPath,
-      migrationsDir: join(dir, 'missing-migrations'),
-    })
-    closeDb()
-
-    expect(() => initializeDb({ dbPath })).not.toThrow()
-  })
+  }
 
   function mkTempDir(): string {
     const dir = mkdtempSync(join(tmpdir(), 'browseros-db-test-'))
