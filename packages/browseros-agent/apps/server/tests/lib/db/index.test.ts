@@ -121,13 +121,17 @@ describe('database initialization', () => {
       'oauth_tokens',
       'produced_files',
     ])
-    expect(
-      handle.sqlite
-        .query<{ count: number }, []>(
-          'SELECT COUNT(*) AS count FROM __drizzle_migrations',
-        )
-        .get()?.count,
-    ).toBe(3)
+    const migrations = handle.sqlite
+      .query<{ hash: string; createdAt: number }, []>(
+        `
+          SELECT hash, created_at AS createdAt
+          FROM __drizzle_migrations
+          ORDER BY created_at
+        `,
+      )
+      .all()
+
+    expect(migrations).toEqual(expectedMigrationHistory)
   }
 
   function mkTempDir(): string {
@@ -136,3 +140,18 @@ describe('database initialization', () => {
     return dir
   }
 })
+
+const expectedMigrationHistory = [
+  {
+    hash: 'aadfc2e86410febb11a974d25d99d5f7196aa797d9635ced9a18cd4eeb503b61',
+    createdAt: 1777750582590,
+  },
+  {
+    hash: '19e693f7b1adcd1d932fa6cf5638b5b158c66ea5de4f154bc59311f4d6f71261',
+    createdAt: 1777752799806,
+  },
+  {
+    hash: '02b11bf1dc34a5a289efd216233a48f0b7b950cfc33eaa7ebe6dcbb15d07f75c',
+    createdAt: 1777902205667,
+  },
+]
