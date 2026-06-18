@@ -71,7 +71,18 @@ export function resetAllowedOriginsForTesting(): void {
 }
 
 export function isAllowedOrigin(origin: string): boolean {
-  return getAllowedOrigins().has(origin)
+  if (getAllowedOrigins().has(origin)) return true
+
+  try {
+    const url = new URL(origin)
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+      return true
+    }
+  } catch {
+    // Ignore invalid origins
+  }
+
+  return false
 }
 
 export const defaultCorsConfig: CorsOptions = {
