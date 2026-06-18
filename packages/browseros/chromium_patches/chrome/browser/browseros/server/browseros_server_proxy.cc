@@ -15,6 +15,7 @@ index 0000000000000..17560c9a2c55a
 +#include "base/functional/bind.h"
 +#include "base/logging.h"
 +#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
 +#include "net/base/ip_address.h"
 +#include "net/base/net_errors.h"
 +#include "net/http/http_status_code.h"
@@ -168,7 +169,9 @@ index 0000000000000..17560c9a2c55a
 +  resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
 +
 +  for (const auto& [name, value] : info.headers) {
-+    if (name == "content-type" || name == "accept" || name == "authorization") {
++    if (name == "content-type" || name == "accept" || name == "authorization" ||
++        name == "origin" ||
++        base::StartsWith(name, "access-control-request-", base::CompareCase::INSENSITIVE_ASCII)) {
 +      resource_request->headers.SetHeader(name, value);
 +    }
 +  }
@@ -225,6 +228,18 @@ index 0000000000000..17560c9a2c55a
 +  net::HttpServerResponseInfo response(
 +      static_cast<net::HttpStatusCode>(response_code));
 +  response.SetBody(*response_body, content_type);
++
++  if (response_info && response_info->headers) {
++    size_t iter = 0;
++    std::string name, value;
++    while (response_info->headers->EnumerateHeaderLines(&iter, &name, &value)) {
++      if (base::StartsWith(name, "access-control-", base::CompareCase::INSENSITIVE_ASCII) ||
++          base::EqualsCaseInsensitiveASCII(name, "vary")) {
++        response.AddHeader(name, value);
++      }
++    }
++  }
++
 +  server_->SendResponse(connection_id, response, GetProxyTrafficAnnotation());
 +}
 +

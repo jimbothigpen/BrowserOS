@@ -91,6 +91,6 @@ export const defaultCorsConfig: CorsOptions = {
     return null
   },
   allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-protocol-version'],
   credentials: true,
 }
