@@ -8,7 +8,7 @@
  * noProcessEnv rule stay on at error level for every other file.
  */
 
-import { PROD_API_PORT } from './shared/port'
+import { COCKPIT_CDP_PORT_DEFAULT, PROD_API_PORT } from './shared/port'
 
 function readPort(): number {
   // biome-ignore lint/style/noProcessEnv: env.ts is the sanctioned env-reader for the package
@@ -17,6 +17,24 @@ function readPort(): number {
   const parsed = Number(raw)
   if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65535) {
     return PROD_API_PORT
+  }
+  return parsed
+}
+
+/**
+ * Port the cockpit dials when attaching to the BrowserOS Chromium
+ * over CDP. Default lives in IANA's dynamic / private range so it
+ * cannot collide with a registered service; the env override is the
+ * bridge until the BrowserOS browser shell defaults its DevTools
+ * port to the same value.
+ */
+function readCdpPort(): number {
+  // biome-ignore lint/style/noProcessEnv: env.ts is the sanctioned env-reader for the package
+  const raw = process.env.BROWSEROS_COCKPIT_CDP_PORT
+  if (!raw) return COCKPIT_CDP_PORT_DEFAULT
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    return COCKPIT_CDP_PORT_DEFAULT
   }
   return parsed
 }
@@ -39,6 +57,7 @@ function readIsDevelopment(): boolean {
  */
 export const env = {
   port: readPort(),
+  cdpPort: readCdpPort(),
   browserosDirOverride: readBrowserosDirOverride(),
   isDevelopment: readIsDevelopment(),
 }

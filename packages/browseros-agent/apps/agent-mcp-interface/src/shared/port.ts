@@ -24,3 +24,18 @@ export const COCKPIT_MOUNT_PREFIX = '/cockpit'
 
 /** Standalone dev port for `src/main.ts` when running detached. */
 export const DEV_STANDALONE_PORT = 9200
+
+/**
+ * Default CDP port the cockpit dials when attaching to the BrowserOS
+ * Chromium. Lives in IANA's dynamic / private range (49152-65535)
+ * so it cannot collide with a registered service, and is not a round
+ * number so a hand-rolled local script is unlikely to pick the same
+ * value. Override via `BROWSEROS_COCKPIT_CDP_PORT`.
+ *
+ * Important: this is the port BrowserOS's Chromium exposes its
+ * DevTools on, not a port the cockpit itself opens. Until the
+ * BrowserOS browser shell defaults to the same value, the env var
+ * is the bridge — set it to whatever DevTools port BrowserOS is
+ * currently bound on.
+ */
+export const COCKPIT_CDP_PORT_DEFAULT = 49337
