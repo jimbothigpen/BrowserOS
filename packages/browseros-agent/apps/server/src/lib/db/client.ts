@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type BunSQLiteDatabase, drizzle } from 'drizzle-orm/bun-sqlite'
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
+import { logger } from '../logger'
 import * as schema from './schema'
 
 export type BrowserOsDatabase = BunSQLiteDatabase<typeof schema>
@@ -50,6 +51,9 @@ export function openBrowserOsDatabase(options: OpenDbOptions): DbHandle {
     if (migrationsDir) {
       migrate(db, { migrationsFolder: migrationsDir })
     } else {
+      logger.warn('Drizzle migrations unavailable; bootstrapping current schema', {
+        dbPath: options.dbPath,
+      })
       bootstrapCurrentSchema(sqlite)
     }
   }
@@ -70,6 +74,10 @@ export function resolveMigrationsDir(
     if (hasCompleteMigrationSet(options.migrationsDir)) {
       return options.migrationsDir
     }
+    logger.warn(
+      'Configured Drizzle migrations directory is missing or incomplete; bootstrapping current schema',
+      { migrationsDir: options.migrationsDir },
+    )
     return null
   }
 
@@ -145,15 +153,20 @@ function bootstrapCurrentSchema(sqlite: BunDatabase): void {
     for (const statement of currentSchemaStatements) {
       sqlite.exec(statement)
     }
+    const insertMigration = sqlite.prepare(`
+      INSERT INTO __drizzle_migrations ("hash", "created_at")
+      SELECT ?, ?
+      WHERE NOT EXISTS (
+        SELECT 1 FROM __drizzle_migrations
+        WHERE created_at = ?
+      )
+    `)
     for (const migration of currentMigrationHistory) {
-      sqlite.exec(`
-        INSERT INTO __drizzle_migrations ("hash", "created_at")
-        SELECT '${migration.hash}', ${migration.createdAt}
-        WHERE NOT EXISTS (
-          SELECT 1 FROM __drizzle_migrations
-          WHERE created_at = ${migration.createdAt}
-        )
-      `)
+      insertMigration.run(
+        migration.hash,
+        migration.createdAt,
+        migration.createdAt,
+      )
     }
     sqlite.exec('COMMIT')
   } catch (error) {
