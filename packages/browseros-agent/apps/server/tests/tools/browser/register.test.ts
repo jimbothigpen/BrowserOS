@@ -213,6 +213,131 @@ describe('registerBrowserTools', () => {
     )
   })
 
+  it('runs server-runtime JavaScript against the browser session', async () => {
+    const fake = createFakeServer()
+    const session = {
+      pages: {
+        list: async () => [
+          { pageId: 7, url: 'https://example.com', title: 'Example' },
+        ],
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: `
+const pages = await browser.pages.list()
+console.log('pages', pages.length)
+console.warn({ pageId: pages[0].pageId })
+return { title: pages[0].title }
+`,
+    })
+
+    expect(result?.isError).toBeFalsy()
+    expect(result?.structuredContent).toEqual({ ok: true })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('ok\nreturn:'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('"title": "Example"'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('logs:\npages 1\nwarn:'),
+      }),
+    ])
+  })
+
+  it('returns run syntax errors without invoking the browser session', async () => {
+    const fake = createFakeServer()
+    let listCalls = 0
+    const session = {
+      pages: {
+        list: async () => {
+          listCalls += 1
+          return []
+        },
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: 'const = 1',
+    })
+
+    expect(result?.isError).toBe(true)
+    expect(result?.structuredContent).toBeUndefined()
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('run: syntax error'),
+      }),
+    ])
+    expect(listCalls).toBe(0)
+  })
+
+  it('returns run runtime errors with captured logs', async () => {
+    const fake = createFakeServer()
+    const session = { pages: {} } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: `
+console.log('before boom')
+throw new Error('boom')
+`,
+    })
+
+    expect(result?.isError).toBe(true)
+    expect(result?.structuredContent).toEqual({ ok: false })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('error: boom'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('logs:\nbefore boom'),
+      }),
+    ])
+  })
+
+  it('returns run timeout errors', async () => {
+    const fake = createFakeServer()
+    const session = { pages: {} } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: `
+await new Promise((resolve) => setTimeout(resolve, 50))
+return 'late'
+`,
+      timeout: 1,
+    })
+
+    expect(result?.isError).toBe(true)
+    expect(result?.structuredContent).toEqual({ ok: false })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('run exceeded 1ms'),
+      }),
+    ])
+  })
+
   it('returns a full snapshot when diff sees a URL change', async () => {
     const fake = createFakeServer()
     const session = {
