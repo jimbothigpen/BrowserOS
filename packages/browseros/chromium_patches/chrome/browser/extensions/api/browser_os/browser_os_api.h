@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/extensions/api/browser_os/browser_os_api.h b/chrome/browser/extensions/api/browser_os/browser_os_api.h
 new file mode 100644
-index 0000000000000..a297a9a2a43fa
+index 0000000000000..df88116794a9e
 --- /dev/null
 +++ b/chrome/browser/extensions/api/browser_os/browser_os_api.h
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,100 @@
 +// Copyright 2024 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -11,25 +11,10 @@ index 0000000000000..a297a9a2a43fa
 +#ifndef CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_H_
 +#define CHROME_BROWSER_EXTENSIONS_API_BROWSER_OS_BROWSER_OS_API_H_
 +
-+#include "base/values.h"
-+#include "chrome/browser/extensions/api/browser_os/browser_os_api_utils.h"
 +#include "extensions/browser/extension_function.h"
 +#include "ui/shell_dialogs/select_file_dialog.h"
 +
 +namespace extensions::api {
-+
-+class BrowserOSGetPageLoadStatusFunction : public ExtensionFunction {
-+ public:
-+  DECLARE_EXTENSION_FUNCTION("browserOS.getPageLoadStatus",
-+                             BROWSER_OS_GETPAGELOADSTATUS)
-+
-+  BrowserOSGetPageLoadStatusFunction() = default;
-+
-+ protected:
-+  ~BrowserOSGetPageLoadStatusFunction() override = default;
-+
-+  ResponseAction Run() override;
-+};
 +
 +class BrowserOSGetPrefFunction : public ExtensionFunction {
 + public:
@@ -51,18 +36,6 @@ index 0000000000000..a297a9a2a43fa
 +
 + protected:
 +  ~BrowserOSSetPrefFunction() override = default;
-+
-+  ResponseAction Run() override;
-+};
-+
-+class BrowserOSGetAllPrefsFunction : public ExtensionFunction {
-+ public:
-+  DECLARE_EXTENSION_FUNCTION("browserOS.getAllPrefs", BROWSER_OS_GETALLPREFS)
-+
-+  BrowserOSGetAllPrefsFunction() = default;
-+
-+ protected:
-+  ~BrowserOSGetAllPrefsFunction() override = default;
 +
 +  ResponseAction Run() override;
 +};
@@ -101,48 +74,6 @@ index 0000000000000..a297a9a2a43fa
 +
 + protected:
 +  ~BrowserOSGetBrowserosVersionNumberFunction() override = default;
-+
-+  ResponseAction Run() override;
-+};
-+
-+class BrowserOSExecuteJavaScriptFunction : public ExtensionFunction {
-+ public:
-+  DECLARE_EXTENSION_FUNCTION("browserOS.executeJavaScript",
-+                             BROWSER_OS_EXECUTEJAVASCRIPT)
-+
-+  BrowserOSExecuteJavaScriptFunction() = default;
-+
-+ protected:
-+  ~BrowserOSExecuteJavaScriptFunction() override = default;
-+
-+  ResponseAction Run() override;
-+
-+ private:
-+  void OnJavaScriptExecuted(base::Value result);
-+};
-+
-+class BrowserOSClickCoordinatesFunction : public ExtensionFunction {
-+ public:
-+  DECLARE_EXTENSION_FUNCTION("browserOS.clickCoordinates",
-+                             BROWSER_OS_CLICKCOORDINATES)
-+
-+  BrowserOSClickCoordinatesFunction() = default;
-+
-+ protected:
-+  ~BrowserOSClickCoordinatesFunction() override = default;
-+
-+  ResponseAction Run() override;
-+};
-+
-+class BrowserOSTypeAtCoordinatesFunction : public ExtensionFunction {
-+ public:
-+  DECLARE_EXTENSION_FUNCTION("browserOS.typeAtCoordinates",
-+                             BROWSER_OS_TYPEATCOORDINATES)
-+
-+  BrowserOSTypeAtCoordinatesFunction() = default;
-+
-+ protected:
-+  ~BrowserOSTypeAtCoordinatesFunction() override = default;
 +
 +  ResponseAction Run() override;
 +};

@@ -103,8 +103,160 @@ describe('registerBrowserTools', () => {
     registerBrowserTools(fake.server as never, session)
 
     expect([...fake.handlers.keys()]).toEqual(BROWSER_TOOLS.map((t) => t.name))
-    expect(fake.handlers.size).toBe(10)
+    expect(fake.handlers.size).toBe(13)
     expect(fake.configs.get('tabs')?.inputSchema).toBeDefined()
+  })
+
+  it('manages windows through the compact windows tool', async () => {
+    const fake = createFakeServer()
+    const calls: Array<{ method: string; args?: unknown }> = []
+    const window = {
+      windowId: 7,
+      windowType: 'normal' as const,
+      bounds: {},
+      isActive: true,
+      isVisible: true,
+      tabCount: 2,
+    }
+    const hiddenWindow = {
+      ...window,
+      windowId: 8,
+      isActive: false,
+      isVisible: false,
+    }
+    const session = {
+      windows: {
+        list: async () => {
+          calls.push({ method: 'list' })
+          return [window]
+        },
+        create: async (args?: { hidden?: boolean }) => {
+          calls.push({ method: 'create', args })
+          return args?.hidden ? hiddenWindow : window
+        },
+        close: async (windowId: number) => {
+          calls.push({ method: 'close', args: windowId })
+        },
+        activate: async (windowId: number) => {
+          calls.push({ method: 'activate', args: windowId })
+        },
+        setVisibility: async (
+          windowId: number,
+          args: { visible: boolean; activate?: boolean },
+        ) => {
+          calls.push({ method: 'setVisibility', args: { windowId, ...args } })
+          return {
+            previousWindowId: windowId,
+            newWindowId: 9,
+            replaced: true,
+            window: { ...window, windowId: 9, isVisible: args.visible },
+          }
+        },
+      },
+      pages: {
+        list: async () => [],
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+    const handler = fake.handlers.get('windows')
+
+    const list = await handler?.({ action: 'list' })
+    expect(list?.isError).toBeFalsy()
+    expect(list?.structuredContent).toEqual({
+      action: 'list',
+      windows: [window],
+      count: 1,
+    })
+    expect(list?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('Window 7 (normal, 2 tabs) [ACTIVE]'),
+      }),
+    ])
+
+    const create = await handler?.({ action: 'create', hidden: true })
+    expect(create?.structuredContent).toEqual({
+      action: 'create',
+      window: hiddenWindow,
+    })
+
+    const close = await handler?.({ action: 'close', windowId: 7 })
+    expect(close?.structuredContent).toEqual({ action: 'close', windowId: 7 })
+
+    const activate = await handler?.({ action: 'activate', windowId: 8 })
+    expect(activate?.structuredContent).toEqual({
+      action: 'activate',
+      windowId: 8,
+    })
+
+    const visibility = await handler?.({
+      action: 'set_visibility',
+      windowId: 8,
+      visible: true,
+      activate: false,
+    })
+    expect(visibility?.structuredContent).toEqual({
+      action: 'set_visibility',
+      previousWindowId: 8,
+      newWindowId: 9,
+      replaced: true,
+      window: { ...window, windowId: 9, isVisible: true },
+    })
+
+    expect(calls).toEqual([
+      { method: 'list' },
+      { method: 'create', args: { hidden: true } },
+      { method: 'close', args: 7 },
+      { method: 'activate', args: 8 },
+      {
+        method: 'setVisibility',
+        args: { windowId: 8, visible: true, activate: false },
+      },
+    ])
+  })
+
+  it('returns clear errors for invalid windows actions', async () => {
+    const fake = createFakeServer()
+    const session = {
+      windows: {},
+      pages: {
+        list: async () => [],
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+    const handler = fake.handlers.get('windows')
+
+    const close = await handler?.({ action: 'close' })
+    expect(close?.isError).toBe(true)
+    expect(close?.content).toEqual([
+      expect.objectContaining({
+        text: 'windows close: windowId is required.',
+      }),
+    ])
+
+    const visibilityWindow = await handler?.({
+      action: 'set_visibility',
+      visible: true,
+    })
+    expect(visibilityWindow?.isError).toBe(true)
+    expect(visibilityWindow?.content).toEqual([
+      expect.objectContaining({
+        text: 'windows set_visibility: windowId is required.',
+      }),
+    ])
+
+    const visibilityState = await handler?.({
+      action: 'set_visibility',
+      windowId: 7,
+    })
+    expect(visibilityState?.isError).toBe(true)
+    expect(visibilityState?.content).toEqual([
+      expect.objectContaining({
+        text: 'windows set_visibility: visible is required.',
+      }),
+    ])
   })
 
   it('applies scoped defaults when opening a new tab', async () => {
@@ -160,7 +312,7 @@ describe('registerBrowserTools', () => {
     ])
   })
 
-  it('runs page-context JavaScript through the page session', async () => {
+  it('evaluates page-context JavaScript through the page session', async () => {
     const fake = createFakeServer()
     const evaluateCalls: Array<Record<string, unknown>> = []
     const session = {
@@ -175,13 +327,13 @@ describe('registerBrowserTools', () => {
             },
           },
         }),
-        getInfo: () => ({ url: 'https://example.com/run' }),
+        getInfo: () => ({ url: 'https://example.com/eval' }),
       },
     } as unknown as BrowserSession
 
     registerBrowserTools(fake.server as never, session)
 
-    const result = await fake.handlers.get('run')?.({
+    const result = await fake.handlers.get('eval')?.({
       page: 3,
       code: 'return document.title',
       timeout: 1234,
@@ -211,6 +363,131 @@ describe('registerBrowserTools', () => {
     expect(String(evaluateCalls[0]?.expression)).toContain(
       'return document.title',
     )
+  })
+
+  it('runs server-runtime JavaScript against the browser session', async () => {
+    const fake = createFakeServer()
+    const session = {
+      pages: {
+        list: async () => [
+          { pageId: 7, url: 'https://example.com', title: 'Example' },
+        ],
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: `
+const pages = await browser.pages.list()
+console.log('pages', pages.length)
+console.warn({ pageId: pages[0].pageId })
+return { title: pages[0].title }
+`,
+    })
+
+    expect(result?.isError).toBeFalsy()
+    expect(result?.structuredContent).toEqual({ ok: true })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('ok\nreturn:'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('"title": "Example"'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('logs:\npages 1\nwarn:'),
+      }),
+    ])
+  })
+
+  it('returns run syntax errors without invoking the browser session', async () => {
+    const fake = createFakeServer()
+    let listCalls = 0
+    const session = {
+      pages: {
+        list: async () => {
+          listCalls += 1
+          return []
+        },
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: 'const = 1',
+    })
+
+    expect(result?.isError).toBe(true)
+    expect(result?.structuredContent).toBeUndefined()
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('run: syntax error'),
+      }),
+    ])
+    expect(listCalls).toBe(0)
+  })
+
+  it('returns run runtime errors with captured logs', async () => {
+    const fake = createFakeServer()
+    const session = { pages: {} } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: `
+console.log('before boom')
+throw new Error('boom')
+`,
+    })
+
+    expect(result?.isError).toBe(true)
+    expect(result?.structuredContent).toEqual({ ok: false })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('error: boom'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('logs:\nbefore boom'),
+      }),
+    ])
+  })
+
+  it('returns run timeout errors', async () => {
+    const fake = createFakeServer()
+    const session = { pages: {} } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('run')?.({
+      code: `
+await new Promise((resolve) => setTimeout(resolve, 50))
+return 'late'
+`,
+      timeout: 1,
+    })
+
+    expect(result?.isError).toBe(true)
+    expect(result?.structuredContent).toEqual({ ok: false })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('run exceeded 1ms'),
+      }),
+    ])
   })
 
   it('returns a full snapshot when diff sees a URL change', async () => {
@@ -309,6 +586,59 @@ describe('registerBrowserTools', () => {
     ])
   })
 
+  it('caps large direct diffs with snapshot guidance', async () => {
+    const fake = createFakeServer()
+    const largeDiff = Array.from({ length: 2001 }, (_, i) => `word-${i}`).join(
+      ' ',
+    )
+    const session = {
+      observe: () => ({
+        diff: async () => ({
+          changed: true,
+          text: largeDiff,
+          added: 2001,
+          removed: 0,
+          afterUrl: 'https://example.com/large',
+        }),
+      }),
+      pages: {
+        getInfo: () => ({ url: 'https://example.com/large' }),
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('diff')?.({ page: 1 })
+
+    expect(result?.isError).toBeFalsy()
+    expect(result?.structuredContent).toEqual({
+      added: 2001,
+      removed: 0,
+      truncated: true,
+      wordCount: 2001,
+    })
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('Diff is 2001 words'),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining(
+          'Run snapshot on page 1 for full details',
+        ),
+      }),
+    ])
+    expect(result?.content).toEqual([
+      expect.objectContaining({
+        type: 'text',
+        text: expect.not.stringContaining('word-2000'),
+      }),
+    ])
+  })
+
   it('returns a full snapshot when act readback sees a URL change', async () => {
     const fake = createFakeServer()
     const calls: string[] = []
@@ -348,33 +678,163 @@ describe('registerBrowserTools', () => {
       beforeUrl: 'https://example.com/start',
       afterUrl: 'https://example.com/destination',
     })
-    expect(result?.content).toEqual([
-      expect.objectContaining({
-        type: 'text',
-        text: expect.stringContaining('page URL changed;'),
-      }),
-    ])
-    expect(result?.content).toEqual([
-      expect.objectContaining({
-        type: 'text',
-        text: expect.stringContaining(
-          'returning full current snapshot instead of a diff',
-        ),
-      }),
-    ])
-    expect(result?.content).toEqual([
-      expect.objectContaining({
-        type: 'text',
-        text: expect.stringContaining('[UNTRUSTED_PAGE_CONTENT'),
-      }),
-    ])
-    expect(result?.content).toEqual([
-      expect.objectContaining({
-        type: 'text',
-        text: expect.stringContaining('- heading "Destination"'),
-      }),
-    ])
+    expect(result?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('ok (click)'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('[Page 1 diff]'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('URL changed;'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining(
+            'returning full current snapshot instead of a diff',
+          ),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('[UNTRUSTED_PAGE_CONTENT'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('- heading "Destination"'),
+        }),
+      ]),
+    )
     expect(calls).toEqual(['click'])
+  })
+
+  it('caps large URL-change act readbacks with URL guidance', async () => {
+    const fake = createFakeServer()
+    const largeSnapshot = Array.from(
+      { length: 2001 },
+      (_, i) => `destination-${i}`,
+    ).join(' ')
+    const session = {
+      input: () => ({
+        click: async () => undefined,
+      }),
+      observe: () => ({
+        diff: async () => ({
+          changed: true,
+          text: largeSnapshot,
+          added: 0,
+          removed: 0,
+          urlChanged: true,
+          beforeUrl: 'https://example.com/start',
+          afterUrl: 'https://example.com/destination',
+        }),
+      }),
+      pages: {
+        getInfo: () => ({ url: 'https://example.com/destination' }),
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('act')?.({
+      page: 1,
+      kind: 'click',
+      ref: 'e1',
+    })
+
+    expect(result?.isError).toBeFalsy()
+    expect(result?.structuredContent).toEqual({
+      kind: 'click',
+      changed: true,
+      urlChanged: true,
+      beforeUrl: 'https://example.com/start',
+      afterUrl: 'https://example.com/destination',
+    })
+    expect(result?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('URL changed'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('full current snapshot is 2001 words'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining(
+            'Run snapshot on page 1 for full details',
+          ),
+        }),
+      ]),
+    )
+    expect(result?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'text',
+          text: expect.not.stringContaining('destination-2000'),
+        }),
+      ]),
+    )
+  })
+
+  it('appends diff output after successful act mutations', async () => {
+    const fake = createFakeServer()
+    const calls: string[] = []
+    const session = {
+      input: () => ({
+        click: async () => calls.push('click'),
+      }),
+      observe: () => ({
+        diff: async () => {
+          calls.push('diff')
+          return {
+            changed: true,
+            text: '+   button "Saved" [ref=e1]\n1 added, 0 removed',
+            added: 1,
+            removed: 0,
+            afterUrl: 'https://example.com/current',
+          }
+        },
+      }),
+      pages: {
+        getInfo: () => ({ url: 'https://example.com/current' }),
+      },
+    } as unknown as BrowserSession
+
+    registerBrowserTools(fake.server as never, session)
+
+    const result = await fake.handlers.get('act')?.({
+      page: 1,
+      kind: 'click',
+      ref: 'e1',
+    })
+
+    expect(result?.isError).toBeFalsy()
+    expect(result?.structuredContent).toEqual({
+      kind: 'click',
+      changed: true,
+    })
+    expect(result?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('ok (click)'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('[Page 1 diff]'),
+        }),
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('+   button "Saved" [ref=e1]'),
+        }),
+      ]),
+    )
+    expect(calls).toEqual(['click', 'diff'])
   })
 
   it('caps page-context JavaScript timeouts', async () => {
@@ -398,7 +858,7 @@ describe('registerBrowserTools', () => {
 
     registerBrowserTools(fake.server as never, session)
 
-    const result = await fake.handlers.get('run')?.({
+    const result = await fake.handlers.get('eval')?.({
       page: 3,
       code: 'return true',
       timeout: 120_000,
